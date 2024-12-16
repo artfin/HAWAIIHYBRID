@@ -5,20 +5,18 @@
 #include <cassert>
 #include <vector>
 
-#include <Eigen/Dense>
 #include <gsl/gsl_sf_legendre.h>
 
-class AI_IDS_co2_ar 
+struct AI_IDS_co2_ar 
 {
 public:
 	void init();
-	Eigen::Vector3d dipole_vector(std::vector<double> const& q);
+	void dipole_vector(double R, double Theta, double dip[3]);
 
-private:
     constexpr size_t index(const int l, const int m);
     
-    double dipx(const double R, const double Theta);
-    double dipz(const double R, const double Theta);
+    double dipx(double R, double Theta);
+    double dipz(double R, double Theta);
     
     const int lmax = 10;
 	std::vector<double> LegP;

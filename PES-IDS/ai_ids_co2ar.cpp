@@ -11,18 +11,13 @@ void AI_IDS_co2_ar::init() {
     LegP.resize(sz);
 }
 
-Eigen::Vector3d AI_IDS_co2_ar::dipole_vector(std::vector<double> const& q) {
-    assert(q.size() == 2 && "ERROR: expected 2 coordinates");
-    assert(INITIALIZED && "ERROR: internal memory is not initialized");
-	
-    double cosT = cos(q[1]);
+void AI_IDS_co2_ar::dipole_vector(double R, double Theta, double dip[3]) {
+    double cosT = cos(Theta);
     gsl_sf_legendre_array_e(norm, lmax, cosT, csphase, &LegP[0]);
 
-    return Eigen::Vector3d(
-        dipx(q[0], q[1]), 
-        0.0, 
-        dipz(q[0], q[1])
-    );
+    dip[0] = dipx(R, Theta); 
+    dip[1] = 0.0; 
+    dip[2] = dipz(R, Theta);
 }
 
 double AI_IDS_co2_ar::dipx(double R, double Theta)
