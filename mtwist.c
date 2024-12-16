@@ -205,6 +205,7 @@ static char Rcs_Id[] ATTRIBUTE((used)) =
 
 #include "mtwist.h"
 
+
 /*
  * Table of (non-global) contents:
  */
