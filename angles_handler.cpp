@@ -1,47 +1,47 @@
 #include "angles_handler.hpp"
 
-Eigen::Matrix3d AnglesHandling::SPhi         = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::STheta       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d SPhi         = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d STheta       = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphi1t       = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Stheta1t     = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsi1t       = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::S1           = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphi1t       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Stheta1t     = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsi1t       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d S1           = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphi2t       = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Stheta2t     = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsi2t       = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::S2           = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphi2t       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Stheta2t     = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsi2t       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d S2           = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::SPhi_dot     = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::STheta_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d SPhi_dot     = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d STheta_dot   = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphi1t_dot   = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Stheta1t_dot = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsi1t_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphi1t_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Stheta1t_dot = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsi1t_dot   = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphi2t_dot   = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Stheta2t_dot = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsi2t_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphi2t_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Stheta2t_dot = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsi2t_dot   = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphiem       = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Sthetaem     = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsiem       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphiem       = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sthetaem     = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsiem       = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Matrix3d AnglesHandling::Sphiem_dot   = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Sthetaem_dot = Eigen::Matrix3d::Zero(3, 3);
-Eigen::Matrix3d AnglesHandling::Spsiem_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sphiem_dot   = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Sthetaem_dot = Eigen::Matrix3d::Zero(3, 3);
+Eigen::Matrix3d Spsiem_dot   = Eigen::Matrix3d::Zero(3, 3);
 
-Eigen::Vector3d AnglesHandling::zvec         = Eigen::Vector3d::Unit(3, 2);
-Eigen::Vector3d AnglesHandling::dd           = Eigen::Vector3d::Zero(3, 1);
-Eigen::Vector3d AnglesHandling::dd2          = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d zvec         = Eigen::Vector3d::Unit(3, 2);
+Eigen::Vector3d dd           = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d dd2          = Eigen::Vector3d::Zero(3, 1);
 
-Eigen::Vector3d AnglesHandling::vv1          = Eigen::Vector3d::Zero(3, 1);
-Eigen::Vector3d AnglesHandling::vv2          = Eigen::Vector3d::Zero(3, 1);
-Eigen::Vector3d AnglesHandling::vv1dot       = Eigen::Vector3d::Zero(3, 1);
-Eigen::Vector3d AnglesHandling::vv2dot       = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d vv1          = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d vv2          = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d vv1dot       = Eigen::Vector3d::Zero(3, 1);
+Eigen::Vector3d vv2dot       = Eigen::Vector3d::Zero(3, 1);
 
-void AnglesHandling::Sx_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sx_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = 1.0;
     m(1, 1) = cos_angle; 
     m(1, 2) = sin_angle; 
@@ -49,14 +49,14 @@ void AnglesHandling::Sx_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_a
     m(2, 2) = cos_angle; 
 }
 
-void AnglesHandling::Sx_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sx_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(1, 1) = -sin_angle;
     m(1, 2) = cos_angle; 
     m(2, 1) = -cos_angle;
     m(2, 2) = -sin_angle;
 }
 
-void AnglesHandling::Sz_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sz_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
 
     m(0, 0) = cos_angle; 
     m(0, 1) = sin_angle; 
@@ -65,14 +65,14 @@ void AnglesHandling::Sz_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_a
     m(2, 2) = 1.0;
 }
 
-void AnglesHandling::Sz_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sz_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = -sin_angle;
     m(0, 1) = cos_angle; 
     m(1, 0) = -cos_angle;
     m(1, 1) = -sin_angle;
 }
 
-void AnglesHandling::Sy_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sy_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = cos_angle;
     m(0, 2) = -sin_angle; 
     m(1, 1) = 1.0;
@@ -80,7 +80,7 @@ void AnglesHandling::Sy_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_a
     m(2, 2) = cos_angle;
 }
 
-void AnglesHandling::Sy_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sy_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = -sin_angle;
     m(0, 2) = -cos_angle;
     m(2, 0) = cos_angle;
@@ -91,7 +91,7 @@ void AnglesHandling::Sy_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double s
  * This definition of Y-rotation matrix is usually used in quantum mechanical considerations.
  * For example, the basis functions for CH4-N2/CH4-CO2 surfaces utilize this Y-rotation matrix.
  */
-void AnglesHandling::Sy_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sy_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = cos_angle;
     m(0, 2) = sin_angle; 
     m(1, 1) = 1.0;
@@ -99,14 +99,14 @@ void AnglesHandling::Sy_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const
     m(2, 2) = cos_angle;
 }
 
-void AnglesHandling::Sy_dot_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
+void Sy_dot_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = -sin_angle;
     m(0, 2) = cos_angle;
     m(2, 0) = -cos_angle;
     m(2, 2) = -sin_angle;
 }
 
-void AnglesHandling::linear_molecule_atom_lab_to_mol(double *qlab, double *qmol)
+void linear_molecule_atom_lab_to_mol(double *qlab, double *qmol)
 /*
  *  qlab: PHI THETA R PHI1T THETA1T - 
  *  qmol: R PHIEM THETAEM PSIEM THETAM
@@ -140,7 +140,7 @@ void AnglesHandling::linear_molecule_atom_lab_to_mol(double *qlab, double *qmol)
     qmol[3] = std::atan2(dd(1) / sin_thetam, dd(0) / sin_thetam);
 }
 
-void AnglesHandling::linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol)
+void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol)
 /*
  *  qlab: R PHI THETA PHI1T THETA1T
  *  qmol: R PHIEM THETAEM PSIEM THETAM
@@ -190,7 +190,7 @@ void AnglesHandling::linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::Ma
     jac(2, 2) = 1.0;
 }
 
-void AnglesHandling::linear_molecule_linear_molecule_lab_to_mol(std::vector<double> const& qlab, std::vector<double> & qmol)
+void linear_molecule_linear_molecule_lab_to_mol(std::vector<double> const& qlab, std::vector<double> & qmol)
 /* 
  * qlab:
  *     R PHI THETA
@@ -251,7 +251,7 @@ void AnglesHandling::linear_molecule_linear_molecule_lab_to_mol(std::vector<doub
     qmol[4] = std::atan2(dd(1) / sintheta1m, dd(0) / sintheta1m); 
 }
 
-void AnglesHandling::linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol)
+void linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol)
 /* 
  * qlab:
  *     R PHI THETA
@@ -352,7 +352,7 @@ void AnglesHandling::linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Re
  * CH4-N2 and CH4-CO2 PES & IDS utilize different orientation of CH4 compared to Y. Kalugina works. So be careful with this. Suffix 'kal' just points to
  * the fact that this frame of reference is just centered on CH4. 
  */
-void AnglesHandling::CH4_linear_molecule_lab_to_kal(std::vector<double> const& qlab, std::vector<double> & qkal)
+void CH4_linear_molecule_lab_to_kal(std::vector<double> const& qlab, std::vector<double> & qkal)
 /* 
  * qlab:
  *     R PHI THETA
@@ -416,7 +416,7 @@ void AnglesHandling::CH4_linear_molecule_lab_to_kal(std::vector<double> const& q
     qkal[3] = std::atan2(sinphi2k, cosphi2k); 
 }
 
-void AnglesHandling::CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qkal)
+void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qkal)
  /*
   * Матрица упорядочена по столбцам 
   *          d(R)        d(phi1K)    d(theta1K)    d(phi2K)    d(theta2K)
