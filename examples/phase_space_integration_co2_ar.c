@@ -22,9 +22,8 @@ void dpes(double *q, double *dq) {
 
 #define QP_SIZE 10
 
-double pesmin = -195.6337098547 / HTOCM; 
 
-void dipole(double *q, double diplab[3]) {
+void dipole_lab(double *q, double diplab[3]) {
     double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
     
@@ -50,30 +49,81 @@ void dipole(double *q, double diplab[3]) {
     diplab[1] = diplab_eig(1); 
     diplab[2] = diplab_eig(2); 
 }
+    
+int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
+    if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
+        printf("ASSERTION PASSED:\n");
+        printf("Estimate lies within expected bounds from true value!\n"); 
+        return 0; 
+    } else {
+        fprintf(stderr, "ASSERTION FAILED:\n");
+        fprintf(stderr, "ERROR: Estimate lies outside expected bounds from true value!\n");
+        fprintf(stderr, "Expected bounds: %.5e...%.5e and received %.5e\n", true_value - abs_tolerance, true_value + abs_tolerance, estimate);
+        return 1; 
+    }
+}
 
 int main()
 {
-    uint32_t seed = mt_goodseed();
+    uint32_t seed = 42; // mt_goodseed();
     co2_ar_pes.init();
     co2_ar_ids.init();
+
+    dipole = dipole_lab;
 
     double MU = m_CO2 * m_Ar / (m_CO2 + m_Ar); 
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
+
+    /*
+    Array qp = create_array(10);
+
+    double data[] = {
+    1.152554764117217e+00,
+    -1.719343481583501e+02,
+    9.771562776988298e-01,
+    -1.976861302900328e+02,
+    3.708364107445433e+01,
+    -5.698035431808239e-01,
+    3.750120165827573e+00,
+    -7.852783097387081e+00,
+    1.679343847510114e+00,
+    -6.746504563733579e+00,
+    };
+
+    init_array(&qp, data, 10);
+    
+    fill_qp(&ms, qp);
+    double H = Hamiltonian(&ms);
+
+    printf("H = %.15lf\n", H);
+    free_array(&qp);
+    */
+    
+
     CalcParams params = {};
     params.ps = FREE_AND_METASTABLE;
     params.sampler_Rmin = 4.5;
     params.sampler_Rmax = 40.0;
-    params.initialM0_npoints = 3000000;
+    params.initialM0_npoints = 10000000;
+    params.partial_partition_function_ratio = 1.0;
+    params.pesmin = -195.6337098547 / HTOCM; 
     
     double T = 300.0;
-    double result = calculate_M0(&ms, &params, T); 
 
-    printf("result = %.10lf\n", result);
+    double M0, M0_std;
+    calculate_M0(&ms, &params, T, &M0, &M0_std); 
+
+    printf("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
+    printf("Error: %.3f%%\n", M0_std/M0 * 100.0);
+
+    if (assert_float_is_equal_to(M0, 1.360e-09, 1e-12) > 0) {
+        exit(1);
+    }
+
 
     free_ms(&ms);
-    free_array(&qp);
 
     return 0;
 }
