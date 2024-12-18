@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "array.h"
+#include "hawaii.h"
 
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
@@ -14,7 +15,11 @@
 #include <cvode/cvode_direct.h>
 #include <sundials/sundials_types.h>
 
-int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
+extern int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct
 {
@@ -28,11 +33,7 @@ typedef struct
     void * cvode_mem   ;
 } Trajectory;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-Trajectory init_trajectory(size_t DIM, double reltol);
+Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 
 void free_trajectory(Trajectory *t);
 
 int make_step(Trajectory *traj, double tout, double *t);

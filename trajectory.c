@@ -1,50 +1,58 @@
 #include "trajectory.h"
 
-Trajectory init_trajectory(size_t DIM, double reltol) 
+Trajectory init_trajectory(MoleculeSystem *ms, double reltol) 
 {
-    Trajectory t = {0};
+    Trajectory traj = {0};
     
-    t.mxsteps = 50000;
-    t.reltol = (realtype) reltol;
+    traj.mxsteps = 50000;
+    traj.reltol = (realtype) reltol;
 
-    t.DIM = DIM;
-    t.y = make_vector(DIM);
-    t.abstol = make_vector(DIM);
+    traj.DIM = ms->QP_SIZE;
+    traj.y = make_vector(ms->QP_SIZE);
+    traj.abstol = make_vector(ms->QP_SIZE);
 
     // allocate solver memory and use Backward Differentiation formula
-    t.cvode_mem = CVodeCreate(CV_BDF);
-    assert(t.cvode_mem != NULL);
+    traj.cvode_mem = CVodeCreate(CV_BDF);
+    assert(traj.cvode_mem != NULL);
 
     int flag;
 
     // initialize the integrator memory and specify the right-hand side function, 
     // the initial time t0, and the initial dependent variable vector
-    flag = CVodeInit(t.cvode_mem, rhs, 0.0 /* initial time */, t.y);
+    flag = CVodeInit(traj.cvode_mem, rhs, 0.0 /* initial time */, traj.y);
     if (flag < 0) {
-        fprintf(stderr, "ERROR: CVodeInit -- unrecoverable error\n"); 
+        fprintf(stderr, "SUNDIALS ERROR: CVodeInit -- unrecoverable error\n"); 
         exit(1);
     }
 
-    t.A = SUNDenseMatrix(DIM, DIM);
-    assert(t.A != NULL); 
+    traj.A = SUNDenseMatrix(ms->QP_SIZE, ms->QP_SIZE);
+    assert(traj.A != NULL); 
 
-    t.LS = SUNDenseLinearSolver(t.y, t.A);
-    assert(t.LS != NULL);
+    traj.LS = SUNDenseLinearSolver(traj.y, traj.A);
+    assert(traj.LS != NULL);
 
-    flag = CVDlsSetLinearSolver(t.cvode_mem, t.LS, t.A);
+    flag = CVDlsSetLinearSolver(traj.cvode_mem, traj.LS, traj.A);
     if (flag < 0) {
-        fprintf(stderr, "ERROR: CVDlsSetLinearSolver -- unrecoverable error\n"); 
+        fprintf(stderr, "SUNDIALS ERROR: CVDlsSetLinearSolver -- unrecoverable error\n"); 
         exit(1);
     }
 
-    set_tolerance(&t, reltol);
+    set_tolerance(&traj, reltol);
     
     // number of internal steps before tout; default is 500
-    CVodeSetMaxNumSteps(t.cvode_mem, t.mxsteps);
+    CVodeSetMaxNumSteps(traj.cvode_mem, traj.mxsteps);
 
     // the function specifies the maximum number of messages issued by the solver warning that t + h = t on the next internal step
     // default value is 10. A negative value for mxhnil indicates that no warning messages should be issued 
-    CVodeSetMaxHnilWarns(t.cvode_mem, -1);
+    CVodeSetMaxHnilWarns(traj.cvode_mem, -1);
+
+    flag = CVodeSetUserData(traj.cvode_mem, (void*) ms);
+    if (flag < 0) {
+        fprintf(stderr, "SUNDIALS ERROR: CVodeSetUserData -- unrecoverable error\n");
+        exit(1);
+    }
+
+    return traj;
 }
 
 void free_trajectory(Trajectory *t)
@@ -52,9 +60,10 @@ void free_trajectory(Trajectory *t)
     N_VDestroy(t->y);
     N_VDestroy(t->abstol);
 
-    CVodeFree(&t->cvode_mem);
     SUNLinSolFree(t->LS);
     SUNMatDestroy(t->A);
+
+    CVodeFree(&t->cvode_mem);
 }
 
 
