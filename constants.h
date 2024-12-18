@@ -7,6 +7,8 @@
 #define HkT        (Hartree/Boltzmann)                         // to use as:  -V[a.u.]*`HkT`/T
 #define VkT        (HkT / HTOCM)                               // to use as:  -V[cm-1]*`VkT`/T
 
+#define ZeroCoeff  (0.00361479637/(4.0*M_PI))
+
 #define RAMTOAMU 1822.888485332
     
 #define m_C  12.000000000000 * RAMTOAMU
