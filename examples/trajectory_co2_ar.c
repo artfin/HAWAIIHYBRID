@@ -8,15 +8,16 @@
 static AI_PES_co2_ar co2_ar_pes;
 
 double pes(double *q) {
+    return 0.0;
     double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
     return co2_ar_pes.pes(qmol[0], qmol[4]);
 } 
 
 void dpes(double *q, double *dq) {
+    memset(dq, 0.0, 10 * sizeof(double)); 
     UNUSED(q);
-    UNUSED(dq);
-    TODO("dpes");
+    // TODO("dpes");
 }
 
 
@@ -39,9 +40,9 @@ int main()
     fill_qp(&ms, qp);
 
     double reltol = 1e-15;
-    Trajectory traj = init_trajectory(ms.QP_SIZE, reltol);
+    Trajectory traj = init_trajectory(&ms, reltol);
    
-    set_initial_condition(&traj, qp); 
+    set_initial_condition(&traj, qp);
 
     CalcParams params = {};
     params.sampling_time = 200.0; 
@@ -59,14 +60,14 @@ int main()
             exit(1);
         }
         
-        //fill_qp()
-        //std::copy(vdata_y, vdata_y + ms.QP_SIZE, qp_t.begin());
-        //double E = ms.Hamiltonian(qp_t);
+        init_array(&qp, N_VGetArrayPointer(traj.y), ms.QP_SIZE);
+        fill_qp(&ms, qp);
+        double E = Hamiltonian(&ms);
     
-        printf("%.1lf %.10lf\n", t, NV_Ith_S(traj.y, IR)); 
+        printf("%.1lf %.10lf %.10lf\n", t, NV_Ith_S(traj.y, IR), E); 
     }
 
-    free_trajectory(&traj);
+    // free_trajectory(&traj);
 
     return 0;
 }

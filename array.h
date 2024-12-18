@@ -16,9 +16,11 @@ extern "C" {
 #endif
 
 Array create_array(size_t n);
-void init_array(Array *a, double *data, size_t n);
-void print_array(Array a);
 void free_array(Array *a);
+
+void init_array(Array *a, double *data, size_t n);
+
+void print_array(Array a);
 
 #ifdef __cplusplus
 }
