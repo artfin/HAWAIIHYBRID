@@ -60,13 +60,6 @@ void free_ms(MoleculeSystem *ms) {
 // перед расчетом корреляционной функции делать прикидку M0/M2
 // после окончания расчета выписывать оценки M0/M2 по рассчитанной корреляционной функции
 
-void rhsMonomer(Monomer m, double *d) {
-    UNUSED(d);
-    if (m.t == ATOM) return;
-    TODO("rhsMonomer"); 
-}
-
-
 void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
     for (size_t k = 0; k < QP_SIZE; k += 2) {
         qp[k + 1] = q[k / 2];
@@ -79,10 +72,37 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
     }
 }
 
+void rhsMonomer(Monomer m, double *d) {
+    UNUSED(d);
+
+    switch (m.t) {
+        case ATOM: break;
+        case LINEAR_MOLECULE: {
+           double pPhi = m.qp[IPPHI];
+           double Theta = m.qp[ITHETA];
+           double pTheta = m.qp[IPTHETA];
+
+           double sin_theta = sin(Theta);
+           double cos_theta = cos(Theta);
+
+           d[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta; // phidot
+           d[IPPHI]   = 0.0; // pPhi_dot
+           d[ITHETA]  = pTheta / m.I[0]; // thetadot
+           d[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; // pthetadot
+           
+           break;                                                    
+        }
+        case ROTOR: {
+          TODO("rhsMonomer");
+        }
+    } 
+}
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 {
     UNUSED(t);
+
+    assert(data != NULL); 
     MoleculeSystem *ms = (MoleculeSystem*) data;
   
     double Phi    = NV_Ith_S(y, IPHI); UNUSED(Phi);
@@ -297,8 +317,8 @@ void p_generator(MoleculeSystem *ms, double Temperature)
     double sqrt_MUKT = sqrt(ms->mu / HkT * Temperature);
     double sinTheta = sin(ms->intermolecular_qp[ITHETA]);
 
+    // NOTE: only 3 x-values are generated; the x-values for monomers are generated in the corresponding p_generator_... functions 
     for (size_t i = 0; i < 3; ++i) { 
-        // NOTE: only 3 x-values are generated; the x-values for monomers are generated in the corresponding p_generator_... functions 
         ms->intermediate_q[i] = generate_normal(1.0);
     }
 

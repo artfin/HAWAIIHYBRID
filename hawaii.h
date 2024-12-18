@@ -136,6 +136,9 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
+/* ------------------------------
+ * User-Supplied Functions
+ * ------------------------------ */
 typedef void (*dipolePtr)(double *q, double dip[3]);
 extern dipolePtr dipole;
 
