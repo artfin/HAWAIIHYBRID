@@ -83,9 +83,11 @@ typedef struct {
     /* sampling */
     double sampler_Rmin;
     double sampler_Rmax;
+    double pesmin;
     /* initial spectral moments check */ 
     size_t initialM0_npoints;
-    
+    double partial_partition_function_ratio;
+
     double sampling_time;
     double R0; // initial distance for pr/mu calculation 
     double Rcut;
@@ -108,23 +110,14 @@ typedef enum {
     MCMC
 } SamplingType;
 
-typedef struct {
-    double *data;
-    size_t n;
-} Array;
+#include "array.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern double pesmin;
+
 extern double pes(double *q);
 extern void dpes(double *q, double *dVdq);
-extern void dipole(double *q, double dip[3]);
-
-Array create_array(size_t n);
-void init_array(Array *a, double *data, size_t n);
-void print_array(Array a);
-void free_array(Array *a);
 
 void fill_qp(MoleculeSystem *ms, Array qp);
 
@@ -136,13 +129,18 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
 double kinetic_energy(MoleculeSystem *ms);
 double Hamiltonian(MoleculeSystem *ms);
 
-double calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature);
 
 double generate_normal(double sigma); 
 
 void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
-bool reject(MoleculeSystem *ms, double Temperature);
+bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
+
+typedef void (*dipolePtr)(double *q, double dip[3]);
+extern dipolePtr dipole;
+
+//extern void dipole(double *q, double dip[3]);
+void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
 #ifdef __cplusplus
 }

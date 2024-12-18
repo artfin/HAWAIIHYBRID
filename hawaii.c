@@ -1,22 +1,6 @@
 #include "hawaii.h"
 
-Array create_array(size_t n) {
-    Array a = {0};
-    a.data = (double*) malloc(n * sizeof(double));
-    assert(a.data != NULL);
-    a.n = n; 
-    return a;
-}
-
-void init_array(Array *a, double *data, size_t n) {
-    assert(a->data != NULL);
-    assert(a->n >= n);
-    memcpy(a->data, data, n * sizeof(double));
-}
-
-void free_array(Array *a) {
-    free(a->data);
-}
+dipolePtr dipole = NULL;
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed) 
 {
@@ -49,8 +33,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     } 
     ms.m2.qp = malloc(t2 * sizeof(double));
     
-    ms.Q_SIZE = t1 + t2 + 3; 
-    ms.QP_SIZE = 2 * ms.Q_SIZE; 
+    ms.Q_SIZE = ms.QP_SIZE / 2;
+    ms.QP_SIZE = t1 + t2 + 6; 
 
     ms.dVdq_qp = N_VNew_Serial(ms.QP_SIZE);
 
@@ -170,7 +154,7 @@ double kinetic_energy(MoleculeSystem *ms) {
           double ptheta1t = ms->m1.qp[IPTHETA];
           
           double sin_theta1t = sin(theta1t);
-    
+           
           KIN2 = ptheta1t * ptheta1t / (2.0 * ms->m1.I[0]) + pphi1t * pphi1t / (2.0 * ms->m1.I[1] * sin_theta1t * sin_theta1t);
           break;
         }
@@ -197,6 +181,7 @@ double kinetic_energy(MoleculeSystem *ms) {
         }
     }
 
+
     return KIN1 + KIN2 + KIN3;
 }
 
@@ -210,14 +195,6 @@ void fill_qp(MoleculeSystem *ms, Array qp)
     memcpy(ms->intermolecular_qp, qp.data, 6*sizeof(double));
     memcpy(ms->m1.qp, qp.data + 6, ms->m1.t*sizeof(double));
     memcpy(ms->m2.qp, qp.data + 6 + ms->m1.t, ms->m2.t*sizeof(double));
-}
-
-void print_array(Array a) {
-    printf("Array[%zu] = ", a.n); 
-    for (size_t i = 0; i < a.n; ++i) {
-        printf("%.3f ", a.data[i]);
-    }
-    printf("\n"); 
 }
 
 void extract_q_and_write_into_ms(MoleculeSystem *ms) {
@@ -286,8 +263,8 @@ static void p_generator_linear_molecule(Monomer *m, double Temperature)
     double x1 = generate_normal(1.0);
 
     assert(m->I[0] == m->I[1]);
-    m->qp[IPPHI]   = sqrt_IIKT * sin_theta * x0;
-    m->qp[IPTHETA] = sqrt_IIKT * x1;
+    m->qp[IPPHI]   = sqrt_IIKT * sin_theta * x1;
+    m->qp[IPTHETA] = sqrt_IIKT * x0;
 }
 
 static void p_generator_rotor(Monomer *m, double Temperature)
@@ -343,7 +320,7 @@ void p_generator(MoleculeSystem *ms, double Temperature)
     }    
 }
 
-bool reject(MoleculeSystem *ms, double Temperature)
+bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
 {
     static double PRECAUTION_FACTOR = 1.5;
 
@@ -359,14 +336,26 @@ bool reject(MoleculeSystem *ms, double Temperature)
     return weight < u;
 }
 
-double calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature)
+void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+// Running mean/variance formulates taken from GSL 1.15
+// https://github.com/ampl/gsl/blob/master/monte/plain.c 
 {
     size_t counter = 0;
     size_t desired_dist = 0;
     size_t integral_counter = 0;
 
     double d[3];
-    double result = 0.0;
+    double fval;
+
+    *m = 0.0;
+    *q = 0.0;
+
+    size_t print_every_nth_iteration = 1;
+    switch (params->ps) {
+        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case BOUND: print_every_nth_iteration = 1000; break;
+    } 
+    
 
     while (integral_counter < params->initialM0_npoints) {
         q_generator(ms, params);
@@ -375,7 +364,7 @@ double calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature)
         double energy = Hamiltonian(ms);
         ++counter;
 
-        if (!reject(ms, Temperature)) {
+        if (!reject(ms, Temperature, params->pesmin)) {
             ++desired_dist;
 
             if (params->ps == FREE_AND_METASTABLE) {
@@ -386,18 +375,24 @@ double calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature)
                 if (energy > 0.0) continue;
             }
     
-            printf("integral_counter = %zu, energy = %.5lf\n", integral_counter, energy);
-
             extract_q_and_write_into_ms(ms);
-            dipole(ms->intermediate_q, d);
+            (*dipole)(ms->intermediate_q, d);
             
             // TODO: use running mean
-            result = result + d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+            fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
+            double diff = fval - *m;
+            *m += diff / (integral_counter + 1.0);
+            *q += diff * diff * (integral_counter / (integral_counter + 1.0));
             integral_counter++;
+
+            if (integral_counter % print_every_nth_iteration == 0) {
+                printf("[calculate_M0] accumulated %zu points\n", integral_counter);
+            }
         }
     } 
-   
-    return result / integral_counter;
+    
+    *m = *m * ZeroCoeff * params->partial_partition_function_ratio;
+    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
 }
 
 
