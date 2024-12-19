@@ -32,6 +32,7 @@ void sincos(double, double*, double*);
 
 #include "constants.h"
 
+
 #define IPHI    0
 #define IPPHI   1
 #define ITHETA  2
@@ -116,21 +117,29 @@ typedef enum {
 extern "C" {
 #endif
 
+/* ----------------------------- */
+/*    User-Supplied Functions    */
+/* ------------------------------*/
+typedef void (*dipolePtr)(double *q, double dip[3]);
+extern dipolePtr dipole;
+
 extern double pes(double *q);
 extern void dpes(double *q, double *dVdq);
-
-void fill_qp(MoleculeSystem *ms, Array qp);
+/* ------------------------------*/
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed); 
 void free_ms(MoleculeSystem *ms);
 
 const char* monomer_type_name(MonomerType t);
 
+void put_qp_into_ms(MoleculeSystem *ms, Array qp);
+void get_qp_from_ms(MoleculeSystem *ms, Array *qp);
+
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
+Array compute_numerical_rhs(MoleculeSystem *ms); 
 
 double kinetic_energy(MoleculeSystem *ms);
 double Hamiltonian(MoleculeSystem *ms);
-
 
 double generate_normal(double sigma); 
 
@@ -138,19 +147,12 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
-/* ------------------------------
- * User-Supplied Functions
- * ------------------------------ */
-typedef void (*dipolePtr)(double *q, double dip[3]);
-extern dipolePtr dipole;
-
-//extern void dipole(double *q, double dip[3]);
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+
+int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 
 #ifdef __cplusplus
 }
 #endif
-
-
 
 #endif // HAWAII_H_

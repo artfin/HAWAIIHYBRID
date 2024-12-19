@@ -49,7 +49,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     printf("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
     printf("Reduced mass of the molecule system: %.6e\n", mu);
 
-    printf("Inertia tensor [%s]: ", monomer_type_name(t1));
+    printf("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
     switch (t1) {
         case ATOM: printf("\n"); break;
         case LINEAR_MOLECULE: printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
@@ -57,7 +57,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         default: UNREACHABLE("");
     }
     
-    printf("Inertia tensor [%s]: ", monomer_type_name(t2));
+    printf("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
     switch (t2) {
         case ATOM: printf("\n"); break;
         case LINEAR_MOLECULE: printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
@@ -193,6 +193,48 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     return 0;
 }
 
+Array compute_numerical_rhs(MoleculeSystem *ms) 
+{
+    Array derivatives = create_array(ms->QP_SIZE);
+    Array qp = create_array(ms->QP_SIZE);
+   
+    double step = 1e-7;
+
+    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+        get_qp_from_ms(ms, &qp);
+
+        if (i % 2 == 0) {
+            double c = qp.data[i + 1];
+
+            qp.data[i + 1] = c + step;
+            put_qp_into_ms(ms, qp);
+            double Ep = Hamiltonian(ms);
+            
+            qp.data[i + 1] = c - step;
+            put_qp_into_ms(ms, qp);
+            double Em = Hamiltonian(ms);
+            
+            derivatives.data[i] = (Ep - Em)/(2.0*step);
+        } else {
+            double c = qp.data[i - 1];
+
+            qp.data[i - 1] = c + step;
+            put_qp_into_ms(ms, qp);
+            double Ep = Hamiltonian(ms);
+
+            qp.data[i - 1] = c - step;
+            put_qp_into_ms(ms, qp);
+            double Em = Hamiltonian(ms);
+
+            derivatives.data[i] = -(Ep - Em) / (2.0*step);
+        }
+    }
+
+    free_array(&qp);
+
+    return derivatives;
+}
+
 double kinetic_energy(MoleculeSystem *ms) {
     double Phi = ms->intermolecular_qp[IPHI]; UNUSED(Phi);
     double pPhi = ms->intermolecular_qp[IPPHI];
@@ -247,7 +289,7 @@ double kinetic_energy(MoleculeSystem *ms) {
     return KIN1 + KIN2 + KIN3;
 }
 
-void fill_qp(MoleculeSystem *ms, Array qp)
+void put_qp_into_ms(MoleculeSystem *ms, Array qp)
 // NOTE:
 // PHI PPHI THETA PTHETA R PR 
 // for monomers in the same order
@@ -257,6 +299,14 @@ void fill_qp(MoleculeSystem *ms, Array qp)
     memcpy(ms->intermolecular_qp, qp.data, 6*sizeof(double));
     memcpy(ms->m1.qp, qp.data + 6, ms->m1.t*sizeof(double));
     memcpy(ms->m2.qp, qp.data + 6 + ms->m1.t, ms->m2.t*sizeof(double));
+}
+
+void get_qp_from_ms(MoleculeSystem *ms, Array *qp) {
+    assert(qp->n == ms->QP_SIZE);
+
+    memcpy(qp->data,                ms->intermolecular_qp, 6*sizeof(double));
+    memcpy(qp->data + 6,            ms->m1.qp,             ms->m1.t*sizeof(double));
+    memcpy(qp->data + 6 + ms->m1.t, ms->m2.qp,             ms->m2.t*sizeof(double));
 }
 
 void extract_q_and_write_into_ms(MoleculeSystem *ms) {
@@ -399,7 +449,7 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
 }
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
-// Running mean/variance formulates taken from GSL 1.15
+// Running mean/variance formulas taken from GSL 1.15
 // https://github.com/ampl/gsl/blob/master/monte/plain.c 
 {
     size_t counter = 0;
@@ -457,7 +507,18 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
 }
 
+int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
+    if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
+        printf("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
+        return 0; 
+    } else {
+        fprintf(stderr, "\033[31mASSERTION FAILED:\033[0m\n");
+        fprintf(stderr, "ERROR: Estimate lies outside expected bounds from true value!\n");
+        fprintf(stderr, "Expected bounds: %.5e...%.5e and received %.5e\n", true_value - abs_tolerance, true_value + abs_tolerance, estimate);
+        return 1; 
+    }
 
-
+    UNREACHABLE("");
+}
 
 

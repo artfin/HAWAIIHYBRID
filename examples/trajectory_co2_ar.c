@@ -21,6 +21,31 @@ void dpes(double *q, double *dq) {
     // TODO("dpes");
 }
 
+void test_rhs(MoleculeSystem *ms, Array qp)
+{
+    N_Vector y    = make_vector(ms->QP_SIZE);
+    N_Vector ydot = make_vector(ms->QP_SIZE);
+
+    memcpy(N_VGetArrayPointer(y), qp.data, qp.n * sizeof(double));
+    rhs(0.0, y, ydot, (void*) ms);    
+
+    Array num_derivatives = compute_numerical_rhs(ms);
+
+    printf("# \t analytic \t numeric \t difference \n");
+    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+        printf("%zu: %.10e \t %.10e \t %.10e\n", i, NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
+
+        if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-9) > 0) {
+            exit(1);
+        }
+    }
+    printf("-----------------------------------------");
+   
+    free_array(&num_derivatives); 
+    N_VDestroy(y);
+    N_VDestroy(ydot);
+}
+
 
 int main()
 {
@@ -33,11 +58,11 @@ int main()
     co2_ar_pes.init();
 
     Array qp = create_array(ms.QP_SIZE);
-    double data[] = {7.0, 8.0, 9.0, 10.0, 5.0, 6.0, 11.0, 12.0, 13.0, 14.0};
+    double data[] = {7.0, 8.0, 9.0, 10.0, -2.0, 6.0, 11.0, 12.0, 13.0, 14.0};
     init_array(&qp, data, ms.QP_SIZE);
-    print_array(qp);
+    put_qp_into_ms(&ms, qp);
 
-    fill_qp(&ms, qp);
+    test_rhs(&ms, qp);
 
     double reltol = 1e-12;
     Trajectory traj = init_trajectory(&ms, reltol);
@@ -61,7 +86,7 @@ int main()
         }
         
         init_array(&qp, N_VGetArrayPointer(traj.y), ms.QP_SIZE);
-        fill_qp(&ms, qp);
+        put_qp_into_ms(&ms, qp);
         double E = Hamiltonian(&ms);
     
         printf("%.1lf %.10lf %.10lf\n", t, NV_Ith_S(traj.y, IR), E); 

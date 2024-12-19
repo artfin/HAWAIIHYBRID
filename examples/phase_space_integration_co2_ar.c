@@ -49,19 +49,6 @@ void dipole_lab(double *q, double diplab[3]) {
     diplab[1] = diplab_eig(1); 
     diplab[2] = diplab_eig(2); 
 }
-    
-int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
-    if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
-        printf("ASSERTION PASSED:\n");
-        printf("Estimate lies within expected bounds from true value!\n"); 
-        return 0; 
-    } else {
-        fprintf(stderr, "ASSERTION FAILED:\n");
-        fprintf(stderr, "ERROR: Estimate lies outside expected bounds from true value!\n");
-        fprintf(stderr, "Expected bounds: %.5e...%.5e and received %.5e\n", true_value - abs_tolerance, true_value + abs_tolerance, estimate);
-        return 1; 
-    }
-}
 
 int main()
 {
