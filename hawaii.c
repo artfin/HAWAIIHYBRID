@@ -108,7 +108,7 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
     }
 }
 
-void rhsMonomer(Monomer m, double *d) {
+void rhsMonomer(Monomer m, double *deriv) {
     switch (m.t) {
         case ATOM: break;
         case LINEAR_MOLECULE: {
@@ -119,10 +119,10 @@ void rhsMonomer(Monomer m, double *d) {
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           d[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
-           d[IPPHI]   = 0.0;
-           d[ITHETA]  = pTheta / m.I[0]; 
-           d[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
+           deriv[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
+           deriv[IPPHI]   = 0.0;
+           deriv[ITHETA]  = pTheta / m.I[0]; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
            
            break;                                                    
         }
@@ -138,13 +138,14 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 
     assert(data != NULL); 
     MoleculeSystem *ms = (MoleculeSystem*) data;
-  
-    double Phi    = NV_Ith_S(y, IPHI); UNUSED(Phi);
-    double pPhi   = NV_Ith_S(y, IPPHI);
-    double Theta  = NV_Ith_S(y, ITHETA);
-    double pTheta = NV_Ith_S(y, IPTHETA);
-    double R      = NV_Ith_S(y, IR);
-    double pR     = NV_Ith_S(y, IPR);
+    put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(y), .n = ms->QP_SIZE});
+    
+    double Phi    = ms->intermolecular_qp[IPHI]; UNUSED(Phi);
+    double pPhi   = ms->intermolecular_qp[IPPHI];
+    double Theta  = ms->intermolecular_qp[ITHETA];
+    double pTheta = ms->intermolecular_qp[IPTHETA];
+    double R      = ms->intermolecular_qp[IR];
+    double pR     = ms->intermolecular_qp[IPR];
 
     double R2 = R * R;
     double R3 = R2 * R;

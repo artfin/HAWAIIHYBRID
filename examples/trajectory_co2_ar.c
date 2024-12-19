@@ -16,13 +16,16 @@ double pes(double *q) {
 } 
 
 void dpes(double *q, double *dq) {
-    memset(dq, 0.0, 10 * sizeof(double)); 
+    memset(dq, 0.0, 10 * sizeof(double));
+
     UNUSED(q);
     // TODO("dpes");
 }
 
 void test_rhs(MoleculeSystem *ms, Array qp)
 {
+    put_qp_into_ms(ms, qp);
+
     N_Vector y    = make_vector(ms->QP_SIZE);
     N_Vector ydot = make_vector(ms->QP_SIZE);
 
@@ -39,8 +42,10 @@ void test_rhs(MoleculeSystem *ms, Array qp)
             exit(1);
         }
     }
-    printf("-----------------------------------------");
-   
+    printf("-----------------------------------------\n\n\n");
+    
+    put_qp_into_ms(ms, qp);
+    
     free_array(&num_derivatives); 
     N_VDestroy(y);
     N_VDestroy(ydot);
@@ -58,16 +63,18 @@ int main()
     co2_ar_pes.init();
 
     Array qp = create_array(ms.QP_SIZE);
-    double data[] = {7.0, 8.0, 9.0, 10.0, -2.0, 6.0, 11.0, 12.0, 13.0, 14.0};
+    double data[] = {7.0, 8.0, 9.0, 10.0, 5.0, 6.0, 11.0, 12.0, 13.0, 14.0};
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
 
     test_rhs(&ms, qp);
 
-    double reltol = 1e-12;
-    Trajectory traj = init_trajectory(&ms, reltol);
+    double tolerance = 1e-15;
+    Trajectory traj = init_trajectory(&ms, tolerance);
    
+    double E0 = Hamiltonian(&ms);
     set_initial_condition(&traj, qp);
+    print_array(qp);
 
     CalcParams params = {};
     params.sampling_time = 200.0; 
@@ -85,11 +92,8 @@ int main()
             exit(1);
         }
         
-        init_array(&qp, N_VGetArrayPointer(traj.y), ms.QP_SIZE);
-        put_qp_into_ms(&ms, qp);
         double E = Hamiltonian(&ms);
-    
-        printf("%.1lf %.10lf %.10lf\n", t, NV_Ith_S(traj.y, IR), E); 
+        printf("%.1lf \t %.10lf \t %.15lf\n", t, NV_Ith_S(traj.y, IR), E-E0); 
     }
 
     free_trajectory(&traj);
