@@ -76,6 +76,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
 void free_ms(MoleculeSystem *ms) {
     free(ms->m1.qp); 
     free(ms->m2.qp);
+
     free(ms->intermediate_q);
     free(ms->dVdq);
 

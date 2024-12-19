@@ -25,12 +25,12 @@ typedef struct
 {
     size_t DIM;
     size_t mxsteps;
-    N_Vector y         ;
-    N_Vector abstol    ;
-    realtype reltol    ; 
-    SUNMatrix A        ;
-    SUNLinearSolver LS ;
-    void * cvode_mem   ;
+    N_Vector y;
+    N_Vector abstol;
+    realtype reltol; 
+    SUNMatrix A;
+    SUNLinearSolver LS;
+    void * cvode_mem;
 } Trajectory;
 
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 

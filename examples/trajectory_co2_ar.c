@@ -9,6 +9,7 @@ static AI_PES_co2_ar co2_ar_pes;
 
 double pes(double *q) {
     return 0.0;
+
     double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
     return co2_ar_pes.pes(qmol[0], qmol[4]);
@@ -31,7 +32,6 @@ int main()
 
     co2_ar_pes.init();
 
-    printf("QP_SIZE = %zu\n", ms.QP_SIZE);
     Array qp = create_array(ms.QP_SIZE);
     double data[] = {7.0, 8.0, 9.0, 10.0, 5.0, 6.0, 11.0, 12.0, 13.0, 14.0};
     init_array(&qp, data, ms.QP_SIZE);
@@ -39,7 +39,7 @@ int main()
 
     fill_qp(&ms, qp);
 
-    double reltol = 1e-15;
+    double reltol = 1e-12;
     Trajectory traj = init_trajectory(&ms, reltol);
    
     set_initial_condition(&traj, qp);
@@ -50,7 +50,7 @@ int main()
     double t = 0.0;
     double tout = params.sampling_time;
 
-    size_t nsteps = 100;
+    size_t nsteps = 200;
 
     for (size_t nstep = 0; nstep < nsteps; ++nstep, tout += params.sampling_time)
     {
@@ -67,7 +67,9 @@ int main()
         printf("%.1lf %.10lf %.10lf\n", t, NV_Ith_S(traj.y, IR), E); 
     }
 
-    // free_trajectory(&traj);
+    free_trajectory(&traj);
+    free_ms(&ms);
+    free_array(&qp);
 
     return 0;
 }
