@@ -32,15 +32,15 @@ void sincos(double, double*, double*);
 
 #include "constants.h"
 
-#define IPHI 0   
-#define IPPHI 1  
-#define ITHETA 2
+#define IPHI    0
+#define IPPHI   1
+#define ITHETA  2
 #define IPTHETA 3
-#define IR 4 
-#define IPR 5    
+#define IR      4
+#define IPR     5
 // used only in Monomer.qp
-#define IPSI 4
-#define IPPSI 5
+#define IPSI    4
+#define IPPSI   5
 
 #define UNUSED(x) (void)(x)
 #define TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
@@ -123,6 +123,8 @@ void fill_qp(MoleculeSystem *ms, Array qp);
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed); 
 void free_ms(MoleculeSystem *ms);
+
+const char* monomer_type_name(MonomerType t);
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
 

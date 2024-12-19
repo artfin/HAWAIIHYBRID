@@ -33,8 +33,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     } 
     ms.m2.qp = malloc(t2 * sizeof(double));
     
-    ms.Q_SIZE = ms.QP_SIZE / 2;
     ms.QP_SIZE = t1 + t2 + 6; 
+    ms.Q_SIZE = ms.QP_SIZE / 2;
 
     ms.dVdq_qp = N_VNew_Serial(ms.QP_SIZE);
 
@@ -44,6 +44,31 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     memset(ms.intermolecular_qp, 0.0, 6*sizeof(double));
 
     mt_seed32(seed);
+    
+    printf("-------------------------------------------------------------------\n");
+    printf("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
+    printf("Reduced mass of the molecule system: %.6e\n", mu);
+
+    printf("Inertia tensor [%s]: ", monomer_type_name(t1));
+    switch (t1) {
+        case ATOM: printf("\n"); break;
+        case LINEAR_MOLECULE: printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
+        case ROTOR: printf("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
+        default: UNREACHABLE("");
+    }
+    
+    printf("Inertia tensor [%s]: ", monomer_type_name(t2));
+    switch (t2) {
+        case ATOM: printf("\n"); break;
+        case LINEAR_MOLECULE: printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
+        case ROTOR: printf("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
+        default: UNREACHABLE("");
+    }
+
+    printf("Length of Q vector:  3 + %d + %d = %zu\n", t1/2, t2/2, ms.Q_SIZE); 
+    printf("Length of QP vector: 6 + %d + %d = %zu\n", t1, t2, ms.QP_SIZE);
+    printf("Generator seed is set to %zu\n", seed);
+    printf("-------------------------------------------------------------------\n");
 
     return ms;
 }
@@ -56,6 +81,16 @@ void free_ms(MoleculeSystem *ms) {
 
     N_VDestroy(ms->dVdq_qp); 
 }
+
+const char* monomer_type_name(MonomerType t) {
+    switch (t) {
+        case ATOM:            return "ATOM";
+        case LINEAR_MOLECULE: return "LINEAR MOLECULE";
+        case ROTOR:           return "ROTOR";
+        default: UNREACHABLE("monomer_type_name");
+    }
+}
+
 
 // перед расчетом корреляционной функции делать прикидку M0/M2
 // после окончания расчета выписывать оценки M0/M2 по рассчитанной корреляционной функции
@@ -73,8 +108,6 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
 }
 
 void rhsMonomer(Monomer m, double *d) {
-    UNUSED(d);
-
     switch (m.t) {
         case ATOM: break;
         case LINEAR_MOLECULE: {
@@ -85,10 +118,10 @@ void rhsMonomer(Monomer m, double *d) {
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           d[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta; // phidot
-           d[IPPHI]   = 0.0; // pPhi_dot
-           d[ITHETA]  = pTheta / m.I[0]; // thetadot
-           d[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; // pthetadot
+           d[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
+           d[IPPHI]   = 0.0;
+           d[ITHETA]  = pTheta / m.I[0]; 
+           d[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
            
            break;                                                    
         }
@@ -138,16 +171,24 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
         NV_Ith_S(ydot, i + 6 + ms->m1.t) = rhs_monomer2[i];
     }
 
-    realtype *vdata_y = N_VGetArrayPointer(y);
-    extract_q(vdata_y, ms->intermediate_q, ms->Q_SIZE);
-    dpes(ms->intermediate_q, ms->dVdq);
-    
-    realtype *vdata_dVdq_qp = N_VGetArrayPointer(ms->dVdq_qp);
-    memset(vdata_dVdq_qp, 0.0, ms->QP_SIZE);
-    make_qp_odd(ms->dVdq, vdata_dVdq_qp, ms->QP_SIZE);
+    //realtype *vdata_y = N_VGetArrayPointer(y);
+    //extract_q(vdata_y, ms->intermediate_q, ms->Q_SIZE);
+    //dpes(ms->intermediate_q, ms->dVdq);
+    //
+    //realtype *vdata_dVdq_qp = N_VGetArrayPointer(ms->dVdq_qp);
+    //memset(vdata_dVdq_qp, 0.0, ms->QP_SIZE);
+    //make_qp_odd(ms->dVdq, vdata_dVdq_qp, ms->QP_SIZE);
 
-    N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
-    
+    //N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
+
+    //for (size_t i = 0; i < 10; ++i) {
+    //    printf("y(%zu) = %.10e\n", i, NV_Ith_S(y, i)); 
+    //}
+
+    //for (size_t i = 0; i < 10; ++i) {
+    //    printf("ydot(%zu) = %.10e\n", i, NV_Ith_S(ydot, i));
+    //}
+
     return 0;
 }
 
