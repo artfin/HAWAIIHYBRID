@@ -1,4 +1,5 @@
 #include "angles_handler.hpp"
+#include <iostream>
 
 Eigen::Matrix3d SPhi         = Eigen::Matrix3d::Zero(3, 3);
 Eigen::Matrix3d STheta       = Eigen::Matrix3d::Zero(3, 3);
@@ -140,19 +141,15 @@ void linear_molecule_atom_lab_to_mol(double *qlab, double *qmol)
     qmol[3] = std::atan2(dd(1) / sin_thetam, dd(0) / sin_thetam);
 }
 
-void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol)
+void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, double *qlab, double *qmol)
 /*
- *  qlab: R PHI THETA PHI1T THETA1T
+ *  qlab: PHI THETA R PHI1T THETA1T -  
  *  qmol: R PHIEM THETAEM PSIEM THETAM
  */
 {
-    assert(qlab.size() == 5 && "ERROR: expected 5 coordinates");
-    assert(qmol.size() == 5 && "ERROR: expected 5 coordinates");
-
-    static std::array<Eigen::Matrix3d, 8> mvec;
-    static std::array<int, 4> ind;
-
-    jac(0, 0) = 1.0;
+    jac(2, 0) = 1.0;
+    jac(0, 1) = 1.0;
+    jac(1, 2) = 1.0;
 
     double sinphiem, cosphiem;
     double sinthetaem, costhetaem;
@@ -172,22 +169,30 @@ void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std
     Sy_dot_filler(Stheta1t_dot, sintheta1t, costheta1t);
 
     double sin_thetam = std::sin(qmol[4]);
+  
+    //std::cout << "qlab[3]: " << qlab[3] << "\n";
+    //std::cout << "qlab[4]: " << qlab[4] << "\n";
 
-    mvec = {Sphiem, Sthetaem, Sphi1t, Stheta1t, Sphiem_dot, Sthetaem_dot, Sphi1t_dot, Stheta1t_dot};
-    ind = {0, 0, 0, 0};
-
-    for (size_t k = 0; k < 4; ++k) {
-        ind[k] = 4;
-
-        dd = mvec[1 + ind[1]] * mvec[0 + ind[0]] * mvec[2 + ind[2]].transpose() * mvec[3 + ind[3]].transpose() * zvec;
-        jac(k + 1, 4) = -dd(2) / sin_thetam;
-        jac(k + 1, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam;
-
-        ind[k] = 0;
-    }
-
-    jac(1, 1) = 1.0;
-    jac(2, 2) = 1.0;
+    //std::cout << "Sthetaem:\n" << Sthetaem << "\n"; 
+    //std::cout << "Sphiem_dot:\n" << Sphiem_dot << "\n"; 
+    //std::cout << "Sphi1t:\n" << Sphi1t << "\n"; 
+    //std::cout << "Stheta1t:\n" << Stheta1t << "\n"; 
+    
+    dd = Sthetaem * Sphiem * Sphi1t_dot.transpose() * Stheta1t.transpose() * zvec;
+    jac(3, 4) = -dd(2) / sin_thetam; // d(thetam) / d(phi1t)
+    jac(3, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam; // d(psiem) / d(phi1t)
+    
+    dd = Sthetaem * Sphiem * Sphi1t.transpose() * Stheta1t_dot.transpose() * zvec;
+    jac(4, 4) = -dd(2) / sin_thetam; // d(thetam) / d(theta1t)
+    jac(4, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam; // d(psiem) / d(theta1t)
+    
+    dd = Sthetaem * Sphiem_dot * Sphi1t.transpose() * Stheta1t.transpose() * zvec;
+    jac(0, 4) = -dd(2) / sin_thetam; // d(thetam) / d(Phi) = d(thetam) / d(phiem)
+    jac(0, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam; // d(psiem)/d(Phi) = d(psiem)/d(phiem)
+    
+    dd = Sthetaem_dot * Sphiem * Sphi1t.transpose() * Stheta1t.transpose() * zvec; 
+    jac(1, 4) = -dd(2) / sin_thetam; // d(thetam) / d(Theta) = d(thetam) / d(thetaem)
+    jac(1, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam; // d(psiem)/d(Theta) = d(psiem)/d(thetaem)
 }
 
 void linear_molecule_linear_molecule_lab_to_mol(std::vector<double> const& qlab, std::vector<double> & qmol)

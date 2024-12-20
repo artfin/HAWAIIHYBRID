@@ -30,8 +30,8 @@ void sincos(double, double*, double*);
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
 
+#include "array.h"
 #include "constants.h"
-
 
 #define IPHI    0
 #define IPPHI   1
@@ -46,6 +46,10 @@ void sincos(double, double*, double*);
 #define UNUSED(x) (void)(x)
 #define TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 #define UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
     ATOM = 0, 
@@ -111,11 +115,6 @@ typedef enum {
     MCMC
 } SamplingType;
 
-#include "array.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* ----------------------------- */
 /*    User-Supplied Functions    */
@@ -150,6 +149,8 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
+
+void extract_q_and_write_into_ms(MoleculeSystem *ms);
 
 #ifdef __cplusplus
 }

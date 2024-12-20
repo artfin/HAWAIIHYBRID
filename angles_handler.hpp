@@ -35,7 +35,7 @@ void Sy_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angl
 void Sy_dot_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle);
 
 void linear_molecule_atom_lab_to_mol(double *qlab, double *qmol);
-void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol);
+void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, double *qlab, double *qmol);
 
 void linear_molecule_linear_molecule_lab_to_mol(std::vector<double> const& qlab, std::vector<double> & qmol);
 void linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol);

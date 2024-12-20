@@ -173,15 +173,14 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
         NV_Ith_S(ydot, i + 6 + ms->m1.t) = rhs_monomer2[i];
     }
 
-    //realtype *vdata_y = N_VGetArrayPointer(y);
-    //extract_q(vdata_y, ms->intermediate_q, ms->Q_SIZE);
-    //dpes(ms->intermediate_q, ms->dVdq);
-    //
-    //realtype *vdata_dVdq_qp = N_VGetArrayPointer(ms->dVdq_qp);
-    //memset(vdata_dVdq_qp, 0.0, ms->QP_SIZE);
-    //make_qp_odd(ms->dVdq, vdata_dVdq_qp, ms->QP_SIZE);
+    extract_q_and_write_into_ms(ms);
+    dpes(ms->intermediate_q, ms->dVdq);
+    
+    realtype *vdata_dVdq_qp = N_VGetArrayPointer(ms->dVdq_qp);
+    memset(vdata_dVdq_qp, 0.0, ms->QP_SIZE);
+    make_qp_odd(ms->dVdq, vdata_dVdq_qp, ms->QP_SIZE);
 
-    //N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
+    N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
 
     //for (size_t i = 0; i < 10; ++i) {
     //    printf("y(%zu) = %.10e\n", i, NV_Ith_S(y, i)); 

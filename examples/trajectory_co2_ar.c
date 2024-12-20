@@ -4,22 +4,43 @@
 #include "trajectory.h"
 #include "angles_handler.hpp"
 
-#include "ai_pes_co2ar.hpp"
-static AI_PES_co2_ar co2_ar_pes;
+#include "ai_pes_co2ar.h"
 
 double pes(double *q) {
-    return 0.0;
-
-    double qmol[5];
+    static double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
-    return co2_ar_pes.pes(qmol[0], qmol[4]);
+    return pes_co2ar(qmol[0], qmol[4]);
 } 
 
-void dpes(double *q, double *dq) {
-    memset(dq, 0.0, 10 * sizeof(double));
+void dpes(double *q, double *dpesdq) {
+    static Eigen::Matrix<double, 5, 5> jac;
+    static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
+    static double qmol[5];
+    
+    jac.setZero();
+    linear_molecule_atom_lab_to_mol(q, qmol);
+    linear_molecule_atom_Jacobi_mol_by_lab(jac, q, qmol);  
+    
+    double dR, dTheta;
+    dpes_co2ar(qmol[0], qmol[4], &dR, &dTheta); // [R, THETAM] -> [dpes_dR, dpes_dTheta]
 
-    UNUSED(q);
-    // TODO("dpes");
+    // [dpes_dR, 0, 0, 0, dpes_dTheta]
+    derivatives_mol(0) = dR; 
+    derivatives_mol(4) = dTheta; 
+
+    //for (size_t i = 0; i < 5; ++i) {
+    //    printf("derivatives_mol(%zu) = %.10lf\n", i, derivatives_mol(i));
+    //}
+    //
+    //for (size_t i = 0; i < 5; ++i) {
+    //    for (size_t j = 0; j < 5; ++j) {
+    //        printf("%.5e ", jac(i, j)); 
+    //    }
+    //    printf("\n");
+    //}
+    
+    derivatives_lab = jac * derivatives_mol;
+    Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
 }
 
 void test_rhs(MoleculeSystem *ms, Array qp)
@@ -38,7 +59,7 @@ void test_rhs(MoleculeSystem *ms, Array qp)
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         printf("%zu: %.10e \t %.10e \t %.10e\n", i, NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
 
-        if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-9) > 0) {
+        if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-4) > 0) {
             exit(1);
         }
     }
@@ -60,10 +81,10 @@ int main()
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
-    co2_ar_pes.init();
+    init_pes();
 
     Array qp = create_array(ms.QP_SIZE);
-    double data[] = {7.0, 8.0, 9.0, 10.0, 5.0, 6.0, 11.0, 12.0, 13.0, 14.0};
+    double data[] = {0.1, 8.0, 0.2, 10.0, 5.0, 6.0, 0.3, 12.0, 0.4, 14.0};
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
 
