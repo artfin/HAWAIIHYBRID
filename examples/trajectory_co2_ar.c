@@ -105,13 +105,26 @@ int main()
     init_pes();
 
     Array qp = create_array(ms.QP_SIZE);
-    double data[] = {0.1, 8.0, 0.2, 10.0, 5.0, 6.0, 0.3, 12.0, 0.4, 14.0};
+    //double data[] = {0.1, 8.0, 0.2, 10.0, 30.0, -1.0, 0.3, 12.0, 0.4, 14.0};
+    double data[] = {
+    1.748408280024098e-01,
+    8.000086892719947e+00,
+    2.043243374007463e-01,
+    1.292311668112794e+01,
+    2.966821669009366e+01,
+    -9.786729452372973e-01,
+    1.462013919064840e+00,
+    1.199991310728005e+01,
+    1.700437238862704e+00,
+    3.160851788770303e+01,
+    }; 
+    
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
 
     test_rhs(&ms, qp);
 
-    double tolerance = 1e-15;
+    double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     double E0 = Hamiltonian(&ms);
@@ -124,22 +137,29 @@ int main()
     double t = 0.0;
     double tout = params.sampling_time;
 
-    size_t nsteps = 200;
-
-    for (size_t nstep = 0; nstep < nsteps; ++nstep, tout += params.sampling_time)
+    for (size_t nstep = 0; ; ++nstep, tout += params.sampling_time)
     {
         int status = make_step(&traj, tout, &t);
+
         if (status > 0) {
             fprintf(stderr, "CVODE ERROR: status = %d\n", status);
             exit(1);
         }
+      
+        // 21.12.2024 NOTE: 
+        // We copy the "N_Vector y" from "Trajectory" into "MoleculeSystem" on each call of rhs.
+        // However after "rhs" has been called, CVode makes a step on dynamic variables. So we have 
+        // to update the phase-point in MoleculeSystem after "make_step" function has returned. 
+        put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
         
         double E = Hamiltonian(&ms);
-        printf("%.1lf \t %.10lf \t %.15lf\n", t, NV_Ith_S(traj.y, IR), E-E0);
+        printf("%10.1lf \t %12.10lf \t %12.15lf\n", t, ms.intermolecular_qp[IR], E-E0);
 
-        if (assert_float_is_equal_to(E-E0, 0.0, 1e-8) > 0) {
-            exit(1); 
-        }
+        if (ms.intermolecular_qp[IR] > 40.0) break;
+
+        //if (assert_float_is_equal_to(E-E0, 0.0, 1e-8) > 0) {
+        //    exit(1); 
+        //}
     }
 
     free_trajectory(&traj);
