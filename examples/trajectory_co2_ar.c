@@ -135,7 +135,11 @@ int main()
         }
         
         double E = Hamiltonian(&ms);
-        printf("%.1lf \t %.10lf \t %.15lf\n", t, NV_Ith_S(traj.y, IR), E-E0); 
+        printf("%.1lf \t %.10lf \t %.15lf\n", t, NV_Ith_S(traj.y, IR), E-E0);
+
+        if (assert_float_is_equal_to(E-E0, 0.0, 1e-8) > 0) {
+            exit(1); 
+        }
     }
 
     free_trajectory(&traj);

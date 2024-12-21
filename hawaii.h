@@ -51,10 +51,15 @@ void sincos(double, double*, double*);
 extern "C" {
 #endif
 
+// This enum allows us to both differentiate between the systems of different type
+// as well as to store the size of phase point: 
+//   size(phase_point) = MonomerType % modulo_base
+#define modulo_base 100
 typedef enum {
-    ATOM = 0, 
-    LINEAR_MOLECULE = 4, 
-    ROTOR = 6,
+    ATOM                                 = 0,
+    LINEAR_MOLECULE                      = 4,
+    LINEAR_MOLECULE_REQUANTIZED_ROTATION = 104,
+    ROTOR                                = 6,
 } MonomerType;
 
 typedef struct { 
@@ -64,14 +69,13 @@ typedef struct {
 } Monomer; 
 
 typedef struct {
+    double intermolecular_qp[6];
     Monomer m1;
     Monomer m2;
     double mu;
 
     size_t Q_SIZE;
     size_t QP_SIZE;
-
-    double intermolecular_qp[6];
 
     double *intermediate_q;
     double *dVdq;
@@ -85,6 +89,7 @@ typedef enum {
 
 typedef struct {
     PairState ps;
+
     /* sampling */
     double sampler_Rmin;
     double sampler_Rmax;
@@ -134,6 +139,16 @@ const char* monomer_type_name(MonomerType t);
 void put_qp_into_ms(MoleculeSystem *ms, Array qp);
 void get_qp_from_ms(MoleculeSystem *ms, Array *qp);
 
+// this function takes the phase point from MoleculeSystem 
+// and packs it into "intermediate_q" field. Then this pointer
+// can be passed to potential energy / its derivatives / dipole function 
+void extract_q_and_write_into_ms(MoleculeSystem *ms);
+
+
+// 20.12.2024 NOTE: 
+// the MoleculeSystem struct needs to be passed as void* into "rhs" function.
+// Then, the first step is to write the phase point (N_Vector y) into the fields of MoleculeSystem
+// using the method "put_qp_into_ms".
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
 Array compute_numerical_rhs(MoleculeSystem *ms); 
 
@@ -146,11 +161,13 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
+double j_monomer(Monomer m);
+
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 
-void extract_q_and_write_into_ms(MoleculeSystem *ms);
+
 
 #ifdef __cplusplus
 }
