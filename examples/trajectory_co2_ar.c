@@ -43,8 +43,29 @@ void dpes(double *q, double *dpesdq) {
     Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
 }
 
+const char *var_to_cstring(int n) {
+    switch (n) {
+        case 0: return "Phi";
+        case 1: return "pPhi";
+        case 2: return "Theta";
+        case 3: return "pTheta";
+        case 4: return "R";
+        case 5: return "pR";
+        case 6: return "Phi1";
+        case 7: return "pPhi1";
+        case 8: return "Theta1";
+        case 9: return "pTheta1";
+    }
+
+    UNREACHABLE("var_to_cstring");
+}
+
 void test_rhs(MoleculeSystem *ms, Array qp)
 {
+    printf("\n-----------------------------------------\n");
+    printf("Testing analytic derivatives of Hamiltonian against numerical ones\n");
+    printf("The derivatives are shown in the same order used in 'rhs' function.\n");
+
     put_qp_into_ms(ms, qp);
 
     N_Vector y    = make_vector(ms->QP_SIZE);
@@ -57,7 +78,7 @@ void test_rhs(MoleculeSystem *ms, Array qp)
 
     printf("# \t analytic \t numeric \t difference \n");
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-        printf("%zu: %.10e \t %.10e \t %.10e\n", i, NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
+        printf("dot(%s): %.10e \t %.10e \t %.10e\n", var_to_cstring(i), NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
 
         if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-4) > 0) {
             exit(1);
