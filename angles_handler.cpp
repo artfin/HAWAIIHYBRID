@@ -117,13 +117,13 @@ void linear_molecule_atom_lab_to_mol(double *qlab, double *qmol)
     qmol[1] = qlab[0] + M_PI / 2.0;
     qmol[2] = qlab[1];
 
-    double sinphiem, cosphiem;
-    double sinthetaem, costhetaem;
+    double sinphiem = 0.0, cosphiem = 0.0;
+    double sinthetaem = 0.0, costhetaem = 0.0;
     sincos(qmol[1], &sinphiem, &cosphiem);
     sincos(qmol[2], &sinthetaem, &costhetaem);
 
-    double sinphi1t, cosphi1t;
-    double sintheta1t, costheta1t;
+    double sinphi1t = 0.0, cosphi1t = 0.0;
+    double sintheta1t = 0.0, costheta1t = 0.0;
     sincos(qlab[3], &sinphi1t, &cosphi1t);
     sincos(qlab[4], &sintheta1t, &costheta1t);
 
@@ -151,15 +151,15 @@ void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, dou
     jac(0, 1) = 1.0;
     jac(1, 2) = 1.0;
 
-    double sinphiem, cosphiem;
-    double sinthetaem, costhetaem;
-    double sinpsiem, cospsiem;
+    double sinphiem = 0.0, cosphiem = 0.0;
+    double sinthetaem = 0.0, costhetaem = 0.0;
+    double sinpsiem = 0.0, cospsiem = 0.0;
     sincos(qmol[1], &sinphiem, &cosphiem);
     sincos(qmol[2], &sinthetaem, &costhetaem);
     sincos(qmol[3], &sinpsiem, &cospsiem);
 
-    double sinphi1t, cosphi1t;
-    double sintheta1t, costheta1t;
+    double sinphi1t = 0.0, cosphi1t = 0.0;
+    double sintheta1t = 0.0, costheta1t = 0.0;
     sincos(qlab[3], &sinphi1t, &cosphi1t);
     sincos(qlab[4], &sintheta1t, &costheta1t);
 

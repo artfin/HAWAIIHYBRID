@@ -152,9 +152,6 @@ void rhsMonomer(Monomer m, double *deriv) {
            deriv[ITHETA]  = pTheta / m.I[0]; 
            deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
         
-           double j = j_monomer(m);
-           printf("j = %.5e\n", j);
-
            break;                                                    
         }
         case ROTOR: {
@@ -186,6 +183,71 @@ double j_monomer(Monomer m) {
 
     UNREACHABLE("j_monomer");
 }
+
+double torque_monomer(MoleculeSystem *ms, size_t monomer_index) 
+{
+    assert((monomer_index == 0) || (monomer_index == 1));
+
+    Monomer *m = NULL;
+    if (monomer_index == 0) { 
+        m = &ms->m1;
+
+        switch (m->t) {
+          case ATOM: return 0.0;
+          case LINEAR_MOLECULE:
+          case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+            double phi   = m->qp[IPHI];
+            double theta = m->qp[ITHETA];
+        
+            extract_q_and_write_into_ms(ms);
+            dpes(ms->intermediate_q, ms->dVdq);
+
+            double dVdphi   = ms->dVdq[6/2 + IPHI];
+            double dVdtheta = ms->dVdq[6/2 + ITHETA];
+
+            double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
+            double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
+            double torquez = -dVdphi;
+
+            return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
+          }
+          case ROTOR: {
+            TODO("torque_monomer");
+          }
+        }
+    }
+
+    if (monomer_index == 1) {
+        m = &ms->m2;
+
+        switch (m->t) {
+          case ATOM: return 0.0;
+          case LINEAR_MOLECULE:
+          case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+            double phi   = m->qp[IPHI];
+            double theta = m->qp[ITHETA];
+        
+            extract_q_and_write_into_ms(ms);
+            dpes(ms->intermediate_q, ms->dVdq);
+
+            double dVdphi   = ms->dVdq[6/2 + (ms->m1.t % modulo_base) + IPHI];
+            double dVdtheta = ms->dVdq[6/2 + (ms->m1.t % modulo_base) + ITHETA];
+
+            double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
+            double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
+            double torquez = -dVdphi;
+
+            return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
+          }
+          case ROTOR: {
+            TODO("torque_monomer");
+          }
+        }
+    }
+
+    UNREACHABLE("torque_monomer");
+}
+
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 {
@@ -238,12 +300,13 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
 
     //for (size_t i = 0; i < 10; ++i) {
-    //    printf("y(%zu) = %.10e\n", i, NV_Ith_S(y, i)); 
+    //    printf("y(%zu) = %.15e\n", i, NV_Ith_S(y, i)); 
     //}
 
     //for (size_t i = 0; i < 10; ++i) {
-    //    printf("ydot(%zu) = %.10e\n", i, NV_Ith_S(ydot, i));
+    //    printf("ydot(%zu) = %.15e\n", i, NV_Ith_S(ydot, i));
     //}
+    //assert(false);
 
     return 0;
 }

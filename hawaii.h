@@ -162,6 +162,7 @@ void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
 double j_monomer(Monomer m);
+double torque_monomer(MoleculeSystem *ms, size_t monomer_index); 
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
