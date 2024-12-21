@@ -1,7 +1,6 @@
 #include "hawaii.h"
 
-#include "ai_pes_co2ar.hpp"
-static AI_PES_co2_ar co2_ar_pes;
+#include "ai_pes_co2ar.h"
 
 #include "ai_ids_co2ar.hpp"
 static AI_IDS_co2_ar co2_ar_ids;
@@ -11,7 +10,7 @@ static AI_IDS_co2_ar co2_ar_ids;
 double pes(double *q) {
     double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
-    return co2_ar_pes.pes(qmol[0], qmol[4]);
+    return pes_co2ar(qmol[0], qmol[4]);
 } 
 
 void dpes(double *q, double *dq) {
@@ -53,7 +52,7 @@ void dipole_lab(double *q, double diplab[3]) {
 int main()
 {
     uint32_t seed = 42; // mt_goodseed();
-    co2_ar_pes.init();
+    init_pes();
     co2_ar_ids.init();
 
     dipole = dipole_lab;
@@ -62,32 +61,6 @@ int main()
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
-
-    /*
-    Array qp = create_array(10);
-
-    double data[] = {
-    1.152554764117217e+00,
-    -1.719343481583501e+02,
-    9.771562776988298e-01,
-    -1.976861302900328e+02,
-    3.708364107445433e+01,
-    -5.698035431808239e-01,
-    3.750120165827573e+00,
-    -7.852783097387081e+00,
-    1.679343847510114e+00,
-    -6.746504563733579e+00,
-    };
-
-    init_array(&qp, data, 10);
-    
-    fill_qp(&ms, qp);
-    double H = Hamiltonian(&ms);
-
-    printf("H = %.15lf\n", H);
-    free_array(&qp);
-    */
-    
 
     CalcParams params = {};
     params.ps = FREE_AND_METASTABLE;
@@ -111,6 +84,7 @@ int main()
 
 
     free_ms(&ms);
+    free_pes();
 
     return 0;
 }
