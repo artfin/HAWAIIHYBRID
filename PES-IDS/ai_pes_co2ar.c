@@ -1,26 +1,31 @@
-#include "ai_pes_co2ar.hpp"
+#include "ai_pes_co2ar.h"
 
-void AI_PES_co2_ar::init()
+double *legP;
+int lmax = 10;
+
+void init_pes()
 {
-    legP = std::vector<double>(lmax + 1);
-    INITIALIZED = true;
+    lmax = 10;
+    legP = malloc((lmax + 1) * sizeof(double));
 }
 
+void free_pes() {
+    free(legP);
+}
 
-void AI_PES_co2_ar::dpes(std::vector<double> const& q, std::vector<double> & derivatives) {
-   
-    assert(q.size() == 2 && "ERROR: expected 2 coordinates");
-    assert(derivatives.size() == 2 && "ERROR: expected 2 coordinates");
-    assert(INITIALIZED && "ERROR: legendre array is not initialized");
+double dpes_dR(double R, double Theta);
+double dpes_dTheta(double R, double Theta);
 
-    double cosT = cos(q[1]);
+void dpes_co2ar(double R, double Theta, double *dR, double *dTheta)
+{
+    double cosT = cos(Theta);
     gsl_sf_legendre_Pl_array(lmax, cosT, &legP[0]);
 
-    derivatives[0] = dpes_dR(q[0], q[1]);
-    derivatives[1] = dpes_dTheta(q[0], q[1]);
+    *dR     = dpes_dR(R, Theta);
+    *dTheta = dpes_dTheta(R, Theta);
 }
 
-double AI_PES_co2_ar::pes(double R, double Theta)
+double pes_co2ar(double R, double Theta)
 {
     (void) Theta;
     double t2, t4, t5, t6, t10, t11, t14, t15, t16, t18, t20, t21, t22, t23, t24, t25, t26, t31, t39, t47, t48;
@@ -454,14 +459,13 @@ double AI_PES_co2_ar::pes(double R, double Theta)
     return t48 / HTOCM;
 }
 
-double AI_PES_co2_ar::dpes_dTheta( const double R, const double Theta)
+double dpes_dTheta(double R, double Theta)
 {	
     double t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, 
            t20, t21, t22, t27, t28, t29, t32, t36, t37, t38, t39, t40, t41, t42, t43, t44, t45, t47, t79, t82, t86; 
 
     double cosT = cos(Theta);
     double sinT = sin(Theta);
-
 
     if (R<4.500000)
     {
@@ -848,7 +852,7 @@ double AI_PES_co2_ar::dpes_dTheta( const double R, const double Theta)
     return t86 / HTOCM;
 }
 
-double AI_PES_co2_ar::dpes_dR( const double R, const double Theta)
+double dpes_dR(double R, double Theta)
 {
     (void) Theta;
     double t2, t5, t9, t13, t17, t18, t20, t21, t29;
