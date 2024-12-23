@@ -24,9 +24,12 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         case ROTOR: {
           TODO("init_ms");
         } 
+        case ROTOR_REQUANTIZED_ROTATION: {
+          TODO("init_ms");
+        }
     } 
     
-    ms.m1.qp = malloc((t1 % modulo_base) * sizeof(double));
+    ms.m1.qp = malloc((t1 % MODULO_BASE) * sizeof(double));
 
     ms.m2.t = t2;
     switch (t2) {
@@ -44,11 +47,14 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         case ROTOR: {
           TODO("init_ms");
         } 
+        case ROTOR_REQUANTIZED_ROTATION: {
+          TODO("init_ms");
+        }
     }
 
-    ms.m2.qp = malloc((t2 % modulo_base) * sizeof(double));
+    ms.m2.qp = malloc((t2 % MODULO_BASE) * sizeof(double));
     
-    ms.QP_SIZE = (t1 % modulo_base) + (t2 % modulo_base) + 6; 
+    ms.QP_SIZE = (t1 % MODULO_BASE) + (t2 % MODULO_BASE) + 6; 
     ms.Q_SIZE = ms.QP_SIZE / 2;
 
     ms.dVdq_qp = N_VNew_Serial(ms.QP_SIZE);
@@ -75,6 +81,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         case LINEAR_MOLECULE:                      printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
         case ROTOR:                                printf("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           printf("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
     }
     
     printf("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
@@ -83,10 +90,11 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         case LINEAR_MOLECULE:                      printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
         case ROTOR:                                printf("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           printf("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
     }
 
-    printf("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % modulo_base)/2, (t2 % modulo_base)/2, ms.Q_SIZE); 
-    printf("Length of QP vector: 6 + %d + %d = %zu\n", (t1 % modulo_base), (t2 % modulo_base), ms.QP_SIZE);
+    printf("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
+    printf("Length of QP vector: 6 + %d + %d = %zu\n", (t1 % MODULO_BASE), (t2 % MODULO_BASE), ms.QP_SIZE);
     printf("Generator seed is set to %zu\n", seed);
     printf("-------------------------------------------------------------------\n");
 
@@ -109,6 +117,7 @@ const char* monomer_type_name(MonomerType t) {
         case LINEAR_MOLECULE:                      return "LINEAR MOLECULE";
         case ROTOR:                                return "ROTOR";
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: return "LINEAR_MOLECULE_REQUANTIZED_ROTATION";
+        case ROTOR_REQUANTIZED_ROTATION:           return "ROTOR_REQUANTIZED_ROTATION";
     }
 
     UNREACHABLE("monomer_type_name");
@@ -162,6 +171,9 @@ void rhsMonomer(Monomer m, double *deriv) {
         case ROTOR: {
           TODO("rhsMonomer");
         }
+        case ROTOR_REQUANTIZED_ROTATION: {
+          TODO("rhsMonomer");
+        }
     } 
 }
 
@@ -181,6 +193,7 @@ double j_monomer(Monomer m) {
 
             return sqrt(jx*jx + jy*jy + jz*jz);
         }
+        case ROTOR_REQUANTIZED_ROTATION: 
         case ROTOR: {
             TODO("j_monomer");
         }
@@ -216,7 +229,8 @@ double torque_monomer(MoleculeSystem *ms, size_t monomer_index)
 
             return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
           }
-          case ROTOR: {
+          case ROTOR: 
+          case ROTOR_REQUANTIZED_ROTATION: {
             TODO("torque_monomer");
           }
         }
@@ -235,8 +249,8 @@ double torque_monomer(MoleculeSystem *ms, size_t monomer_index)
             extract_q_and_write_into_ms(ms);
             dpes(ms->intermediate_q, ms->dVdq);
 
-            double dVdphi   = ms->dVdq[6/2 + (ms->m1.t % modulo_base) + IPHI];
-            double dVdtheta = ms->dVdq[6/2 + (ms->m1.t % modulo_base) + ITHETA];
+            double dVdphi   = ms->dVdq[6/2 + (ms->m1.t % MODULO_BASE) + IPHI];
+            double dVdtheta = ms->dVdq[6/2 + (ms->m1.t % MODULO_BASE) + ITHETA];
 
             double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
             double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
@@ -244,7 +258,8 @@ double torque_monomer(MoleculeSystem *ms, size_t monomer_index)
 
             return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
           }
-          case ROTOR: {
+          case ROTOR: 
+          case ROTOR_REQUANTIZED_ROTATION: {
             TODO("torque_monomer");
           }
         }
@@ -283,16 +298,16 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     NV_Ith_S(ydot, ITHETA)  = pTheta / (ms->mu * R2);
     NV_Ith_S(ydot, IPTHETA) = pPhi * pPhi * cosTheta / (ms->mu * R2 * sinTheta3); 
     
-    double rhs_monomer1[ms->m1.t % modulo_base];
+    double rhs_monomer1[ms->m1.t % MODULO_BASE];
     rhsMonomer(ms->m1, rhs_monomer1);
-    for (size_t i = 0; i < ms->m1.t % modulo_base; ++i) {
+    for (size_t i = 0; i < ms->m1.t % MODULO_BASE; ++i) {
         NV_Ith_S(ydot, i + 6) = rhs_monomer1[i];
     }
 
-    double rhs_monomer2[ms->m2.t % modulo_base];
+    double rhs_monomer2[ms->m2.t % MODULO_BASE];
     rhsMonomer(ms->m2, rhs_monomer2);
-    for (size_t i = 0; i < ms->m2.t % modulo_base; ++i) {
-        NV_Ith_S(ydot, i + 6 + (ms->m1.t % modulo_base)) = rhs_monomer2[i];
+    for (size_t i = 0; i < ms->m2.t % MODULO_BASE; ++i) {
+        NV_Ith_S(ydot, i + 6 + (ms->m1.t % MODULO_BASE)) = rhs_monomer2[i];
     }
 
     extract_q_and_write_into_ms(ms);
@@ -386,6 +401,7 @@ double kinetic_energy(MoleculeSystem *ms) {
           KIN2 = ptheta1t * ptheta1t / (2.0 * ms->m1.I[0]) + pphi1t * pphi1t / (2.0 * ms->m1.I[1] * sin_theta1t * sin_theta1t);
           break;
         }
+        case ROTOR_REQUANTIZED_ROTATION: 
         case ROTOR: { 
           TODO("kinetic_energy");
         }
@@ -405,6 +421,7 @@ double kinetic_energy(MoleculeSystem *ms) {
           KIN3 = ptheta2t * ptheta2t / (2.0 * ms->m2.I[0]) + pphi2t * pphi2t / (2.0 * ms->m2.I[1] * sin_theta2t * sin_theta2t);
           break;
         }
+        case ROTOR_REQUANTIZED_ROTATION: 
         case ROTOR: { 
           TODO("kinetic_energy");
         }
@@ -419,19 +436,19 @@ void put_qp_into_ms(MoleculeSystem *ms, Array qp)
 // PHI PPHI THETA PTHETA R PR 
 // for monomers in the same order
 {
-    assert(qp.n == 6 + (ms->m1.t%modulo_base) + (ms->m2.t%modulo_base));
+    assert(qp.n == 6 + (ms->m1.t%MODULO_BASE) + (ms->m2.t%MODULO_BASE));
 
     memcpy(ms->intermolecular_qp, qp.data,                          6*sizeof(double));
-    memcpy(ms->m1.qp,             qp.data+6,                        (ms->m1.t%modulo_base)*sizeof(double));
-    memcpy(ms->m2.qp,             qp.data+6+(ms->m1.t%modulo_base), (ms->m2.t%modulo_base)*sizeof(double));
+    memcpy(ms->m1.qp,             qp.data+6,                        (ms->m1.t%MODULO_BASE)*sizeof(double));
+    memcpy(ms->m2.qp,             qp.data+6+(ms->m1.t%MODULO_BASE), (ms->m2.t%MODULO_BASE)*sizeof(double));
 }
 
 void get_qp_from_ms(MoleculeSystem *ms, Array *qp) {
     assert(qp->n == ms->QP_SIZE);
 
     memcpy(qp->data,                          ms->intermolecular_qp, 6*sizeof(double));
-    memcpy(qp->data+6,                        ms->m1.qp,             (ms->m1.t%modulo_base)*sizeof(double));
-    memcpy(qp->data+6+(ms->m1.t%modulo_base), ms->m2.qp,             (ms->m2.t%modulo_base)*sizeof(double));
+    memcpy(qp->data+6,                        ms->m1.qp,             (ms->m1.t%MODULO_BASE)*sizeof(double));
+    memcpy(qp->data+6+(ms->m1.t%MODULO_BASE), ms->m2.qp,             (ms->m2.t%MODULO_BASE)*sizeof(double));
 }
 
 void extract_q(double *qp, double *q, size_t QP_SIZE) {
@@ -442,8 +459,8 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
 
 void extract_q_and_write_into_ms(MoleculeSystem *ms) {
     extract_q(ms->intermolecular_qp, ms->intermediate_q, 6);
-    extract_q(ms->m1.qp, ms->intermediate_q + 6/2, ms->m1.t % modulo_base);
-    extract_q(ms->m1.qp, ms->intermediate_q + 6/2 + (ms->m1.t % modulo_base)/2, ms->m2.t % modulo_base);
+    extract_q(ms->m1.qp, ms->intermediate_q + 6/2, ms->m1.t % MODULO_BASE);
+    extract_q(ms->m1.qp, ms->intermediate_q + 6/2 + (ms->m1.t % MODULO_BASE)/2, ms->m2.t % MODULO_BASE);
 }
 
 double Hamiltonian(MoleculeSystem *ms) {

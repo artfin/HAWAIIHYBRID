@@ -53,13 +53,14 @@ extern "C" {
 
 // This enum allows us to both differentiate between the systems of different type
 // as well as to store the size of phase point: 
-//   size(phase_point) = MonomerType % modulo_base
-#define modulo_base 100
+//   size(phase_point) = MonomerType % MODULO_BASE
+#define MODULO_BASE 100
 typedef enum {
     ATOM                                 = 0,
     LINEAR_MOLECULE                      = 4,
-    LINEAR_MOLECULE_REQUANTIZED_ROTATION = 104,
+    LINEAR_MOLECULE_REQUANTIZED_ROTATION = MODULO_BASE + 4,
     ROTOR                                = 6,
+    ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,
 } MonomerType;
 
 typedef struct { 
