@@ -66,6 +66,8 @@ typedef struct {
     MonomerType t;
     double I[3];
     double *qp;
+    // TODO: should this be a monomer field or a bool[2] in MoleculeSystem?
+    bool apply_requantization;
 } Monomer; 
 
 typedef struct {
@@ -78,6 +80,9 @@ typedef struct {
     size_t QP_SIZE;
 
     double *intermediate_q;
+    
+    // TODO: I feel like it would be better to divide *dVdq array between intermolecular coordinates and monomers
+    // just like qp
     double *dVdq;
     N_Vector dVdq_qp;
 } MoleculeSystem;

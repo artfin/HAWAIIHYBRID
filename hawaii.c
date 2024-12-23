@@ -58,7 +58,12 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     
     memset(ms.intermolecular_qp, 0.0, 6 * sizeof(double));
 
-    mt_seed32(seed);
+    if (seed > 0) { 
+        mt_seed32(seed);
+    } else {
+        seed = mt_goodseed();
+        mt_seed32(seed);
+    }
     
     printf("-------------------------------------------------------------------\n");
     printf("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
