@@ -83,7 +83,6 @@ typedef struct {
 
     double *intermediate_q;
     double *dVdq;
-    // N_Vector dVdq_qp;
 } MoleculeSystem;
 
 typedef enum {
@@ -148,6 +147,9 @@ void get_qp_from_ms(MoleculeSystem *ms, Array *qp);
 // can be passed to potential energy / its derivatives / dipole function 
 void extract_q_and_write_into_ms(MoleculeSystem *ms);
 
+// this function takes the corresponding components of "ms.dVdq" and writes
+// them into "m.dVdq" vectors for each monomer 
+void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms);
 
 // 20.12.2024 NOTE: 
 // the MoleculeSystem struct needs to be passed as void* into "rhs" function.
@@ -166,13 +168,11 @@ void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
 double j_monomer(Monomer m);
-double torque_monomer(MoleculeSystem *ms, size_t monomer_index); 
+double torque_monomer(Monomer m); 
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
-
-
 
 #ifdef __cplusplus
 }

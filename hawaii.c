@@ -164,7 +164,8 @@ void rhsMonomer(Monomer m, double *deriv) {
            deriv[IPPHI]   = -m.dVdq[IPHI/2];
            deriv[ITHETA]  = pTheta / m.I[0]; 
            deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta - m.dVdq[ITHETA/2]; 
-        
+     
+           // TODO("rhsMonomer");
            break;                                                    
         }
         case ROTOR: {
@@ -201,66 +202,28 @@ double j_monomer(Monomer m) {
     UNREACHABLE("j_monomer");
 }
 
-double torque_monomer(MoleculeSystem *ms, size_t monomer_index) 
+double torque_monomer(Monomer m)
+// torque: T = dJ/dt 
 {
-    assert((monomer_index == 0) || (monomer_index == 1));
+    switch (m.t) {
+        case ATOM: return 0.0;
+        case LINEAR_MOLECULE:
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+            double phi   = m.qp[IPHI];
+            double theta = m.qp[ITHETA];
 
-    Monomer *m = NULL;
-    if (monomer_index == 0) { 
-        m = &ms->m1;
-
-        switch (m->t) {
-          case ATOM: return 0.0;
-          case LINEAR_MOLECULE:
-          case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-            double phi   = m->qp[IPHI];
-            double theta = m->qp[ITHETA];
-        
-            extract_q_and_write_into_ms(ms);
-            dpes(ms->intermediate_q, ms->dVdq);
-
-            double dVdphi   = ms->dVdq[6/2 + IPHI];
-            double dVdtheta = ms->dVdq[6/2 + ITHETA];
+            double dVdphi   = m.dVdq[IPHI / 2];
+            double dVdtheta = m.dVdq[ITHETA / 2];
 
             double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
             double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
             double torquez = -dVdphi;
 
             return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
-          }
-          case ROTOR: 
-          case ROTOR_REQUANTIZED_ROTATION: {
-            TODO("torque_monomer");
-          }
         }
-    }
-
-    if (monomer_index == 1) {
-        m = &ms->m2;
-
-        switch (m->t) {
-          case ATOM: return 0.0;
-          case LINEAR_MOLECULE:
-          case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-            double phi   = m->qp[IPHI];
-            double theta = m->qp[ITHETA];
-        
-            extract_q_and_write_into_ms(ms);
-            dpes(ms->intermediate_q, ms->dVdq);
-
-            double dVdphi   = ms->dVdq[6/2 + (ms->m1.t % MODULO_BASE) + IPHI];
-            double dVdtheta = ms->dVdq[6/2 + (ms->m1.t % MODULO_BASE) + ITHETA];
-
-            double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
-            double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
-            double torquez = -dVdphi;
-
-            return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
-          }
-          case ROTOR: 
-          case ROTOR_REQUANTIZED_ROTATION: {
-            TODO("torque_monomer");
-          }
+        case ROTOR: 
+        case ROTOR_REQUANTIZED_ROTATION: {
+           TODO("torque_monomer");
         }
     }
 
