@@ -30,6 +30,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     } 
     
     ms.m1.qp = malloc((t1 % MODULO_BASE) * sizeof(double));
+    ms.m1.dVdq = malloc((t1 % MODULO_BASE)/2 * sizeof(double));
 
     ms.m2.t = t2;
     switch (t2) {
@@ -53,11 +54,10 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     }
 
     ms.m2.qp = malloc((t2 % MODULO_BASE) * sizeof(double));
+    ms.m2.dVdq = malloc((t2 % MODULO_BASE)/2 * sizeof(double));
     
     ms.QP_SIZE = (t1 % MODULO_BASE) + (t2 % MODULO_BASE) + 6; 
     ms.Q_SIZE = ms.QP_SIZE / 2;
-
-    ms.dVdq_qp = N_VNew_Serial(ms.QP_SIZE);
 
     ms.dVdq = malloc(ms.Q_SIZE * sizeof(double));
     ms.intermediate_q = malloc(ms.Q_SIZE * sizeof(double));
@@ -104,11 +104,11 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
 void free_ms(MoleculeSystem *ms) {
     free(ms->m1.qp); 
     free(ms->m2.qp);
+    free(ms->m1.dVdq);
+    free(ms->m2.dVdq);
 
     free(ms->intermediate_q);
     free(ms->dVdq);
-
-    N_VDestroy(ms->dVdq_qp); 
 }
 
 const char* monomer_type_name(MonomerType t) {
@@ -134,7 +134,6 @@ void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
 } 
 
 
-
 void rhsMonomer(Monomer m, double *deriv) {
     switch (m.t) {
         case ATOM: break;
@@ -147,9 +146,9 @@ void rhsMonomer(Monomer m, double *deriv) {
            double cos_theta = cos(Theta);
 
            deriv[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
-           deriv[IPPHI]   = 0.0;
+           deriv[IPPHI]   = -m.dVdq[IPHI/2];
            deriv[ITHETA]  = pTheta / m.I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta - m.dVdq[ITHETA/2]; 
            
            break;                                                    
         }
@@ -162,9 +161,9 @@ void rhsMonomer(Monomer m, double *deriv) {
            double cos_theta = cos(Theta);
 
            deriv[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
-           deriv[IPPHI]   = 0.0;
+           deriv[IPPHI]   = -m.dVdq[IPHI/2];
            deriv[ITHETA]  = pTheta / m.I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta - m.dVdq[ITHETA/2]; 
         
            break;                                                    
         }
@@ -268,6 +267,10 @@ double torque_monomer(MoleculeSystem *ms, size_t monomer_index)
     UNREACHABLE("torque_monomer");
 }
 
+void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
+    memcpy(ms->m1.dVdq, ms->dVdq + 3,                              (ms->m1.t % MODULO_BASE)/2 * sizeof(double));
+    memcpy(ms->m2.dVdq, ms->dVdq + 3 + (ms->m1.t % MODULO_BASE)/2, (ms->m2.t % MODULO_BASE)/2 * sizeof(double));
+}
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 {
@@ -276,6 +279,10 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     assert(data != NULL); 
     MoleculeSystem *ms = (MoleculeSystem*) data;
     put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(y), .n = ms->QP_SIZE});
+    
+    extract_q_and_write_into_ms(ms);
+    dpes(ms->intermediate_q, ms->dVdq);
+    extract_dVdq_and_write_into_monomers(ms);
     
     double Phi    = ms->intermolecular_qp[IPHI]; UNUSED(Phi);
     double pPhi   = ms->intermolecular_qp[IPPHI];
@@ -292,11 +299,11 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     double sinTheta3 = sinTheta2 * sinTheta;
     
     NV_Ith_S(ydot, IR)      = pR / ms->mu;
-    NV_Ith_S(ydot, IPR)     = pTheta * pTheta / (ms->mu * R3) + pPhi * pPhi / (ms->mu * R3 * sinTheta2);
+    NV_Ith_S(ydot, IPR)     = pTheta * pTheta / (ms->mu * R3) + pPhi * pPhi / (ms->mu * R3 * sinTheta2) - ms->dVdq[IR/2];
     NV_Ith_S(ydot, IPHI)    = pPhi / (ms->mu * R2 * sinTheta2);
-    NV_Ith_S(ydot, IPPHI)   = 0.0;
+    NV_Ith_S(ydot, IPPHI)   = -ms->dVdq[IPHI/2];
     NV_Ith_S(ydot, ITHETA)  = pTheta / (ms->mu * R2);
-    NV_Ith_S(ydot, IPTHETA) = pPhi * pPhi * cosTheta / (ms->mu * R2 * sinTheta3); 
+    NV_Ith_S(ydot, IPTHETA) = pPhi * pPhi * cosTheta / (ms->mu * R2 * sinTheta3) - ms->dVdq[ITHETA/2]; 
     
     double rhs_monomer1[ms->m1.t % MODULO_BASE];
     rhsMonomer(ms->m1, rhs_monomer1);
@@ -309,16 +316,7 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     for (size_t i = 0; i < ms->m2.t % MODULO_BASE; ++i) {
         NV_Ith_S(ydot, i + 6 + (ms->m1.t % MODULO_BASE)) = rhs_monomer2[i];
     }
-
-    extract_q_and_write_into_ms(ms);
-    dpes(ms->intermediate_q, ms->dVdq);
     
-    realtype *vdata_dVdq_qp = N_VGetArrayPointer(ms->dVdq_qp);
-    memset(vdata_dVdq_qp, 0.0, ms->QP_SIZE);
-    make_qp_odd(ms->dVdq, vdata_dVdq_qp, ms->QP_SIZE);
-
-    N_VLinearSum(1.0, ydot, -1.0, ms->dVdq_qp, ydot); 
-
     //for (size_t i = 0; i < 10; ++i) {
     //    printf("y(%zu) = %.15e\n", i, NV_Ith_S(y, i)); 
     //}
