@@ -133,39 +133,72 @@ void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
     }
 } 
 
+double find_closest_half_integer(double j) 
+/*
+ * requantization to:
+ *    0.0, 1.5, 2.5, 3.5 ...
+ * NOTE: probably should return 1.5 if j > 0.75, however it doesn't..
+ */
+{
+    double r = 0.0;
 
-void rhsMonomer(Monomer m, double *deriv) {
-    switch (m.t) {
+    // to avoid the requantization to j = 0.5
+    if (j < 1.0) {
+        return 0.0;
+    }
+
+    while (j - r >= 1.0) {
+        r += 1.0;
+    }
+
+    return r + 0.5;
+}
+
+
+void rhsMonomer(Monomer *m, double *deriv) {
+    switch (m->t) {
         case ATOM: break;
         case LINEAR_MOLECULE: {
-           double pPhi   = m.qp[IPPHI];
-           double Theta  = m.qp[ITHETA];
-           double pTheta = m.qp[IPTHETA];
+           double pPhi   = m->qp[IPPHI];
+           double Theta  = m->qp[ITHETA];
+           double pTheta = m->qp[IPTHETA];
 
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           deriv[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
-           deriv[IPPHI]   = -m.dVdq[IPHI/2];
-           deriv[ITHETA]  = pTheta / m.I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta - m.dVdq[ITHETA/2]; 
+           deriv[IPHI]    = pPhi / m->I[0] / sin_theta / sin_theta;
+           deriv[IPPHI]   = -m->dVdq[IPHI/2];
+           deriv[ITHETA]  = pTheta / m->I[0]; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->I[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
            
            break;                                                    
         }
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-           double pPhi   = m.qp[IPPHI];
-           double Theta  = m.qp[ITHETA];
-           double pTheta = m.qp[IPTHETA];
+           if (m->apply_requantization) {
+                double j    = j_monomer(*m);
+                double jreq = find_closest_half_integer(j);
+
+                double scaling_factor = 0.0;
+                if (j > 1e-15) {
+                    scaling_factor = jreq / j; 
+                }
+
+                m->qp[IPPHI]   *= scaling_factor;
+                m->qp[IPTHETA] *= scaling_factor;
+           }
+
+           double pPhi   = m->qp[IPPHI];
+           double Theta  = m->qp[ITHETA];
+           double pTheta = m->qp[IPTHETA];
 
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           deriv[IPHI]    = pPhi / m.I[0] / sin_theta / sin_theta;
-           deriv[IPPHI]   = -m.dVdq[IPHI/2];
-           deriv[ITHETA]  = pTheta / m.I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m.I[0] / sin_theta / sin_theta / sin_theta - m.dVdq[ITHETA/2]; 
-     
-           // TODO("rhsMonomer");
+           deriv[IPHI]    = pPhi / m->I[0] / sin_theta / sin_theta;
+           deriv[IPPHI]   = -m->dVdq[IPHI/2];
+           deriv[ITHETA]  = pTheta / m->I[0]; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->I[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
+    
            break;                                                    
         }
         case ROTOR: {
@@ -269,13 +302,13 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     NV_Ith_S(ydot, IPTHETA) = pPhi * pPhi * cosTheta / (ms->mu * R2 * sinTheta3) - ms->dVdq[ITHETA/2]; 
     
     double rhs_monomer1[ms->m1.t % MODULO_BASE];
-    rhsMonomer(ms->m1, rhs_monomer1);
+    rhsMonomer(&ms->m1, rhs_monomer1);
     for (size_t i = 0; i < ms->m1.t % MODULO_BASE; ++i) {
         NV_Ith_S(ydot, i + 6) = rhs_monomer1[i];
     }
 
     double rhs_monomer2[ms->m2.t % MODULO_BASE];
-    rhsMonomer(ms->m2, rhs_monomer2);
+    rhsMonomer(&ms->m2, rhs_monomer2);
     for (size_t i = 0; i < ms->m2.t % MODULO_BASE; ++i) {
         NV_Ith_S(ydot, i + 6 + (ms->m1.t % MODULO_BASE)) = rhs_monomer2[i];
     }

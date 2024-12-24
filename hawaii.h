@@ -97,9 +97,14 @@ typedef struct {
     double sampler_Rmin;
     double sampler_Rmax;
     double pesmin;
+
     /* initial spectral moments check */ 
     size_t initialM0_npoints;
     double partial_partition_function_ratio;
+   
+    /* requantization */ 
+    size_t torque_cache_len;
+    double torque_bound;
 
     double sampling_time;
     double R0; // initial distance for pr/mu calculation 

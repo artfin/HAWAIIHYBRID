@@ -42,6 +42,8 @@ void set_initial_condition(Trajectory *t, Array qp);
 N_Vector make_vector(const int size);
 void set_tolerance(Trajectory *t, double tolerance);
 
+void reinit_trajectory(Trajectory *traj, double t);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,10 +1,11 @@
 #include "hawaii.h"
-
 #include "array.h"
 #include "trajectory.h"
 #include "angles_handler.hpp"
 
 #include "ai_pes_h2ar_leroy.h"
+
+#include <alloca.h>
 
 double pes(double *q) {
     static double qmol[5];
@@ -70,9 +71,16 @@ int main()
 
     CalcParams params = {};
     params.sampling_time = 200.0; 
+    params.torque_cache_len = 10;
+    params.torque_bound = 1e-5;
     
+    size_t switch_counter = 0;
+
     double t = 0.0;
     double tout = params.sampling_time;
+
+    double* cache = (double*) alloca(params.torque_cache_len * sizeof(double));
+    size_t cur_cache = 0;
 
     for (size_t nstep = 0; ; ++nstep, tout += params.sampling_time)
     {
@@ -83,10 +91,49 @@ int main()
         }
         
         put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
-        
+    
         double E = Hamiltonian(&ms);
         double j = j_monomer(ms.m1);
-        double torq = torque_monomer(&ms, 0); 
+        double torq = torque_monomer(ms.m1); 
+
+        cache[nstep % params.torque_cache_len] = torq;
+        bool all_less_than_bound = true;
+        bool all_more_than_bound = true;
+        for (size_t i = 0; i < params.torque_cache_len; ++i) {
+            if (torq > params.torque_bound) {
+                all_less_than_bound = false;
+            }
+            if (torq < params.torque_bound) {
+                all_more_than_bound = false;
+            } 
+        }
+
+        if (all_less_than_bound) {
+            if (!ms.m1.apply_requantization) {
+                ms.m1.apply_requantization = true;
+                switch_counter++;
+
+                printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+            }
+        }
+
+        if (all_more_than_bound) {
+            if (ms.m1.apply_requantization) {
+                ms.m1.apply_requantization = false;
+                switch_counter++;
+                
+                printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+            }
+        }
+
+        if (ms.m1.apply_requantization) {
+            for (size_t i = 0; i < 4; ++i) {
+                NV_Ith_S(traj.y, i + 6) = ms.m1.qp[i];  
+            } 
+
+            reinit_trajectory(&traj, tout);
+        }
+
 
         printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e\n", t, ms.intermolecular_qp[IR], E-E0, j, torq);
 

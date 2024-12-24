@@ -103,3 +103,7 @@ void set_tolerance(Trajectory *t, double tolerance)
     }
 }
 
+void reinit_trajectory(Trajectory *traj, double t) {
+    CVodeReInit(traj->cvode_mem, t, traj->y);
+}
+
