@@ -16,6 +16,11 @@ Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
     assert(traj.cvode_mem != NULL);
 
     int flag;
+   
+    Array qp = create_array(ms->QP_SIZE);
+    get_qp_from_ms(ms, &qp);
+    memcpy(N_VGetArrayPointer(traj.y), qp.data, ms->QP_SIZE * sizeof(double));
+    free_array(&qp);
 
     // initialize the integrator memory and specify the right-hand side function, 
     // the initial time t0, and the initial dependent variable vector

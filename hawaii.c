@@ -123,6 +123,14 @@ const char* monomer_type_name(MonomerType t) {
     UNREACHABLE("monomer_type_name");
 }
 
+const char* pair_state_name(PairState ps) {
+    switch (ps) {
+        case FREE_AND_METASTABLE: return "FREE_AND_METASTABLE";
+        case BOUND:               return "BOUND";
+    }
+
+    UNREACHABLE("pair_state_name");
+}
 
 // перед расчетом корреляционной функции делать прикидку M0/M2
 // после окончания расчета выписывать оценки M0/M2 по рассчитанной корреляционной функции
@@ -154,6 +162,58 @@ double find_closest_half_integer(double j)
     return r + 0.5;
 }
 
+double j_monomer(Monomer m) {
+    switch (m.t) {
+        case ATOM: return 0.0;
+        case LINEAR_MOLECULE:
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+            double phi    = m.qp[IPHI]; 
+            double pPhi   = m.qp[IPPHI];
+            double theta  = m.qp[ITHETA];
+            double pTheta = m.qp[IPTHETA];
+
+            double jx = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
+            double jy = pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
+            double jz = pPhi;
+
+            return sqrt(jx*jx + jy*jy + jz*jz);
+        }
+        case ROTOR_REQUANTIZED_ROTATION: 
+        case ROTOR: {
+            TODO("j_monomer");
+        }
+    }
+
+    UNREACHABLE("j_monomer");
+}
+
+double torque_monomer(Monomer m)
+// torque: T = dJ/dt 
+{
+    switch (m.t) {
+        case ATOM: return 0.0;
+        case LINEAR_MOLECULE:
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+            double phi   = m.qp[IPHI];
+            double theta = m.qp[ITHETA];
+
+            double dVdphi   = m.dVdq[IPHI / 2];
+            double dVdtheta = m.dVdq[ITHETA / 2];
+
+            double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
+            double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
+            double torquez = -dVdphi;
+
+            return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
+        }
+        case ROTOR: 
+        case ROTOR_REQUANTIZED_ROTATION: {
+           TODO("torque_monomer");
+        }
+    }
+
+    UNREACHABLE("torque_monomer");
+}
 
 void rhsMonomer(Monomer *m, double *deriv) {
     switch (m->t) {
@@ -208,59 +268,6 @@ void rhsMonomer(Monomer *m, double *deriv) {
           TODO("rhsMonomer");
         }
     } 
-}
-
-double j_monomer(Monomer m) {
-    switch (m.t) {
-        case ATOM: return 0.0;
-        case LINEAR_MOLECULE:
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-            double phi    = m.qp[IPHI]; 
-            double pPhi   = m.qp[IPPHI];
-            double theta  = m.qp[ITHETA];
-            double pTheta = m.qp[IPTHETA];
-
-            double jx = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
-            double jy = pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
-            double jz = pPhi;
-
-            return sqrt(jx*jx + jy*jy + jz*jz);
-        }
-        case ROTOR_REQUANTIZED_ROTATION: 
-        case ROTOR: {
-            TODO("j_monomer");
-        }
-    }
-
-    UNREACHABLE("j_monomer");
-}
-
-double torque_monomer(Monomer m)
-// torque: T = dJ/dt 
-{
-    switch (m.t) {
-        case ATOM: return 0.0;
-        case LINEAR_MOLECULE:
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-            double phi   = m.qp[IPHI];
-            double theta = m.qp[ITHETA];
-
-            double dVdphi   = m.dVdq[IPHI / 2];
-            double dVdtheta = m.dVdq[ITHETA / 2];
-
-            double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
-            double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
-            double torquez = -dVdphi;
-
-            return sqrt(torquex*torquex + torquey*torquey + torquez*torquez);
-        }
-        case ROTOR: 
-        case ROTOR_REQUANTIZED_ROTATION: {
-           TODO("torque_monomer");
-        }
-    }
-
-    UNREACHABLE("torque_monomer");
 }
 
 void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
@@ -452,10 +459,25 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
 }
 
 void extract_q_and_write_into_ms(MoleculeSystem *ms) {
-    extract_q(ms->intermolecular_qp, ms->intermediate_q, 6);
-    extract_q(ms->m1.qp, ms->intermediate_q + 6/2, ms->m1.t % MODULO_BASE);
-    extract_q(ms->m1.qp, ms->intermediate_q + 6/2 + (ms->m1.t % MODULO_BASE)/2, ms->m2.t % MODULO_BASE);
+    extract_q(ms->intermolecular_qp, ms->intermediate_q,                              6);
+    extract_q(ms->m1.qp,             ms->intermediate_q+6/2,                          ms->m1.t%MODULO_BASE);
+    extract_q(ms->m1.qp,             ms->intermediate_q+6/2+(ms->m1.t%MODULO_BASE)/2, ms->m2.t%MODULO_BASE);
 }
+
+void invert_momenta(MoleculeSystem *ms) {
+    for (size_t i = 1; i < 6; i += 2) {
+        ms->intermolecular_qp[i] = -ms->intermolecular_qp[i];
+    }
+
+    for (size_t i = 1; i < (ms->m1.t%MODULO_BASE); ++i) {
+        ms->m1.qp[i] = -ms->m1.qp[i];
+    }
+    
+    for (size_t i = 1; i < (ms->m2.t%MODULO_BASE); ++i) {
+        ms->m2.qp[i] = -ms->m2.qp[i];
+    }
+}
+
 
 double Hamiltonian(MoleculeSystem *ms) {
     extract_q_and_write_into_ms(ms);
@@ -480,9 +502,14 @@ double generate_normal(double sigma)
 
 void q_generator(MoleculeSystem *ms, CalcParams *params) 
 {
+    assert(params->sampler_Rmin > 0);
+    assert(params->sampler_Rmax > 0);
+
     double RMIN = params->sampler_Rmin;
     double RMAX = params->sampler_Rmax;
+
     double R3 = mt_drand()*(RMAX*RMAX*RMAX - RMIN*RMIN*RMIN) + RMIN*RMIN*RMIN;
+
     ms->intermolecular_qp[IR]     = pow(R3, 1.0/3.0);
     ms->intermolecular_qp[IPHI]   = mt_drand() * 2.0 * M_PI;
     ms->intermolecular_qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
@@ -649,6 +676,179 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
 }
 
+#include "trajectory.h"
+
+int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *local_crln)
+// TODO: Use temporary arena instead of malloc 
+{
+    double *correlation_forw = malloc(params->MaxTrajectoryLength * sizeof(double));
+    memset(correlation_forw, 0.0, params->MaxTrajectoryLength * sizeof(double));
+
+    double *correlation_back = malloc(params->MaxTrajectoryLength * sizeof(double));
+    memset(correlation_back, 0.0, params->MaxTrajectoryLength * sizeof(double));
+    
+    memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
+            
+    double dip0[3], dipt[3];
+    extract_q_and_write_into_ms(ms);
+    (*dipole)(ms->intermediate_q, dip0);
+   
+    correlation_forw[0] = dip0[0]*dip0[0] + dip0[1]*dip0[1] + dip0[2]*dip0[2]; 
+    correlation_back[0] = dip0[0]*dip0[0] + dip0[1]*dip0[1] + dip0[2]*dip0[2]; 
+    
+    Array qp = create_array(ms->QP_SIZE);
+    get_qp_from_ms(ms, &qp);
+    set_initial_condition(traj, qp);
+    
+    int status = 0;
+    
+    double t = 0.0;
+    double tout = params->sampling_time;
+    
+    /*
+     * We start step_counter from 1 so that correlation value after the first integration step
+     * will go into correlation_forw[1] 
+     */
+    for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
+    {
+        status = make_step(traj, tout, &t);
+        if (status) {
+            fprintf(stderr, "CVODE ERROR: status = %d\n", status);
+            break;
+        }
+
+        put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
+        extract_q_and_write_into_ms(ms);
+        (*dipole)(ms->intermediate_q, dipt);
+
+        correlation_forw[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
+
+        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+    }
+    
+    put_qp_into_ms(ms, qp);
+    invert_momenta(ms);
+    get_qp_from_ms(ms, &qp);
+    set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
+   
+    
+    t = 0.0;
+    tout = params->sampling_time;
+    
+    for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
+    {
+        status = make_step(traj, tout, &t);
+        if (status) {
+            fprintf(stderr, "CVODE ERROR: status = %d\n", status);
+            break;
+        }
+
+        put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
+        extract_q_and_write_into_ms(ms);
+        (*dipole)(ms->intermediate_q, dipt);
+
+        correlation_back[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
+
+        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+    }
+
+    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+        local_crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]);
+    } 
+    
+    free_array(&qp);
+
+    return status;
+}
+
+#ifdef USE_MPI
+CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature)
+// TODO: make all the iterations here and save the results to file
+{
+    assert(dipole != NULL);
+
+    assert(params->MaxTrajectoryLength > 0);
+    assert(params->Rcut > 0);
+    assert(params->sampling_time > 0);
+    assert(params->total_trajectories > 0);
+    assert(params->partial_partition_function_ratio > 0);
+
+    size_t counter = 0;
+    size_t desired_dist = 0;
+    size_t integral_counter = 0;
+
+    size_t local_trajectories = params->total_trajectories / ctx.size;
+   
+    double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
+
+    double *total_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
+    memset(total_crln, 0, params->MaxTrajectoryLength * sizeof(double)); 
+    
+    size_t print_every_nth_iteration = 1;
+    switch (params->ps) {
+        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case BOUND:               print_every_nth_iteration = 1000;    break;
+    } 
+    
+    double tolerance = 1e-12;
+    Trajectory traj = init_trajectory(ms, tolerance);
+
+    if (ctx.rank == 0) {
+        printf("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
+        printf("    pair state (pair_state):                               %s\n",     pair_state_name(params->ps));
+        printf("    trajectories to be calculated (total_trajectories):    %zu\n",    params->total_trajectories);
+        printf("    maximum length of trajectory (MaxTrajectoryLength):    %zu\n",    params->MaxTrajectoryLength);
+        printf("    sampling time of dipole on trajectory (sampling_time): %.2f\n",   params->sampling_time);
+        printf("    maximum intermolecular distance on trajectory (Rcut):  %.2f\n",   params->Rcut);
+        printf("    CVode tolerance:                                       %.3e\n\n", tolerance);
+    }
+
+    // TODO: first run sampler and calculate zeroth moment 
+
+    while (integral_counter < local_trajectories) {
+        q_generator(ms, params);
+        p_generator(ms, Temperature);
+
+        double energy = Hamiltonian(ms);
+        ++counter;
+
+        if (!reject(ms, Temperature, params->pesmin)) {
+            ++desired_dist;
+
+            if (params->ps == FREE_AND_METASTABLE) {
+                if (energy < 0.0) continue; 
+            }
+
+            if (params->ps == BOUND) {
+                if (energy > 0.0) continue;
+            }
+
+            int status = correlation_eval(ms, &traj, params, local_crln); 
+            if (status == -1) continue;
+
+            for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+                total_crln[i] += params->partial_partition_function_ratio * local_crln[i];
+            }
+
+            integral_counter++;
+
+            if ((ctx.rank == 0) && (integral_counter % print_every_nth_iteration == 0)) {
+                printf("[calculate_correlation] accumulated %zu points\n", integral_counter);
+            }
+        }
+    }
+
+    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
+    MPI_Allreduce(MPI_IN_PLACE, total_crln, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, comm);
+  
+    return (CFnc) {
+        .t    = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .vals = total_crln,
+        .n    = params->MaxTrajectoryLength,
+    }; 
+}
+#endif // USE_MPI
+
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
     if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
         printf("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
@@ -662,5 +862,22 @@ int assert_float_is_equal_to(double estimate, double true_value, double abs_tole
 
     UNREACHABLE("");
 }
+
+double* linspace(double start, double end, size_t n) {
+    double step = (end - start)/(n - 1);
+
+    if (n == 1) {
+        assert(start == end);
+        step = end - start;
+    }
+    
+    double *v = (double*) malloc(n * sizeof(double)); 
+    for (size_t i = 0; i < n; ++i) {
+        v[i] = start + step * i;
+    }
+
+    return v;
+}
+
 
 

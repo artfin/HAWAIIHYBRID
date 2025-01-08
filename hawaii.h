@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef USE_MPI
+#include <mpi.h>
+#endif // USE_MPI
+
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
@@ -53,7 +57,7 @@ extern "C" {
 
 // This enum allows us to both differentiate between the systems of different type
 // as well as to store the size of phase point: 
-//   size(phase_point) = MonomerType % MODULO_BASE
+//   size(phase_point) = MonomerType%MODULO_BASE
 #define MODULO_BASE 100
 typedef enum {
     ATOM                                 = 0,
@@ -106,12 +110,16 @@ typedef struct {
     size_t torque_cache_len;
     double torque_bound;
 
+    /* trajectory */
     double sampling_time;
-    double R0; // initial distance for pr/mu calculation 
-    double Rcut;
     size_t MaxTrajectoryLength;
-    size_t CF_Length;
-    // для расчета массива корреляционных функций
+    
+    /* correlation & pr/mu calculation */
+    size_t total_trajectories;
+    double Rcut;
+    double R0; // initial distance for pr/mu calculation 
+
+    /* correlation function array */
     double *temperatures;
     size_t ntemperatures;
 } CalcParams;
@@ -128,11 +136,27 @@ typedef enum {
     MCMC
 } SamplingType;
 
+#ifdef USE_MPI
+#include <mpi.h>
+
+typedef struct {
+    MPI_Comm communicator;
+    int rank;
+    int size;
+} MPI_Context;
+#endif // USE_MPI
+
+typedef struct {
+    double *t; 
+    double *vals;
+    size_t n; 
+} CFnc;
+
 
 /* ----------------------------- */
 /*    User-Supplied Functions    */
 /* ------------------------------*/
-typedef void (*dipolePtr)(double *q, double dip[3]);
+typedef void (*dipolePtr)(double*, double[3]);
 extern dipolePtr dipole;
 
 extern double pes(double *q);
@@ -143,6 +167,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
 void free_ms(MoleculeSystem *ms);
 
 const char* monomer_type_name(MonomerType t);
+const char* pair_state_name(PairState ps);
 
 void put_qp_into_ms(MoleculeSystem *ms, Array qp);
 void get_qp_from_ms(MoleculeSystem *ms, Array *qp);
@@ -175,7 +200,17 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 double j_monomer(Monomer m);
 double torque_monomer(Monomer m); 
 
+void invert_momenta(MoleculeSystem *ms);
+
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+
+
+#ifdef USE_MPI
+CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature);
+#endif // USE_MPI
+    
+double* linspace(double start, double end, size_t n);
+// std::vector<double> arange(double start, double step, size_t size);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 
