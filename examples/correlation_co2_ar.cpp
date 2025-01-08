@@ -92,6 +92,8 @@ int main(int argc, char *argv[])
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
     params.partial_partition_function_ratio = 1.0;
+    params.initialM0_npoints                = 10000000;
+    params.pesmin                           = -195.6337098547 / HTOCM;
 
     double Temperature = 300.0;
     

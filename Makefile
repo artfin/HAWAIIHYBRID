@@ -53,13 +53,16 @@ build/ai_pes_h2ar_leroy.o: ./PES-IDS/ai_pes_h2ar_leroy.c | build
 build/angles_handler.o: angles_handler.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD $< -o $@ 
 
-OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o
-MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o
+OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
+MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
 CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
 H2_AR   := build/ai_pes_h2ar_leroy.o
 
 examples/phase_space_integration_co2_ar.exe: examples/phase_space_integration_co2_ar.c build/hawaii.o $(OBJ) $(CO2_AR) 
 	$(CXX) $(FLAGS) $(INC_SUNDIALS) $(INC_EIGEN) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
+
+examples/mpi_phase_space_integration_co2_ar.exe: examples/mpi_phase_space_integration_co2_ar.c $(MPI_OBJ) $(CO2_AR) 
+	$(MPICXX) $(FLAGS) $(INC_SUNDIALS) $(INC_EIGEN) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/trajectory_co2_ar.exe: examples/trajectory_co2_ar.c build/trajectory.o $(OBJ) $(CO2_AR) 
 	$(CXX) $(FLAGS) $(INC_SUNDIALS) $(INC_EIGEN) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
