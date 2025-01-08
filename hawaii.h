@@ -51,6 +51,17 @@ void sincos(double, double*, double*);
 #define TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 #define UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 
+#ifdef USE_MPI
+#define INIT_RANK                           \
+    int __rank;                             \
+    MPI_Comm_rank(MPI_COMM_WORLD, &__rank); \
+
+#define PRINT0(...) if (__rank == 0) printf(__VA_ARGS__); 
+#else
+#define INIT_RANK
+#define PRINT0(...) printf(__VA_ARGS__)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -204,8 +215,8 @@ void invert_momenta(MoleculeSystem *ms);
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 
-
 #ifdef USE_MPI
+void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature);
 #endif // USE_MPI
     

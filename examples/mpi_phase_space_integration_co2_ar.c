@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
     MPI_Context ctx = {};
     MPI_Comm_size(MPI_COMM_WORLD, &ctx.size); 
     MPI_Comm_rank(MPI_COMM_WORLD, &ctx.rank);
+    INIT_RANK;
 
     uint32_t seed = 43; // mt_goodseed();
     

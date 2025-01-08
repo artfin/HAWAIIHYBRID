@@ -4,6 +4,8 @@ dipolePtr dipole = NULL;
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed) 
 {
+    INIT_RANK;
+
     MoleculeSystem ms = {0};
     ms.mu = mu;
 
@@ -70,33 +72,33 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         seed = mt_goodseed();
         mt_seed32(seed);
     }
-    
-    printf("-------------------------------------------------------------------\n");
-    printf("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
-    printf("Reduced mass of the molecule system: %.6e\n", mu);
+     
+    PRINT0("-------------------------------------------------------------------\n");
+    PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
+    PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
 
-    printf("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
+    PRINT0("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
     switch (t1) {
-        case ATOM:                                 printf("\n"); break;
-        case LINEAR_MOLECULE:                      printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: printf("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
-        case ROTOR:                                printf("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           printf("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
+        case ATOM:                                 PRINT0("\n"); break;
+        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
+        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
     }
     
-    printf("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
+    PRINT0("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
     switch (t2) {
-        case ATOM:                                 printf("\n"); break;
-        case LINEAR_MOLECULE:                      printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: printf("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
-        case ROTOR:                                printf("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           printf("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
+        case ATOM:                                 PRINT0("\n"); break;
+        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
+        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
     }
 
-    printf("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
-    printf("Length of QP vector: 6 + %d + %d = %zu\n", (t1 % MODULO_BASE), (t2 % MODULO_BASE), ms.QP_SIZE);
-    printf("Generator seed is set to %zu\n", seed);
-    printf("-------------------------------------------------------------------\n");
+    PRINT0("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
+    PRINT0("Length of QP vector: 6 + %d + %d = %zu\n", (t1 % MODULO_BASE), (t2 % MODULO_BASE), ms.QP_SIZE);
+    PRINT0("Generator seed is set to %zu\n", seed);
+    PRINT0("-------------------------------------------------------------------\n");
 
     return ms;
 }
@@ -621,6 +623,9 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 // Running mean/variance formulas taken from GSL 1.15
 // https://github.com/ampl/gsl/blob/master/monte/plain.c 
 {
+    assert(params->initialM0_npoints > 0);
+    assert(fabs(params->pesmin) > 1e-15);
+
     size_t counter = 0;
     size_t desired_dist = 0;
     size_t integral_counter = 0;
@@ -634,10 +639,9 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
         case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
-        case BOUND: print_every_nth_iteration = 1000; break;
+        case BOUND:               print_every_nth_iteration = 1000;    break;
     } 
-    
-
+   
     while (integral_counter < params->initialM0_npoints) {
         q_generator(ms, params);
         p_generator(ms, Temperature);
@@ -667,7 +671,9 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
             integral_counter++;
 
             if (integral_counter % print_every_nth_iteration == 0) {
-                printf("[calculate_M0] accumulated %zu points\n", integral_counter);
+                double M0_est = *m * ZeroCoeff * params->partial_partition_function_ratio;
+                double M0std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+                printf("[calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", integral_counter, params->initialM0_npoints, M0_est, M0std_est);
             }
         }
     } 
@@ -675,6 +681,79 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     *m = *m * ZeroCoeff * params->partial_partition_function_ratio;
     *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
 }
+
+#ifdef USE_MPI
+void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+{
+    assert(params->initialM0_npoints > 0);
+    assert(fabs(params->pesmin) > 1e-15);
+
+    INIT_RANK;
+
+    size_t counter = 0;
+    size_t desired_dist = 0;
+    size_t integral_counter = 0;
+
+    double d[3];
+    double fval;
+
+    size_t print_every_nth_iteration = 1;
+    switch (params->ps) {
+        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case BOUND:               print_every_nth_iteration = 1000;    break;
+    } 
+    
+    size_t local_npoints = params->initialM0_npoints / ctx.size;
+    
+    *m = 0.0;
+    *q = 0.0;
+    double ml = 0.0, ql = 0.0;
+
+    while (integral_counter < local_npoints) {
+        q_generator(ms, params);
+        p_generator(ms, Temperature);
+
+        double energy = Hamiltonian(ms);
+        ++counter;
+
+        if (!reject(ms, Temperature, params->pesmin)) {
+            ++desired_dist;
+
+            if (params->ps == FREE_AND_METASTABLE) {
+                if (energy < 0.0) continue; 
+            }
+
+            if (params->ps == BOUND) {
+                if (energy > 0.0) continue;
+            }
+    
+            extract_q_and_write_into_ms(ms);
+            (*dipole)(ms->intermediate_q, d);
+            
+            // TODO: use running mean
+            fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
+            double diff = fval - ml;
+            ml += diff / (integral_counter + 1.0);
+            ql += diff * diff * (integral_counter / (integral_counter + 1.0));
+            integral_counter++;
+
+            if (integral_counter % print_every_nth_iteration == 0) {
+                double M0_est    = ml * ZeroCoeff * params->partial_partition_function_ratio;
+                double M0std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+                PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", ctx.size*integral_counter, params->initialM0_npoints, M0_est, M0std_est);
+            }
+        }
+    } 
+
+    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
+    MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, comm);
+     
+    *m = (ml/ctx.size) * ZeroCoeff * params->partial_partition_function_ratio;
+    *q = sqrt((ql/ctx.size) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+}
+#endif // USE_MPI
+
 
 #include "trajectory.h"
 
@@ -773,6 +852,8 @@ CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *para
     assert(params->total_trajectories > 0);
     assert(params->partial_partition_function_ratio > 0);
 
+    INIT_RANK;
+    
     size_t counter = 0;
     size_t desired_dist = 0;
     size_t integral_counter = 0;
@@ -793,17 +874,26 @@ CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *para
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(ms, tolerance);
 
-    if (ctx.rank == 0) {
-        printf("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-        printf("    pair state (pair_state):                               %s\n",     pair_state_name(params->ps));
-        printf("    trajectories to be calculated (total_trajectories):    %zu\n",    params->total_trajectories);
-        printf("    maximum length of trajectory (MaxTrajectoryLength):    %zu\n",    params->MaxTrajectoryLength);
-        printf("    sampling time of dipole on trajectory (sampling_time): %.2f\n",   params->sampling_time);
-        printf("    maximum intermolecular distance on trajectory (Rcut):  %.2f\n",   params->Rcut);
-        printf("    CVode tolerance:                                       %.3e\n\n", tolerance);
-    }
+    PRINT0("\n\n"); 
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
+    PRINT0("    pair state (pair_state):                               %s\n",     pair_state_name(params->ps));
+    PRINT0("    trajectories to be calculated (total_trajectories):    %zu\n",    params->total_trajectories);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):    %zu\n",    params->MaxTrajectoryLength);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time): %.2f\n",   params->sampling_time);
+    PRINT0("    maximum intermolecular distance on trajectory (Rcut):  %.2f\n",   params->Rcut);
+    PRINT0("    CVode tolerance:                                       %.3e\n\n", tolerance);
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("\n\n"); 
+    PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
+    PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
 
-    // TODO: first run sampler and calculate zeroth moment 
+    // TODO: calculate_M0 function is not parallelized
+
+    double prelim_M0, prelim_M0std;
+    calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
+    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
+    PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
 
     while (integral_counter < local_trajectories) {
         q_generator(ms, params);
@@ -850,13 +940,15 @@ CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *para
 #endif // USE_MPI
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
+    INIT_RANK;
+
     if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
-        printf("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
+        PRINT0("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
         return 0; 
     } else {
-        fprintf(stderr, "\033[31mASSERTION FAILED:\033[0m\n");
-        fprintf(stderr, "ERROR: Estimate lies outside expected bounds from true value!\n");
-        fprintf(stderr, "Expected bounds: %.5e...%.5e and received %.5e\n", true_value - abs_tolerance, true_value + abs_tolerance, estimate);
+        PRINT0("\033[31mASSERTION FAILED:\033[0m\n");
+        PRINT0("ERROR: Estimate lies outside expected bounds from true value!\n");
+        PRINT0("Expected bounds: %.5e...%.5e and received %.5e\n", true_value - abs_tolerance, true_value + abs_tolerance, estimate);
         return 1; 
     }
 
