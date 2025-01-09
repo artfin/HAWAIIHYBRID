@@ -1027,4 +1027,16 @@ void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params)
     }
 }
 
+double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
+{
+    double pf_analytic;
+
+    if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
+        TODO("analytic_full_partition_function_by_V");  
+    } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
+        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * T / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.I[0]; 
+    }
+
+    return pf_analytic;
+}
 

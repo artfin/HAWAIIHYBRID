@@ -221,6 +221,7 @@ double torque_monomer(Monomer m);
 void invert_momenta(MoleculeSystem *ms);
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);

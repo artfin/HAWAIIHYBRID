@@ -1,4 +1,3 @@
-#define USE_MPI
 #include "hawaii.h"
 
 #include "ai_pes_co2ar.h"
@@ -50,19 +49,12 @@ void dipole_lab(double *q, double diplab[3]) {
     diplab[2] = diplab_eig(2); 
 }
 
-int main(int argc, char *argv[])
+int main()
 {
-    MPI_Init(&argc, &argv);
-
-    MPI_Context ctx = {};
-    MPI_Comm_size(MPI_COMM_WORLD, &ctx.size); 
-    MPI_Comm_rank(MPI_COMM_WORLD, &ctx.rank);
-    INIT_RANK;
-
     uint32_t seed = 43; // mt_goodseed();
-    
     init_pes();
     co2_ar_ids.init();
+
     dipole = dipole_lab;
 
     double MU = m_CO2 * m_Ar / (m_CO2 + m_Ar); 
@@ -73,27 +65,25 @@ int main(int argc, char *argv[])
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.5;
     params.sampler_Rmax                     = 40.0;
-    params.initialM0_npoints                = 20000000;
+    params.initialM0_npoints                = 1000000;
     params.partial_partition_function_ratio = 1.0;
     params.pesmin                           = -195.6337098547 / HTOCM;
     
     double T = 300.0;
 
     double M0, M0_std;
-    mpi_calculate_M0(ctx, &ms, &params, T, &M0, &M0_std); 
+    calculate_M0(&ms, &params, T, &M0, &M0_std); 
 
-    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
-    PRINT0("Error: %.3f%%\n", M0_std/M0 * 100.0);
+    printf("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
+    printf("Error: %.3f%%\n", M0_std/M0 * 100.0);
 
-    if (assert_float_is_equal_to(M0, 1.350e-09, 2e-11) > 0) {
-        MPI_Finalize();
-        return 1; 
+    if (assert_float_is_equal_to(M0, 1.350e-09, 1e-11) > 0) {
+        exit(1);
     }
+
 
     free_ms(&ms);
     free_pes();
-
-    MPI_Finalize();
 
     return 0;
 }

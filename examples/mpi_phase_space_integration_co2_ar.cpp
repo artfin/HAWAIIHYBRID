@@ -1,4 +1,6 @@
+#define USE_MPI
 #include "hawaii.h"
+#include "hep_hawaii.hpp"
 
 #include "ai_pes_co2ar.h"
 
@@ -49,42 +51,67 @@ void dipole_lab(double *q, double diplab[3]) {
     diplab[2] = diplab_eig(2); 
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    MPI_Init(&argc, &argv);
+
+    MPI_Context ctx = {};
+    MPI_Comm_size(MPI_COMM_WORLD, &ctx.size); 
+    MPI_Comm_rank(MPI_COMM_WORLD, &ctx.rank);
+    INIT_RANK;
+
     uint32_t seed = 43; // mt_goodseed();
+    
     init_pes();
     co2_ar_ids.init();
-
     dipole = dipole_lab;
 
     double MU = m_CO2 * m_Ar / (m_CO2 + m_Ar); 
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
-
     CalcParams params = {};
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.5;
     params.sampler_Rmax                     = 40.0;
-    params.initialM0_npoints                = 1000000;
+    params.initialM0_npoints                = 20000000;
     params.partial_partition_function_ratio = 1.0;
     params.pesmin                           = -195.6337098547 / HTOCM;
     
     double T = 300.0;
+    
+    double hep_M0, hep_M0_err; 
+    hep::mpi_vegas_callback<double>(hep::mpi_vegas_verbose_callback<double>);
+    mpi_perform_integration(&ms, integrand_M0, &params, T, 12, 1e6, &hep_M0, &hep_M0_err);
+
+    double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+    hep_M0     *= ZeroCoeff / pf_analytic;
+    hep_M0_err *= ZeroCoeff / pf_analytic;
+    PRINT0("HEP M0: %.5e +/- %.5e\n\n", hep_M0, hep_M0_err);
+
+    double hep_ppf, hep_ppf_err;
+    mpi_perform_integration(&ms, integrand_pf, &params, T, 12, 1e6, &hep_ppf, &hep_ppf_err);
+    double ppf_ratio = hep_ppf / pf_analytic;
+    PRINT0("PPF ratio: %.5e\n\n", ppf_ratio); 
+    
 
     double M0, M0_std;
-    calculate_M0(&ms, &params, T, &M0, &M0_std); 
+    params.partial_partition_function_ratio = ppf_ratio;
+    mpi_calculate_M0(ctx, &ms, &params, T, &M0, &M0_std); 
 
-    printf("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
-    printf("Error: %.3f%%\n", M0_std/M0 * 100.0);
+    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
+    PRINT0("Error: %.3f%%\n", M0_std/M0 * 100.0);
 
-    if (assert_float_is_equal_to(M0, 1.350e-09, 1e-11) > 0) {
-        exit(1);
+
+    if (assert_float_is_equal_to(M0, 3.64e-04, 3e-6) > 0) {
+        MPI_Finalize();
+        return 1; 
     }
-
 
     free_ms(&ms);
     free_pes();
+
+    MPI_Finalize();
 
     return 0;
 }

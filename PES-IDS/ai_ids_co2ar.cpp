@@ -5,8 +5,6 @@ constexpr size_t AI_IDS_co2_ar::index(const int l, const int m) {
 }
 	
 void AI_IDS_co2_ar::init() {
-    INITIALIZED = true;
-
     size_t sz = gsl_sf_legendre_array_n(lmax);
     LegP.resize(sz);
 }
