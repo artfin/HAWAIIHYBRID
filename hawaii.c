@@ -757,7 +757,7 @@ void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, d
 
 #include "trajectory.h"
 
-int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *local_crln)
+int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln)
 // TODO: Use temporary arena instead of malloc 
 {
     double *correlation_forw = malloc(params->MaxTrajectoryLength * sizeof(double));
@@ -766,7 +766,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     double *correlation_back = malloc(params->MaxTrajectoryLength * sizeof(double));
     memset(correlation_back, 0.0, params->MaxTrajectoryLength * sizeof(double));
     
-    memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
+    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
     double dip0[3], dipt[3];
     extract_q_and_write_into_ms(ms);
@@ -832,7 +832,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     }
 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-        local_crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]);
+        crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]);
     } 
     
     free_array(&qp);
@@ -841,8 +841,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 }
 
 #ifdef USE_MPI
-CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature)
-// TODO: make all the iterations here and save the results to file
+CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature)
 {
     assert(dipole != NULL);
 
@@ -851,19 +850,43 @@ CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *para
     assert(params->sampling_time > 0);
     assert(params->total_trajectories > 0);
     assert(params->partial_partition_function_ratio > 0);
+    assert(params->cvode_tolerance > 0);
+    assert(params->niterations >= 1);
+    assert(params->cf_filename != NULL);
 
     INIT_RANK;
-    
-    size_t counter = 0;
-    size_t desired_dist = 0;
-    size_t integral_counter = 0;
+  
+    FILE *fd = NULL; 
+    if (ctx.rank == 0) {
+        fd = fopen(params->cf_filename, "w");
+        if (fd == NULL) { 
+            printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->cf_filename);
+            exit(1);
+        }
+    } 
 
-    size_t local_trajectories = params->total_trajectories / ctx.size;
+    size_t local_ntrajectories = params->total_trajectories / params->niterations / ctx.size;
    
+    double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
     double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
-
-    double *total_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
-    memset(total_crln, 0, params->MaxTrajectoryLength * sizeof(double)); 
+    
+    CFnc total_crln = {
+        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data  = malloc(params->MaxTrajectoryLength * sizeof(double)),
+        .len   = params->MaxTrajectoryLength,
+        .ntraj = 0,
+        .T     = Temperature, 
+    }; 
+    memset(total_crln.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
+    
+    CFnc total_crln_iter = {
+        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data  = malloc(params->MaxTrajectoryLength * sizeof(double)),
+        .len   = params->MaxTrajectoryLength,
+        .ntraj = 0,
+        .T     = Temperature, 
+    }; 
+    memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
@@ -871,71 +894,89 @@ CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *para
         case BOUND:               print_every_nth_iteration = 1000;    break;
     } 
     
-    double tolerance = 1e-12;
-    Trajectory traj = init_trajectory(ms, tolerance);
+    Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
 
     PRINT0("\n\n"); 
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    pair state (pair_state):                               %s\n",     pair_state_name(params->ps));
-    PRINT0("    trajectories to be calculated (total_trajectories):    %zu\n",    params->total_trajectories);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):    %zu\n",    params->MaxTrajectoryLength);
-    PRINT0("    sampling time of dipole on trajectory (sampling_time): %.2f\n",   params->sampling_time);
-    PRINT0("    maximum intermolecular distance on trajectory (Rcut):  %.2f\n",   params->Rcut);
-    PRINT0("    CVode tolerance:                                       %.3e\n\n", tolerance);
+    PRINT0("    pair state (pair_state):                                             %s\n",     pair_state_name(params->ps));
+    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",    params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",    params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",    params->MaxTrajectoryLength);
+    PRINT0("    partial partition function (partial_partition_function_ratio):       %.6e\n",   params->partial_partition_function_ratio);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n",   params->sampling_time);
+    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n",   params->Rcut);
+    PRINT0("    CVode tolerance:                                                     %.3e\n\n", params->cvode_tolerance);
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
     PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
     PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
 
-    // TODO: calculate_M0 function is not parallelized
-
     double prelim_M0, prelim_M0std;
-    calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
+    mpi_calculate_M0(ctx, ms, params, Temperature, &prelim_M0, &prelim_M0std);
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
     PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+    
+    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
+   
+    for (size_t iter = 0; iter < params->niterations; ++iter) 
+    {
+        size_t counter = 0;
+        size_t desired_dist = 0;
+        size_t integral_counter = 0;
 
-    while (integral_counter < local_trajectories) {
-        q_generator(ms, params);
-        p_generator(ms, Temperature);
+        while (integral_counter < local_ntrajectories) 
+        {
+            q_generator(ms, params);
+            p_generator(ms, Temperature);
 
-        double energy = Hamiltonian(ms);
-        ++counter;
+            double energy = Hamiltonian(ms);
+            ++counter;
 
-        if (!reject(ms, Temperature, params->pesmin)) {
-            ++desired_dist;
+            if (!reject(ms, Temperature, params->pesmin)) {
+                ++desired_dist;
 
-            if (params->ps == FREE_AND_METASTABLE) {
-                if (energy < 0.0) continue; 
-            }
+                if (params->ps == FREE_AND_METASTABLE) {
+                    if (energy < 0.0) continue; 
+                }
 
-            if (params->ps == BOUND) {
-                if (energy > 0.0) continue;
-            }
+                if (params->ps == BOUND) {
+                    if (energy > 0.0) continue;
+                }
 
-            int status = correlation_eval(ms, &traj, params, local_crln); 
-            if (status == -1) continue;
+                int status = correlation_eval(ms, &traj, params, crln); 
+                if (status == -1) continue;
 
-            for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-                total_crln[i] += params->partial_partition_function_ratio * local_crln[i];
-            }
+                for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+                    local_crln[i] += params->partial_partition_function_ratio * crln[i];
+                }
 
-            integral_counter++;
+                integral_counter++;
 
-            if ((ctx.rank == 0) && (integral_counter % print_every_nth_iteration == 0)) {
-                printf("[calculate_correlation] accumulated %zu points\n", integral_counter);
+                if (integral_counter % print_every_nth_iteration == 0) {
+                    printf("[%d - calculate_correlation] accumulated %zu points\n", ctx.rank, integral_counter);
+                }
             }
         }
-    }
 
-    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
-    MPI_Allreduce(MPI_IN_PLACE, total_crln, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, comm);
+       
+        for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+            total_crln.data[i] += total_crln_iter.data[i];
+        }
+        total_crln.ntraj += local_ntrajectories * ctx.size;
+
+        memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
+        memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
+
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter, params->niterations, total_crln.ntraj, params->cf_filename);
+        double M0_crln_est = total_crln.data[0] / total_crln.ntraj / ALU / ALU / ALU * ZeroCoeff;
+        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
+
+        if (ctx.rank == 0) save_correlation_function(fd, total_crln, params);
+    }
   
-    return (CFnc) {
-        .t    = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
-        .vals = total_crln,
-        .n    = params->MaxTrajectoryLength,
-    }; 
+    return total_crln; 
 }
 #endif // USE_MPI
 
@@ -971,5 +1012,19 @@ double* linspace(double start, double end, size_t n) {
     return v;
 }
 
+void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params)
+{
+    fprintf(fd, "# HAWAII HYBRID v0.1\n");
+    fprintf(fd, "# TEMPERATURE: %.2f\n", crln.T);
+    fprintf(fd, "# PAIR STATE: %s\n", pair_state_name(params->ps));
+    fprintf(fd, "# AVERAGE OVER %zu TRAJECTORIES\n", crln.ntraj); 
+    fprintf(fd, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
+    fprintf(fd, "# PARTIAL PARTITION FUNCTION: %.2e\n", params->partial_partition_function_ratio);
+    fprintf(fd, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+
+    for (size_t i = 0; i < crln.len; ++i) {
+        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj);
+    }
+}
 
 

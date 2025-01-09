@@ -87,23 +87,26 @@ int main(int argc, char *argv[])
     CalcParams params = {};
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 40.0;
-    params.total_trajectories               = 10;
+    params.niterations                      = 2; 
+    params.total_trajectories               = 100;
+    params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
     params.partial_partition_function_ratio = 1.0;
-    params.initialM0_npoints                = 10000000;
+    params.initialM0_npoints                = 1000000;
     params.pesmin                           = -195.6337098547 / HTOCM;
+    params.cf_filename                      = "./CF-F-300.0.txt";
 
     double Temperature = 300.0;
     
-    CFnc cf = calculate_correlation(ctx, &ms, &params, Temperature);
+    CFnc cf = calculate_correlation_and_save(ctx, &ms, &params, Temperature);
 
     if (ctx.rank == 0) {
         printf("\n\n");
         printf("Correlation function is calculated. The initial values are:\n");
         for (size_t i = 0; i < 10; ++i) {
-            printf("%.2f   %.10e\n", cf.t[i], cf.vals[i]);
+            printf("%.2f   %.10e\n", cf.t[i], cf.data[i]);
         }
     }
 

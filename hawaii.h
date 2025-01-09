@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -124,9 +126,12 @@ typedef struct {
     /* trajectory */
     double sampling_time;
     size_t MaxTrajectoryLength;
+    double cvode_tolerance;
     
     /* correlation & pr/mu calculation */
+    const char* cf_filename;
     size_t total_trajectories;
+    size_t niterations;
     double Rcut;
     double R0; // initial distance for pr/mu calculation 
 
@@ -159,8 +164,10 @@ typedef struct {
 
 typedef struct {
     double *t; 
-    double *vals;
-    size_t n; 
+    double *data;
+    size_t len;
+    size_t ntraj; 
+    double T;
 } CFnc;
 
 
@@ -217,11 +224,13 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-CFnc calculate_correlation(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature);
+CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature);
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
+
+void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 

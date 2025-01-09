@@ -1,6 +1,7 @@
 #ifndef CONSTANTS_H_
 #define CONSTANTS_H_
 
+#define ALU        5.29177210903e-11                           // SI: m
 #define Boltzmann  1.380649e-23                                // SI: J * K^(-1)
 #define Hartree    4.3597447222071e-18                         // SI: J 
 #define HTOCM      2.1947463136320e5                           // 1 Hartree in cm-1
