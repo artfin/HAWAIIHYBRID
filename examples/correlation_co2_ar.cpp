@@ -67,9 +67,8 @@ int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
-    MPI_Context ctx = {};
-    MPI_Comm_size(MPI_COMM_WORLD, &ctx.size); 
-    MPI_Comm_rank(MPI_COMM_WORLD, &ctx.rank); 
+    INIT_WRANK;
+    INIT_WSIZE;
 
     int seed = 42;
 
@@ -93,20 +92,20 @@ int main(int argc, char *argv[])
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
-    params.partial_partition_function_ratio = 1.0;
+    params.partial_partition_function_ratio = 2.68854e+05;
     params.initialM0_npoints                = 1000000;
     params.pesmin                           = -195.6337098547 / HTOCM;
     params.cf_filename                      = "./CF-F-300.0.txt";
 
     double Temperature = 300.0;
     
-    CFnc cf = calculate_correlation_and_save(ctx, &ms, &params, Temperature);
+    CFnc cf = calculate_correlation_and_save(&ms, &params, Temperature);
 
-    if (ctx.rank == 0) {
+    if (_wrank == 0) {
         printf("\n\n");
         printf("Correlation function is calculated. The initial values are:\n");
         for (size_t i = 0; i < 10; ++i) {
-            printf("%.2f   %.10e\n", cf.t[i], cf.data[i]);
+            printf("%.2f   %.10e\n", cf.t[i], cf.data[i]*ALU*ALU*ALU);
         }
     }
 
@@ -117,5 +116,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-

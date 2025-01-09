@@ -4,7 +4,7 @@ dipolePtr dipole = NULL;
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed) 
 {
-    INIT_RANK;
+    INIT_WRANK;
 
     MoleculeSystem ms = {0};
     ms.mu = mu;
@@ -683,12 +683,13 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 }
 
 #ifdef USE_MPI
-void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
 {
     assert(params->initialM0_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
 
-    INIT_RANK;
+    INIT_WRANK;
+    INIT_WSIZE;
 
     size_t counter = 0;
     size_t desired_dist = 0;
@@ -703,7 +704,7 @@ void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, d
         case BOUND:               print_every_nth_iteration = 1000;    break;
     } 
     
-    size_t local_npoints = params->initialM0_npoints / ctx.size;
+    size_t local_npoints = params->initialM0_npoints / _wsize;
     
     *m = 0.0;
     *q = 0.0;
@@ -740,17 +741,16 @@ void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, d
             if (integral_counter % print_every_nth_iteration == 0) {
                 double M0_est    = ml * ZeroCoeff * params->partial_partition_function_ratio;
                 double M0std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
-                PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", ctx.size*integral_counter, params->initialM0_npoints, M0_est, M0std_est);
+                PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", _wsize*integral_counter, params->initialM0_npoints, M0_est, M0std_est);
             }
         }
     } 
 
-    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
-    MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, comm);
-    MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
      
-    *m = (ml/ctx.size) * ZeroCoeff * params->partial_partition_function_ratio;
-    *q = sqrt((ql/ctx.size) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+    *m = (ml/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
+    *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
 }
 #endif // USE_MPI
 
@@ -841,7 +841,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 }
 
 #ifdef USE_MPI
-CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature)
+CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 {
     assert(dipole != NULL);
 
@@ -854,10 +854,11 @@ CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcPar
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
-    INIT_RANK;
+    INIT_WRANK;
+    INIT_WSIZE;
   
     FILE *fd = NULL; 
-    if (ctx.rank == 0) {
+    if (_wrank == 0) {
         fd = fopen(params->cf_filename, "w");
         if (fd == NULL) { 
             printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->cf_filename);
@@ -865,7 +866,7 @@ CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcPar
         }
     } 
 
-    size_t local_ntrajectories = params->total_trajectories / params->niterations / ctx.size;
+    size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
    
     double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
     double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
@@ -913,12 +914,10 @@ CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcPar
     PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
 
     double prelim_M0, prelim_M0std;
-    mpi_calculate_M0(ctx, ms, params, Temperature, &prelim_M0, &prelim_M0std);
+    mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
     PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
     
-    MPI_Comm comm = (ctx.communicator != NULL) ? ctx.communicator : MPI_COMM_WORLD;
-   
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
         size_t counter = 0;
@@ -954,26 +953,26 @@ CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcPar
                 integral_counter++;
 
                 if (integral_counter % print_every_nth_iteration == 0) {
-                    printf("[%d - calculate_correlation] accumulated %zu points\n", ctx.rank, integral_counter);
+                    printf("[%d - calculate_correlation] accumulated %zu points\n", _wrank, integral_counter);
                 }
             }
         }
 
-        MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
        
         for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
             total_crln.data[i] += total_crln_iter.data[i];
         }
-        total_crln.ntraj += local_ntrajectories * ctx.size;
+        total_crln.ntraj += local_ntrajectories * _wsize;
 
         memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter, params->niterations, total_crln.ntraj, params->cf_filename);
-        double M0_crln_est = total_crln.data[0] / total_crln.ntraj / ALU / ALU / ALU * ZeroCoeff;
+        double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
 
-        if (ctx.rank == 0) save_correlation_function(fd, total_crln, params);
+        if (_wrank == 0) save_correlation_function(fd, total_crln, params);
     }
   
     return total_crln; 
@@ -981,7 +980,8 @@ CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcPar
 #endif // USE_MPI
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
-    INIT_RANK;
+    INIT_WRANK;
+    INIT_WSIZE;
 
     if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
         PRINT0("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
@@ -1023,13 +1023,13 @@ void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params)
     fprintf(fd, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < crln.len; ++i) {
-        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj);
+        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj *ALU*ALU*ALU);
     }
 }
 
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
 {
-    double pf_analytic;
+    double pf_analytic = 0.0;
 
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
         TODO("analytic_full_partition_function_by_V");  

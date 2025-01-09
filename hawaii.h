@@ -54,13 +54,18 @@ void sincos(double, double*, double*);
 #define UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 
 #ifdef USE_MPI
-#define INIT_RANK                           \
-    int __rank;                             \
-    MPI_Comm_rank(MPI_COMM_WORLD, &__rank); \
+#define INIT_WRANK                          \
+    int _wrank;                             \
+    MPI_Comm_rank(MPI_COMM_WORLD, &_wrank); \
 
-#define PRINT0(...) if (__rank == 0) printf(__VA_ARGS__); 
+#define INIT_WSIZE                          \
+    int _wsize;                             \
+    MPI_Comm_size(MPI_COMM_WORLD, &_wsize); \
+
+#define PRINT0(...) if (_wrank == 0) printf(__VA_ARGS__); 
 #else
-#define INIT_RANK
+#define INIT_WRANK
+#define INIT_WSIZE
 #define PRINT0(...) printf(__VA_ARGS__)
 #endif
 
@@ -154,12 +159,6 @@ typedef enum {
 
 #ifdef USE_MPI
 #include <mpi.h>
-
-typedef struct {
-    MPI_Comm communicator;
-    int rank;
-    int size;
-} MPI_Context;
 #endif // USE_MPI
 
 typedef struct {
@@ -224,8 +223,8 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
 
 #ifdef USE_MPI
-void mpi_calculate_M0(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-CFnc calculate_correlation_and_save(MPI_Context ctx, MoleculeSystem *ms, CalcParams *params, double Temperature);
+void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
