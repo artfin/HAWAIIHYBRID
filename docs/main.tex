@@ -1,0 +1,346 @@
+\documentclass{article}
+
+\usepackage{graphicx} % Required for inserting images
+\usepackage{xcolor}
+
+% longtable environment can be broken down by page break
+\usepackage{longtable} 
+
+\usepackage[margin=1in,top=0.5in]{geometry}
+
+\usepackage{tikz}
+\newcommand{\recttext}[1]{%
+  \begin{tikzpicture}[baseline=(text.base)]
+    \node[align=center, inner sep=0.35em] (text) {#1};
+    \draw (text.south west) rectangle (text.north east);
+  \end{tikzpicture}
+}
+
+\newcommand{\libname}{\texttt{Hawaii Hybrid}\,}
+
+\title{Documentation for \libname v.0.1}
+\author{A. Finenko and D. Chistikov}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage 
+
+
+\section{\libname code organization}
+\label{sec:code-organization}
+
+\recttext{\texttt{enum MonomerType}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Values & \texttt{ATOM} = 0 \\
+           & \texttt{LINEAR\_MOLECULE} = 4 \\
+           & \texttt{LINEAR\_MOLECULE\_REQUANTIZED\_ROTATION} = \texttt{MODULO\_BASE} + 4 \\
+           & {\color{red} \texttt{LINEAR\_VIBRATING\_MOLECULE} = \texttt{MODULO\_BASE} + 6} \\
+           & \texttt{ROTOR} = 6 \\
+           & \texttt{ROTOR\_REQUANTIZED\_ROTATION} = \texttt{2*MODULO\_BASE} + 6 \\
+    Description & This enum is used to distinguish between systems of different types and store the size of the phase point: \texttt{size(phase\_point) = MonomerType \% MODULO\_BASE}, where \texttt{MODULO\_BASE} is \texttt{\#define}d to 100 by default. 
+\end{longtable} 
+
+\noindent
+\recttext{\texttt{enum PairState}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Values & \texttt{FREE\_AND\_METASTABLE} = 0 \\
+           & \texttt{BOUND} = 1 \\
+    Description & \\ 
+\end{longtable} 
+
+
+\noindent
+\recttext{\texttt{enum CalculationType}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Values & \texttt{PRMU} = 0 \\
+           & \texttt{CORRELATION\_SINGLE} = 1 \\
+           & \texttt{CORRELATION\_ARRAY} = 2 \\
+    Description & \\ 
+\end{longtable} 
+
+\noindent 
+\recttext{\texttt{struct Monomer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{MonomerType t} \\
+           &  \texttt{double I[3]} -- values of tensor of inertia \\
+           &  \texttt{double *qp} -- dynamic variables  {\color{red} (currently, Euler angles and conjugated momenta)} at the current step of simulation\\
+           & \texttt{double *dVdq} -- the derivatives of potential energy with respect to coordinates pertaining to this monomer (the order of coordinates is the same as for \texttt{qp}) \\
+           &  \texttt{bool apply\_requantization} \\
+    Description & The \texttt{apply\_requantization} will be set to \texttt{true} in \texttt{rhs} to signal that the requantization of the monomer's angular momentum is required during trajectory propagation.  
+    The order of variables in the \texttt{qp} array is specified by the following indices: \\
+    & \texttt{\#define IPHI 0} \\
+    & \texttt{\#define IPPHI 1} \\
+    & \texttt{\#define ITHETA 2} \\
+    & \texttt{\#define IPTHETA 3} \\
+    & \texttt{\#define IPSI 4} \\
+    & \texttt{\#define IPPSI 5} \\
+\end{longtable} 
+
+\noindent
+\recttext{\texttt{struct MoleculeSystem}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{intermolecular\_qp[6]} -- Coordinates and conjugated momenta that correspond to the intermolecular motion: ($\Phi$, $p_\Phi$, $\Theta$, $p_\Theta$, $R$, $p_R$). \\
+           & \texttt{Monomer m1} \\
+           & \texttt{Monomer m2} \\
+           & \texttt{double mu} -- reduced mass of molecule pair \\
+           & \texttt{size\_t Q\_SIZE} -- total number of coordinates for molecule pair \\
+           & \texttt{size\_t QP\_SIZE} -- total number of coordinates and momenta for molecule pair (a.k.a. \texttt{size(phase\_point)}) \\
+           & \texttt{double *intermediate\_q} -- contiguous vector of coordinates \\
+           & \texttt{double *dVdq} -- contiguous vector of potential energy derivatives  \\
+    Description &  Keep in mind that angular variables and momenta are stored in the same order as for \texttt{qp} in \texttt{Monomer}. These variables' locations are \texttt{\#define}d as follows: \\
+    &  \texttt{\#define IPHI 0} \\
+    & \texttt{\#define IPPHI 1} \\
+    & \texttt{\#define ITHETA 2} \\
+    & \texttt{\#define IPTHETA 3} \\
+    & \texttt{\#define IR 4} \\
+    & \texttt{\#define IPR 5} \\
+    & Keep in mind that intermolecular coordinates and monomer's coordinates are not stored contiguously. The contiguous vector of coordinates can be assembled by calling \texttt{extract\_q\_and\_write\_into\_ms} function, which stores the coordinates in memory pointed at by \texttt{intermediate\_q}. These coordinates are passed to external functions that compute the values of intermolecular energy, its derivatives with respect to coordinates and induced dipole (see section~\ref{subsec:external-functions}).There is no guarantee that coordinates stored in \texttt{Monomer}'s and coordinates in memory at \texttt{intermediate\_q} are always in sync.  The function \texttt{extract\_q\_and\_write\_into\_ms} must be invoked if the contiguous vector of coordinates is desired at a certain point of the program execution. 
+\end{longtable} 
+
+\noindent 
+Function \recttext{\texttt{init\_ms}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{MoleculeSystem *ms = MoleculeSystem init\_ms(mu, t1, t2, I1, I2, seed)} \\
+    Arguments & \texttt{double mu} -- the reduced mass of the molecule pair \\
+              & \texttt{MonomerType t1} specifies the type of first monomer \\ 
+              & \texttt{MonomerType t2} specifies the type of second monomer \\
+              & \texttt{double* I1} contains inertia tensor values for first monomer. If the monomer is atom, no values will be read from the pointer, so \texttt{NULL} can be passed. Two and three values are expected for the rotor and linear molecule, respectively. \\
+              & \texttt{double* I2} contains inertia tensor values for second monomer. \\
+              & \texttt{size\_t seed} is the seed for random number generator. A unique seed will be produced if \texttt{0} is passed. \\
+    Description & The function prepares the \texttt{MoleculeSystem} struct based on the specified monomer types, {\color{red} allocates the memory using \texttt{malloc}} and initializes the random number generator. 
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{kinetic\_energy}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double kinetic\_energy(*ms)} \\
+    Arguments & \texttt{MoleculeSystem* ms} \\
+    Description & The kinetic energy function is calculated at the phase-point stored in \texttt{MoleculeSystem}. {\color{red} Currently, implemented for intermolecular degrees of freedom and linear molecules.}
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{Hamiltonian}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double Hamiltonian(*ms)} \\
+    Arguments & \texttt{MoleculeSystem* ms} \\
+    Description & Calls to \texttt{kinetic energy}, assembles a contiguous vector of coordinates via \texttt{extract\_q\_and\_write\_into\_ms} and passes it to external \texttt{pes}. 
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{q\_generator}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void q\_generator(*ms, *params)} \\
+    Arguments & \texttt{MoleculeSystem* ms} \\
+              & \texttt{CalcParams *params} \\
+    Description & Generates $R$ with density $\rho \sim R^2$ in the range [\texttt{params.sampler\_Rmin}, \texttt{params.sampler\_Rmax}]. The distributions of $\varphi, \psi$ are $\varphi, \psi \sim U[0, 2\pi]$ and for $\theta$ is $\cos \theta \sim U[0, 1]$. {\color{red} Currently implemented for intermolecular degrees of freedom and linear molecules.}
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{p\_generator}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void p\_generator(*ms, T)} \\
+    Arguments & \texttt{MoleculeSystem* ms} \\
+              & \texttt{double T} \\
+    Description & Samples momenta $p$ from distribution $\rho \sim e^{-K/kT}$ at given temperature. Calls to \texttt{p\_generator\_linear\_molecule} and \texttt{p\_generator\_rotor} to sample momenta for monomers.
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{reject}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{bool reject(*ms, Temperature, pesmin)} \\
+    Arguments & \texttt{MoleculeSystem* ms} \\
+              & \texttt{double Temperature} \\
+              & \texttt{double pesmin} -- the minimum value of PES \\
+    Description & Applies the rejection step to the phase-point that is stored in the \texttt{MoleculeSystem}. It presupposes that the provided phase-point is sampled from $\rho \sim e^{-K/kT}$ using \texttt{q\_generator} and \texttt{p\_generator} functions. The random variable $u \sim U[0, 1]$ is chosen, to determine whether the current phase-point is to be accepted with probability $\rho \sim \exp(-H/kT)$.     
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{rhs}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void rhs(t, y, ydot, *user\_data);} \\
+    Arguments & \texttt{UNUSED(realtype t)} \\
+              & \texttt{N\_Vector y} stores coordinates and conjugated momenta \\
+              & \texttt{N\_Vector ydot} is filled by function with numerical values of right-hand side of Hamilton's equations of motion  at provided phase point \\
+              & \texttt{void *user\_data} is employed to pass \texttt{MoleculeSystem*} inside the function (see section \ref{subsec:cvode}) \\
+    Description & This function is passed to \texttt{CVode} library to propagate the trajectory (see section \ref{subsec:cvode}).First, the phase-point coordinates are stored into \texttt{MoleculeSystem} struct. A contiguous vector of coordinates is assembled via \texttt{extract\_q\_and\_write\_into\_ms}. Next, by calling the external function \texttt{dpes}, the derivatives of potential energy are computed  and stored into \texttt{MoleculeSystem.dVdq}. The components of derivative vector are then copied into the field \texttt{Monomer.dVdq} of the corresponding monomer via the call to \texttt{extract\_dVdq\_and\_write\_into\_monomers}. The right-hand side of Hamilton's equations with respect to intermolecular degrees of freedom are readily obtained and filled into \texttt{ydot}, while the derivatives with respect to monomer's coordinates are handled by \texttt{rhsMonomer} function.
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{rhsMonomer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void rhsMonomer(*m, *deriv);} \\
+    Arguments & \texttt{Monomer *m} \\
+              & \texttt{double *deriv} stores the right-hand side of Hamilton's equations of motion with respect to coordinates and momenta that correspond to the passed-in monomer \\
+    Description &  In addition to differentiating the kinetic energy, the derivatives of potential energy, which are taken from \texttt{Monomer.dVdq}, are also added to compute the right-hand side. When \texttt{apply\_requantization} flag is set, then the momenta in \texttt{qp} are rescaled so that angular momentum is brought to the closest half-integer.
+    {\color{red} Currently, implemented only for linear molecules.}
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{j\_monomer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double j\_monomer(m);} \\
+    Arguments & \texttt{Monomer m} \\
+    Description &  Computes the magnitude of angular momentum of passed-in monomer. {\color{red} Currently, implemented only for linear molecules.} 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{torque\_monomer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double torque\_monomer(m);} \\
+    Arguments & \texttt{Monomer m} \\
+    Description &  Computes the magnitude of torque of passed-in monomer. {\color{red} Currently, implemented only for linear molecules.}
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{calculate\_M0}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void calculate\_M0(*ms, *params, Temperature, *m, *q);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+              & \texttt{CalcParams *params} \\
+              & \texttt{double Temperature} \\
+              & \texttt{double *m} -- the estimate of $M_0$  \\
+              & \texttt{double *q} -- the error of the estimate \\
+    Description & By sampling from $\rho \sim e^{-K/kT}$  and rejecting some of the points using the \texttt{reject} function, \texttt{params.initialM0\_npoints} phase-points are produced to estimate $M_0$ and its error.
+\end{longtable} 
+
+\noindent
+MPI Function \recttext{\texttt{mpi\_calculate\_M0}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void calculate\_M0(ctx, *ms, *params, Temperature, *m, *q);} \\
+    Arguments & \texttt{MPI\_Context ctx} \\
+              & \texttt{MoleculeSystem *ms} \\
+              & \texttt{CalcParams *params} \\
+              & \texttt{double Temperature} \\
+              & \texttt{double *m} \\
+              & \texttt{double *q} \\
+    Description & The task of iterating \texttt{params.initialM0\_npoints} points is split equally between processes of communicator.
+\end{longtable} 
+
+
+\noindent
+MPI Function \recttext{\texttt{ calculate\_correlation\_and\_save}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{CFnc calculate\_correlation\_and\_save(ctx, *ms, *params, Temperature);} \\
+    Arguments & \texttt{MPI\_Context ctx} \\
+              & \texttt{MoleculeSystem *ms} \\ 
+              & \texttt{CalcParams *params} \\
+              & \texttt{double Temperature} \\
+    Description & First, an estimate of the zeroth moment is obtained over \texttt{params.initialM0\_npoints} points. The accumulation of \texttt{params.total\_trajectories} individual correlation functions is divided into \texttt{params.niterations} iterations.  The current aggregate estimate of the correlation function is saved to \texttt{params.cf\_filename} at the end of each iteration. 
+\end{longtable} 
+
+
+\noindent
+\recttext{\texttt{struct CalcParams}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{PairState ps} \\
+           & \texttt{/* sampling */} \\
+           & \texttt{double sampler\_Rmin} \\ 
+           & \texttt{double sampler\_Rmax} \\
+           & \texttt{double pesmin} \\
+           & \texttt{/* initial spectral moments check */} \\ 
+           & \texttt{size\_t initialM0\_npoints} \\
+           & \texttt{double partial\_partition\_function\_ratio} \\
+           & \texttt{/* requantization */} \\ 
+           & \texttt{size\_t torque\_cache\_len} \\
+           & \texttt{double torque\_bound} \\
+           & \texttt{/* trajectory */} \\
+           & \texttt{double sampling\_time} \\
+           & \texttt{double R0} \\
+           & \texttt{double Rcut} \\
+           & \texttt{size\_t MaxTrajectoryLength} \\
+           & \texttt{size\_t CF\_Length} \\
+           & \texttt{/* correlation function array */} \\
+           & \texttt{double *temperatures} \\
+           & \texttt{size\_t ntemperatures} \\
+\end{longtable} 
+
+\subsection{External functions}
+\label{subsec:external-functions}
+
+{\color{red} Signatures}
+
+\noindent
+\textbf{Supplied routines:}
+\begin{enumerate}
+\item spherical decomposition for \textit{ab initio} PES for CO$_2-$Ar (Kalugina/Lokshtanov) 
+\item spherical decomposition for \textit{ab initio} IDS for CO$_2-$Ar (Kalugina/Lokshtanov)
+\item spherical decomposition for full-dimensional \textit{ab initio} PES for N$_2-$Ar (Finenko)
+\item PIP-NN representation for \textit{ab initio} PES surface for N$_2-$Ar (Finenko)
+\item PIP-NN representation for \textit{ab initio} IDS surface for N$_2-$Ar (Finenko)
+\item spherical decomposition for long-range IDS for N$_2-$Ar (Wang)
+\item spherical decomposition for long-range $\textrm{d}\mu/\textrm{d}r$ surface for N$_2-$Ar (Wang)
+\item spherical decomposition for \textit{ab initio} PES for H$_2-$Ar (LeRoy/Chistikov)
+\item spherical decomposition for long-range IDS for H$_2-$Ar (Kalugina)
+\item spherical decomposition for \textit{ab initio} induced dipole for H$_2-$Ar (Meyer)
+\item PIP-NN representation for \textit{ab initio} IDS for H$_2-$Ar (Meyer/Finenko)
+\item spherical decomposition for \textit{ab initio} PES for CO$_2-$CO$_2$ (Kalugina/Lokshtanov)
+\item spherical decomposition for \textit{ab initio} IDS for CO$_2-$CO$_2$ (Kalugina/Lokshtanov)
+\item spherical decomposition for \textit{ab initio} PES for N$_2-$N$_2$ (Karman/Chistikov)
+\item spherical decomposition for \textit{ab initio} IDS for N$_2-$N$_2$ (Karman/Chistikov)
+\item spherical decomposition for \textit{ab initio} PES for N$_2-$H$_2$ (Kalugina)
+\item spherical decomposition for long-range IDS for N$_2-$H$_2$ (Kalugina)
+\item spherical decomposition for \textit{ab initio} PES for CH$_4-$N$_2$ (Finenko)
+\item spherical decomposition for \textit{ab initio} IDS for CH$_4-$N$_2$ (Finenko)
+\item PIP-NN representation for full-dimensional \textit{ab initio} PES for CH$_4-$N$_2$ (Finenko)
+\item spherical decomposition for \textit{ab initio} PES for CH$_4-$CO$_2$ (Finenko)
+\item spherical decomposition for \textit{ab initio} IDS for CH$_4-$CO$_2$ (Finenko)
+\item spherical decomposition for \textit{ab initio} PES for CO$-$Ar (Pederson)
+\item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
+\end{enumerate}
+
+\subsection{Interfacing with \texttt{CVode} library}
+\label{subsec:cvode}
+
+\section{A skeleton of the user's program}
+\label{sec:user-program}
+
+For now, let us assume that the user is supposed to use \libname as a library, not via the configuration file to a driver program (which could be arranged in the future). Then the following structure is expected:
+
+\begin{enumerate}
+
+\item \textbf{Initialize parallel environment} ({\color{red} or multi-threaded environment?}) \\
+Call \texttt{MPI\_Init} to initialize MPI if desired.
+
+\item \textbf{Initialize \texttt{MoleculeSystem}} \\
+Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, the reduced mass of the molecule pair and the generator seed.
+
+\item ...
+
+\end{enumerate}
+
+
+\section{Examples}
+\label{sec:examples}
+
+\subsection{Propagating trajectory for CO$_2-$Ar}
+\label{subsec:trajectory}
+
+\subsection{Propagating trajectory for H$_2-$Ar while requantizing the angular momentum of H$_2$}
+\label{subsec:req-trajectory}
+
+\subsection{Calculating the zeroth and second spectral moments of CO$_2-$Ar as phase-space averages using rejection-based sampler}
+\label{subsec:spmoments-co2-ar}
+
+\subsection{Calculating a single correlation function for CO$_2-$Ar}
+\label{subsec:correlation-co2-ar}
+
+\section{Changelog}
+\label{sec:changelog}
+
+\begin{enumerate}
+    \item [24.12.2024] \texttt{rhsMonomer}: accepts pointer so that monomer's \texttt{qp} can be changed if \texttt{apply\_requantization} flag is set.
+    \item [06.01.2025] \texttt{Makefile}: switched to \texttt{Makefile} from build script.
+\end{enumerate}
+
+\section{Todo's}
+
+\begin{itemize}
+    \item arena allocator?
+\end{itemize}
+
+
+\end{document}

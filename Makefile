@@ -1,4 +1,4 @@
-.PHONY: all clean test
+.PHONY: all clean test docs
 
 CC     := gcc
 CXX    := g++
@@ -19,18 +19,26 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe \
 all: $(EXAMPLES) 
 
 clean: 
-	rm -rf build/
-	rm -v $(EXAMPLES) 
+	rm -rf -v build/
+	rm -v $(EXAMPLES)
+	rm -v docs/main.toc
+	rm -v docs/main.aux
+	rm -v docs/main.log
 
 test: $(EXAMPLES)
 	./run_tests.sh	
 
+docs: docs/main.tex
+	cd docs && pdflatex main.tex && pdflatex main.tex
 
 build/hawaii.o: hawaii.c | build
 	$(CC) $(FLAGS) $(INC_SUNDIALS) -c -MD $< -o $@ 
 
 build/mpi_hawaii.o: hawaii.c | build
 	$(MPICC) $(FLAGS) $(INC_SUNDIALS) -DUSE_MPI -c -MD $< -o $@ 
+
+build/hep_hawaii.o: hep_hawaii.cpp | build
+	$(MPICC) $(FLAGS) $(INC_SUNDIALS) -c -MD $< -o $@ 
 
 build/array.o: array.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
