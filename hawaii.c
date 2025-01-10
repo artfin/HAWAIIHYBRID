@@ -1,6 +1,6 @@
 #include "hawaii.h"
 
-#define HISTOGRAM_MAX_TPS 30
+#define HISTOGRAM_MAX_TPS 50
 
 dipolePtr dipole = NULL;
 
@@ -879,6 +879,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     *tps = tr.turning_points;
 
     free_array(&qp);
+   
+    free(correlation_forw);
+    free(correlation_back); 
 
     return status;
 }
@@ -942,9 +945,9 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
     gsl_histogram *tps_hist = NULL;
     if (params->ps == FREE_AND_METASTABLE) {
-        size_t nbins = MAX_TPS_HISTOGRAM;
+        size_t nbins = HISTOGRAM_MAX_TPS;
         tps_hist = gsl_histogram_alloc(nbins);
-        gsl_histogram_set_ranges_uniform(tps_hist, 0, MAX_TPS_HISTOGRAM);
+        gsl_histogram_set_ranges_uniform(tps_hist, 0, HISTOGRAM_MAX_TPS);
     }
 
     PRINT0("\n\n"); 
@@ -997,7 +1000,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 int status = correlation_eval(ms, &traj, params, crln, &tps); 
                 if (status == -1) continue;
 
-                if (ps->params == FREE_AND_METASTABLE) {
+                if (params->ps == FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
 
@@ -1033,6 +1036,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     if (tps_hist != NULL) {
         gsl_histogram_free(tps_hist);
     }
+    
+    free(crln);
+    free(local_crln);
+    free_cfnc(total_crln_iter);
 
     return total_crln; 
 }
@@ -1121,5 +1128,10 @@ gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h)
     gsl_histogram_free(h);
 
     return new_h;
+}
+
+void free_cfnc(CFnc cf) {
+    free(cf.t);
+    free(cf.data);
 }
 

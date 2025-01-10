@@ -240,6 +240,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 double* linspace(double start, double end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
 
+void free_cfnc(CFnc cf);
+
 void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);

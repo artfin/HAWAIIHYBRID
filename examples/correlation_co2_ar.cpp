@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 40.0;
     params.niterations                      = 2; 
-    params.total_trajectories               = 100;
+    params.total_trajectories               = 4;
     params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
 
     free_trajectory(&traj);
     free_ms(&ms);
+    free_cfnc(cf); 
 
     MPI_Finalize();
 
