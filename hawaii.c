@@ -1023,7 +1023,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
         total_crln.ntraj += local_ntrajectories * _wsize;
 
-        memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
+        memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter, params->niterations, total_crln.ntraj, params->cf_filename);
@@ -1040,6 +1040,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     free(crln);
     free(local_crln);
     free_cfnc(total_crln_iter);
+
+    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+        total_crln.data[i] /= total_crln.ntraj;
+    }
 
     return total_crln; 
 }
@@ -1089,7 +1093,7 @@ void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params)
     fprintf(fd, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < crln.len; ++i) {
-        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj *ALU*ALU*ALU);
+        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj * ALU*ALU*ALU);
     }
 }
 
