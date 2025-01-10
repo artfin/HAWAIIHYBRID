@@ -24,6 +24,7 @@
 
 #define m_H2 (2.0 * m_H)
 #define m_CO2 (m_C + 2.0 * m_O)
+#define m_CH4 (m_C + 4.0 * m_H)
 
 // ? 
 #define l_CO2 4.398
@@ -36,5 +37,21 @@
     
 #define II_CO2 (m_O/2.0*l_CO2*l_CO2)
 #define II_H2  (m_H/2.0*l_H2*l_H2)
+    
+// Source: S. Albert, S. Bauerecker, V. Boudon, L. R. Brown, J. P. Champion, M. Loete, A. Nikitin, M. Quack, Chemical Physics, 2009, 356, 131-146.
+// B0 = 5.241040019 cm-1 (page 8; Supplementary material)  
+#define l_CH4 2.067354047786849 
+// used in our quantum chemistry calculations for CH4-N2 and CH4-CO2
+// there is a small inconsistency with B0 from (Albert, 2009)
+// l_CH4 -> B0calc = 5.240957524426735
+// using this l_CH4 for consistency with PES & IDS 
+
+
+// source of formula: http://www.pci.tu-bs.de/aggericke/PC4e/exercises/Sol04.pdf 
+#define II_CH4 (8.0/3.0 * m_H*l_CH4*l_CH4)
+// Product of moments of inertia IIA * IIB * IIC = 33.27803 amu^3 A^6 (amu = unified atomic mass unit = RAM)
+// this agrees with the value IIA * IIB * IIC = 33.27341 amu^3 A^6 provided in the
+// Computational Chemistry Comparison and Benchmark DataBase (CCCBDB, Release 21, August 2020) by NIST 
+// https://cccbdb.nist.gov/exp2x.asp?casno=74828&charge=0 
 
 #endif // CONSTANTS_H_

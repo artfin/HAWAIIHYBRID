@@ -1,11 +1,10 @@
 #include "ai_pes_co2ar.h"
 
-double *legP;
-int lmax = 10;
+static double* legP = NULL;
+static int lmax = 10;
 
 void init_pes()
 {
-    lmax = 10;
     legP = malloc((lmax + 1) * sizeof(double));
 }
 
