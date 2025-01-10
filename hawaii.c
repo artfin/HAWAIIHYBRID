@@ -1,5 +1,7 @@
 #include "hawaii.h"
 
+#define HISTOGRAM_MAX_TPS 30
+
 dipolePtr dipole = NULL;
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed) 
@@ -757,7 +759,29 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
 
 #include "trajectory.h"
 
-int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln)
+void track_turning_points(Tracker *tr, double R)
+{
+    tr->before2 = tr->before;
+    tr->before  = tr->current;
+    tr->current = R; 
+
+    if (!tr->empty) {
+        // local maxima
+        if ((tr->before > tr->before2) && (tr->before > tr->current)) {
+            tr->turning_points++;
+        }
+
+        // local minima
+        if ( (tr->before < tr->before2) && (tr->before < tr->current)) { 
+            tr->turning_points++;
+        }
+    }
+
+    tr->called++;
+    if (tr->called > 1) tr->empty = false; 
+} 
+
+int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 // TODO: Use temporary arena instead of malloc 
 {
     double *correlation_forw = malloc(params->MaxTrajectoryLength * sizeof(double));
@@ -783,7 +807,14 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     double t = 0.0;
     double tout = params->sampling_time;
-    
+   
+    Tracker tr = {
+      .before2 = qp.data[IR],
+      .before  = qp.data[IR],
+      .current = qp.data[IR],
+      .empty   = true,
+    };
+
     /*
      * We start step_counter from 1 so that correlation value after the first integration step
      * will go into correlation_forw[1] 
@@ -802,6 +833,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 
         correlation_forw[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
 
+        track_turning_points(&tr, ms->intermolecular_qp[IR]);
+
         if (ms->intermolecular_qp[IR] > params->Rcut) break;
     }
     
@@ -813,7 +846,13 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     t = 0.0;
     tout = params->sampling_time;
-    
+   
+    tr.before2 = qp.data[IR];
+    tr.before  = qp.data[IR];
+    tr.current = qp.data[IR];
+    tr.called  = 0;
+    tr.empty   = true;
+
     for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
     {
         status = make_step(traj, tout, &t);
@@ -827,6 +866,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         (*dipole)(ms->intermediate_q, dipt);
 
         correlation_back[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
+        
+        track_turning_points(&tr, ms->intermolecular_qp[IR]);
 
         if (ms->intermolecular_qp[IR] > params->Rcut) break;
     }
@@ -834,7 +875,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]);
     } 
-    
+
+    *tps = tr.turning_points;
+
     free_array(&qp);
 
     return status;
@@ -897,6 +940,13 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
 
+    gsl_histogram *tps_hist = NULL;
+    if (params->ps == FREE_AND_METASTABLE) {
+        size_t nbins = MAX_TPS_HISTOGRAM;
+        tps_hist = gsl_histogram_alloc(nbins);
+        gsl_histogram_set_ranges_uniform(tps_hist, 0, MAX_TPS_HISTOGRAM);
+    }
+
     PRINT0("\n\n"); 
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
@@ -923,6 +973,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         size_t counter = 0;
         size_t desired_dist = 0;
         size_t integral_counter = 0;
+        size_t tps = 0; 
 
         while (integral_counter < local_ntrajectories) 
         {
@@ -943,8 +994,12 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     if (energy > 0.0) continue;
                 }
 
-                int status = correlation_eval(ms, &traj, params, crln); 
+                int status = correlation_eval(ms, &traj, params, crln, &tps); 
                 if (status == -1) continue;
+
+                if (ps->params == FREE_AND_METASTABLE) {
+                    gsl_histogram_increment(tps_hist, tps);
+                }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
                     local_crln[i] += params->partial_partition_function_ratio * crln[i];
@@ -974,7 +1029,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
         if (_wrank == 0) save_correlation_function(fd, total_crln, params);
     }
-  
+ 
+    if (tps_hist != NULL) {
+        gsl_histogram_free(tps_hist);
+    }
+
     return total_crln; 
 }
 #endif // USE_MPI
@@ -1038,5 +1097,29 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
     }
 
     return pf_analytic;
+}
+
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h)
+{
+    size_t nbins = h->n;
+    double add_bins = 10;
+    
+    double xmin = h->range[0];
+    double xmax = h->range[nbins];
+    double dx = h->range[1] - h->range[0];
+    
+    double new_xmax = xmax + add_bins*dx; 
+    
+    gsl_histogram *new_h = gsl_histogram_alloc(nbins + add_bins);
+    gsl_histogram_set_ranges_uniform(new_h, xmin, new_xmax);
+        
+    size_t nc = 0; // cursor over the new histogram
+    for (size_t i = 0; i < nbins; ++i) {
+        new_h->bin[nc++] = gsl_histogram_get(h, i); 
+    }
+
+    gsl_histogram_free(h);
+
+    return new_h;
 }
 

@@ -11,6 +11,8 @@
 #include <mpi.h>
 #endif // USE_MPI
 
+#include <gsl/gsl_histogram.h>
+
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
@@ -157,9 +159,6 @@ typedef enum {
     MCMC
 } SamplingType;
 
-#ifdef USE_MPI
-#include <mpi.h>
-#endif // USE_MPI
 
 typedef struct {
     double *t; 
@@ -168,6 +167,17 @@ typedef struct {
     size_t ntraj; 
     double T;
 } CFnc;
+
+typedef struct {
+    double before2;
+    double before;
+    double current;
+
+    size_t turning_points;
+    
+    size_t called;
+    bool empty;
+} Tracker;
 
 
 /* ----------------------------- */
