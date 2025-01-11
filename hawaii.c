@@ -26,7 +26,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
           break;
         }
         case ROTOR: {
-          TODO("init_ms");
+          memcpy(ms.m1.I, I1, 3*sizeof(double));
+          break;
         } 
         case ROTOR_REQUANTIZED_ROTATION: {
           TODO("init_ms");
@@ -50,7 +51,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
           break;
         }
         case ROTOR: {
-          TODO("init_ms");
+          memcpy(ms.m2.I, I2, 3*sizeof(double));
+          break;
         } 
         case ROTOR_REQUANTIZED_ROTATION: {
           TODO("init_ms");
@@ -135,9 +137,6 @@ const char* pair_state_name(PairState ps) {
 
     UNREACHABLE("pair_state_name");
 }
-
-// перед расчетом корреляционной функции делать прикидку M0/M2
-// после окончания расчета выписывать оценки M0/M2 по рассчитанной корреляционной функции
 
 void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
     for (size_t k = 0; k < QP_SIZE; k += 2) {
@@ -266,7 +265,37 @@ void rhsMonomer(Monomer *m, double *deriv) {
            break;                                                    
         }
         case ROTOR: {
-          TODO("rhsMonomer");
+          double pPhi   = m->qp[IPPHI];
+          double theta  = m->qp[ITHETA];
+          double pTheta = m->qp[IPTHETA];
+          double psi    = m->qp[IPSI];
+          double pPsi   = m->qp[IPPSI];
+
+          double sin_theta = sin(theta);
+          double cos_theta = cos(theta);
+
+          double sin_psi = sin(psi); 
+          double cos_psi = cos(psi);
+          
+          double t1 = (pPhi - pPsi * cos_theta) * sin_psi + pTheta * sin_theta * cos_psi;
+          double t2 = (pPhi - pPsi * cos_theta) * cos_psi - pTheta * sin_theta * sin_psi; 
+          deriv[IPHI] = t1 * sin_psi / (m->I[0] * sin_theta * sin_theta) + t2 * cos_psi / (m->I[1] * sin_theta * sin_theta);
+          deriv[IPPHI] = 0.0; 
+   
+          deriv[ITHETA] = t1 * cos_psi / (m->I[0] * sin_theta) - t2 * sin_psi / (m->I[1] * sin_theta);
+
+          double t3 = pPhi * cos_theta - pPsi;
+          double t4 = pPsi * cos_theta - pPhi; 
+          deriv[IPTHETA] = -t3 * (t4 * (m->I[0] - m->I[1]) * cos_psi * cos_psi + \
+                            pTheta * (m->I[0] - m->I[1]) * sin_theta * sin_psi * cos_psi + \
+                            t4 * m->I[1]) / (m->I[0] * m->I[1] * sin_theta * sin_theta * sin_theta);
+
+          deriv[IPSI] = -t1 * cos_theta * sin_psi / (m->I[0] * sin_theta * sin_theta) - \
+                         t2 * cos_theta * cos_psi / (m->I[1] * sin_theta * sin_theta) + \
+                         pPsi / m->I[2];
+          deriv[IPPSI] = -t1*t2 / (m->I[0] * sin_theta * sin_theta) + t1*t2 / (m->I[1] * sin_theta * sin_theta);
+           
+          break;                                                    
         }
         case ROTOR_REQUANTIZED_ROTATION: {
           TODO("rhsMonomer");
@@ -275,8 +304,8 @@ void rhsMonomer(Monomer *m, double *deriv) {
 }
 
 void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
-    memcpy(ms->m1.dVdq, ms->dVdq + 3,                              (ms->m1.t % MODULO_BASE)/2 * sizeof(double));
-    memcpy(ms->m2.dVdq, ms->dVdq + 3 + (ms->m1.t % MODULO_BASE)/2, (ms->m2.t % MODULO_BASE)/2 * sizeof(double));
+    memcpy(ms->m1.dVdq, ms->dVdq + 3,                            (ms->m1.t%MODULO_BASE)/2 * sizeof(double));
+    memcpy(ms->m2.dVdq, ms->dVdq + 3 + (ms->m1.t%MODULO_BASE)/2, (ms->m2.t%MODULO_BASE)/2 * sizeof(double));
 }
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
@@ -312,16 +341,16 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     NV_Ith_S(ydot, ITHETA)  = pTheta / (ms->mu * R2);
     NV_Ith_S(ydot, IPTHETA) = pPhi * pPhi * cosTheta / (ms->mu * R2 * sinTheta3) - ms->dVdq[ITHETA/2]; 
     
-    double rhs_monomer1[ms->m1.t % MODULO_BASE];
+    double rhs_monomer1[ms->m1.t%MODULO_BASE];
     rhsMonomer(&ms->m1, rhs_monomer1);
-    for (size_t i = 0; i < ms->m1.t % MODULO_BASE; ++i) {
+    for (size_t i = 0; i < ms->m1.t%MODULO_BASE; ++i) {
         NV_Ith_S(ydot, i + 6) = rhs_monomer1[i];
     }
 
-    double rhs_monomer2[ms->m2.t % MODULO_BASE];
+    double rhs_monomer2[ms->m2.t%MODULO_BASE];
     rhsMonomer(&ms->m2, rhs_monomer2);
-    for (size_t i = 0; i < ms->m2.t % MODULO_BASE; ++i) {
-        NV_Ith_S(ydot, i + 6 + (ms->m1.t % MODULO_BASE)) = rhs_monomer2[i];
+    for (size_t i = 0; i < ms->m2.t%MODULO_BASE; ++i) {
+        NV_Ith_S(ydot, i + 6 + (ms->m1.t%MODULO_BASE)) = rhs_monomer2[i];
     }
     
     //for (size_t i = 0; i < 10; ++i) {
@@ -341,7 +370,7 @@ Array compute_numerical_rhs(MoleculeSystem *ms)
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
    
-    double step = 1e-7;
+    double step = 1e-3;
 
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         get_qp_from_ms(ms, &qp);
@@ -396,9 +425,9 @@ double kinetic_energy(MoleculeSystem *ms) {
         case ATOM: break;
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
         case LINEAR_MOLECULE: {
-          double phi1t = ms->m1.qp[IPHI]; UNUSED(phi1t);
-          double pphi1t = ms->m1.qp[IPPHI];
-          double theta1t = ms->m1.qp[ITHETA];
+          double phi1t    = ms->m1.qp[IPHI]; UNUSED(phi1t);
+          double pphi1t   = ms->m1.qp[IPPHI];
+          double theta1t  = ms->m1.qp[ITHETA];
           double ptheta1t = ms->m1.qp[IPTHETA];
           
           double sin_theta1t = sin(theta1t);
@@ -407,8 +436,26 @@ double kinetic_energy(MoleculeSystem *ms) {
           break;
         }
         case ROTOR_REQUANTIZED_ROTATION: 
-        case ROTOR: { 
-          TODO("kinetic_energy");
+        case ROTOR: {
+          double phi1t    = ms->m1.qp[IPHI]; UNUSED(phi1t);
+          double pphi1t   = ms->m1.qp[IPPHI];
+          double theta    = ms->m1.qp[ITHETA];
+          double ptheta1t = ms->m1.qp[IPTHETA];
+          double psi      = ms->m1.qp[IPSI];
+          double ppsi1t   = ms->m1.qp[IPPSI];
+
+          double sin_theta = sin(theta);
+          double cos_theta = cos(theta);
+
+          double sin_psi = sin(psi); 
+          double cos_psi = cos(psi);
+
+          KIN2 = ((pphi1t - ppsi1t * cos_theta) * sin_psi + ptheta1t * sin_theta * cos_psi) * \
+                 ((pphi1t - ppsi1t * cos_theta) * sin_psi + ptheta1t * sin_theta * cos_psi) / (2.0 * ms->m1.I[0] * sin_theta * sin_theta) + \
+                 ((pphi1t - ppsi1t * cos_theta) * cos_psi - ptheta1t * sin_theta * sin_psi) * \
+                 ((pphi1t - ppsi1t * cos_theta) * cos_psi - ptheta1t * sin_theta * sin_psi) / (2.0 * ms->m1.I[1] * sin_theta * sin_theta) + \
+                 ppsi1t * ppsi1t / (2.0 * ms->m1.I[2]);
+          break;
         }
     }
     
@@ -473,11 +520,11 @@ void invert_momenta(MoleculeSystem *ms) {
         ms->intermolecular_qp[i] = -ms->intermolecular_qp[i];
     }
 
-    for (size_t i = 1; i < (ms->m1.t%MODULO_BASE); ++i) {
+    for (size_t i = 1; i < (ms->m1.t%MODULO_BASE); i += 2) {
         ms->m1.qp[i] = -ms->m1.qp[i];
     }
     
-    for (size_t i = 1; i < (ms->m2.t%MODULO_BASE); ++i) {
+    for (size_t i = 1; i < (ms->m2.t%MODULO_BASE); i += 2) {
         ms->m2.qp[i] = -ms->m2.qp[i];
     }
 }
@@ -765,7 +812,7 @@ void track_turning_points(Tracker *tr, double R)
     tr->before  = tr->current;
     tr->current = R; 
 
-    if (!tr->empty) {
+    if (tr->ready) {
         // local maxima
         if ((tr->before > tr->before2) && (tr->before > tr->current)) {
             tr->turning_points++;
@@ -778,7 +825,7 @@ void track_turning_points(Tracker *tr, double R)
     }
 
     tr->called++;
-    if (tr->called > 1) tr->empty = false; 
+    if (tr->called > 1) tr->ready = true; 
 } 
 
 int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
@@ -812,7 +859,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
       .before2 = qp.data[IR],
       .before  = qp.data[IR],
       .current = qp.data[IR],
-      .empty   = true,
+      .ready   = false,
     };
 
     /*
@@ -851,7 +898,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     tr.before  = qp.data[IR];
     tr.current = qp.data[IR];
     tr.called  = 0;
-    tr.empty   = true;
+    tr.ready   = false;
 
     for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
     {
@@ -903,10 +950,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     INIT_WRANK;
     INIT_WSIZE;
   
-    FILE *fd = NULL; 
+    FILE *fp = NULL; 
     if (_wrank == 0) {
-        fd = fopen(params->cf_filename, "w");
-        if (fd == NULL) { 
+        fp = fopen(params->cf_filename, "w");
+        if (fp == NULL) { 
             printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->cf_filename);
             exit(1);
         }
@@ -1026,11 +1073,13 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
-        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter, params->niterations, total_crln.ntraj, params->cf_filename);
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, total_crln.ntraj, params->cf_filename);
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
 
-        if (_wrank == 0) save_correlation_function(fd, total_crln, params);
+        if (_wrank == 0) { 
+            save_correlation_function(fp, total_crln, params);
+        }
     }
  
     if (tps_hist != NULL) {
@@ -1082,18 +1131,28 @@ double* linspace(double start, double end, size_t n) {
     return v;
 }
 
-void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params)
+void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
 {
-    fprintf(fd, "# HAWAII HYBRID v0.1\n");
-    fprintf(fd, "# TEMPERATURE: %.2f\n", crln.T);
-    fprintf(fd, "# PAIR STATE: %s\n", pair_state_name(params->ps));
-    fprintf(fd, "# AVERAGE OVER %zu TRAJECTORIES\n", crln.ntraj); 
-    fprintf(fd, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
-    fprintf(fd, "# PARTIAL PARTITION FUNCTION: %.2e\n", params->partial_partition_function_ratio);
-    fprintf(fd, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+    // truncate the file to a length of 0, effectively clearing its contents
+    int fd = fileno(fp); 
+    if (ftruncate(fd, 0) < 0) {
+        printf("ERROR: could not truncate file: %s\n", strerror(errno));
+        exit(1);
+    }
+
+    // resets the file position indicator
+    rewind(fp);
+
+    fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    fprintf(fp, "# TEMPERATURE: %.2f\n", crln.T);
+    fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
+    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", crln.ntraj); 
+    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", crln.len);
+    fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.2e\n", params->partial_partition_function_ratio);
+    fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < crln.len; ++i) {
-        fprintf(fd, "%.10f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj * ALU*ALU*ALU);
+        fprintf(fp, "%.2f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj * ALU*ALU*ALU);
     }
 }
 

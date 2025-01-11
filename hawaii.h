@@ -176,7 +176,7 @@ typedef struct {
     size_t turning_points;
     
     size_t called;
-    bool empty;
+    bool ready;
 } Tracker;
 
 
