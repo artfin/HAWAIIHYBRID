@@ -355,19 +355,19 @@ void linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixX
  * This function transforms coordinates in laboratory frame of reference to frame of reference centered on CH4 molecule. It actually does not care how 
  * CH4 is oriented. Initial orientation of CH4 in laboratory frame coincides with the frozen orientation of CH4. 
  * CH4-N2 and CH4-CO2 PES & IDS utilize different orientation of CH4 compared to Y. Kalugina works. So be careful with this. Suffix 'kal' just points to
- * the fact that this frame of reference is just centered on CH4. 
+ * the fact that this frame of reference is centered on CH4. 
  */
-void CH4_linear_molecule_lab_to_kal(std::vector<double> const& qlab, std::vector<double> & qkal)
+void CH4_linear_molecule_lab_to_kal(double *qlab, double *qkal)
 /* 
  * qlab:
- *     R PHI THETA
+ *     PHI THETA R
  *     PHI1T THETA1T PSI1T
  *     PHI2T THETA2T
  * qkal:
  *     R PHI1K THETA1K PHI2K THETA2K
  */
 {
-    qkal[0] = qlab[0];
+    qkal[0] = qlab[2];
    
     double sinPhi, cosPhi;
     double sinTheta, cosTheta;
@@ -377,8 +377,8 @@ void CH4_linear_molecule_lab_to_kal(std::vector<double> const& qlab, std::vector
     double sinphi2t, cosphi2t;
     double sintheta2t, costheta2t;
 
-    sincos(qlab[1], &sinPhi, &cosPhi); 
-    sincos(qlab[2], &sinTheta, &cosTheta);
+    sincos(qlab[0], &sinPhi, &cosPhi); 
+    sincos(qlab[1], &sinTheta, &cosTheta);
     sincos(qlab[3], &sinphi1t, &cosphi1t);
     sincos(qlab[4], &sintheta1t, &costheta1t);
     sincos(qlab[5], &sinpsi1t, &cospsi1t);
