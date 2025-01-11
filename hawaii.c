@@ -34,8 +34,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         }
     } 
     
-    ms.m1.qp = malloc((t1 % MODULO_BASE) * sizeof(double));
-    ms.m1.dVdq = malloc((t1 % MODULO_BASE)/2 * sizeof(double));
+    ms.m1.qp   = malloc((t1%MODULO_BASE)   * sizeof(double));
+    ms.m1.dVdq = malloc((t1%MODULO_BASE)/2 * sizeof(double));
 
     ms.m2.t = t2;
     switch (t2) {
@@ -59,11 +59,11 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
         }
     }
 
-    ms.m2.qp = malloc((t2 % MODULO_BASE) * sizeof(double));
-    ms.m2.dVdq = malloc((t2 % MODULO_BASE)/2 * sizeof(double));
+    ms.m2.qp   = malloc((t2%MODULO_BASE)   * sizeof(double));
+    ms.m2.dVdq = malloc((t2%MODULO_BASE)/2 * sizeof(double));
     
-    ms.QP_SIZE = (t1 % MODULO_BASE) + (t2 % MODULO_BASE) + 6; 
-    ms.Q_SIZE = ms.QP_SIZE / 2;
+    ms.QP_SIZE = (t1%MODULO_BASE) + (t2%MODULO_BASE) + 6;
+    ms.Q_SIZE  = ms.QP_SIZE / 2;
 
     ms.dVdq = malloc(ms.Q_SIZE * sizeof(double));
     ms.intermediate_q = malloc(ms.Q_SIZE * sizeof(double));
@@ -280,7 +280,7 @@ void rhsMonomer(Monomer *m, double *deriv) {
           double t1 = (pPhi - pPsi * cos_theta) * sin_psi + pTheta * sin_theta * cos_psi;
           double t2 = (pPhi - pPsi * cos_theta) * cos_psi - pTheta * sin_theta * sin_psi; 
           deriv[IPHI] = t1 * sin_psi / (m->I[0] * sin_theta * sin_theta) + t2 * cos_psi / (m->I[1] * sin_theta * sin_theta);
-          deriv[IPPHI] = 0.0; 
+          deriv[IPPHI] = -m->dVdq[IPHI/2]; 
    
           deriv[ITHETA] = t1 * cos_psi / (m->I[0] * sin_theta) - t2 * sin_psi / (m->I[1] * sin_theta);
 
@@ -288,12 +288,12 @@ void rhsMonomer(Monomer *m, double *deriv) {
           double t4 = pPsi * cos_theta - pPhi; 
           deriv[IPTHETA] = -t3 * (t4 * (m->I[0] - m->I[1]) * cos_psi * cos_psi + \
                             pTheta * (m->I[0] - m->I[1]) * sin_theta * sin_psi * cos_psi + \
-                            t4 * m->I[1]) / (m->I[0] * m->I[1] * sin_theta * sin_theta * sin_theta);
+                            t4 * m->I[1]) / (m->I[0] * m->I[1] * sin_theta * sin_theta * sin_theta) - m->dVdq[ITHETA/2];
 
           deriv[IPSI] = -t1 * cos_theta * sin_psi / (m->I[0] * sin_theta * sin_theta) - \
                          t2 * cos_theta * cos_psi / (m->I[1] * sin_theta * sin_theta) + \
                          pPsi / m->I[2];
-          deriv[IPPSI] = -t1*t2 / (m->I[0] * sin_theta * sin_theta) + t1*t2 / (m->I[1] * sin_theta * sin_theta);
+          deriv[IPPSI] = -t1*t2 / (m->I[0] * sin_theta * sin_theta) + t1*t2 / (m->I[1] * sin_theta * sin_theta) - m->dVdq[IPSI/2];
            
           break;                                                    
         }
@@ -370,35 +370,166 @@ Array compute_numerical_rhs(MoleculeSystem *ms)
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
    
-    double step = 1e-3;
+    double step = 1e-4;
+    size_t acc = 6;
 
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         get_qp_from_ms(ms, &qp);
 
         if (i % 2 == 0) {
-            double c = qp.data[i + 1];
+            switch (acc) {
+              case 2: {
+                // −1/2, 0, 1/2
+                double c = qp.data[i + 1];
+                double r = 0.0;
 
-            qp.data[i + 1] = c + step;
-            put_qp_into_ms(ms, qp);
-            double Ep = Hamiltonian(ms);
-            
-            qp.data[i + 1] = c - step;
-            put_qp_into_ms(ms, qp);
-            double Em = Hamiltonian(ms);
-            
-            derivatives.data[i] = (Ep - Em)/(2.0*step);
+                qp.data[i + 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 0.5 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 0.5 * Hamiltonian(ms);
+                
+                derivatives.data[i] = r/step;
+                break;
+              }
+              case 4: {
+                // 1/12, −2/3, 0, 2/3, −1/12	
+                double c = qp.data[i + 1];
+                double r = 0.0;
+
+                qp.data[i + 1] = c - 2*step;
+                put_qp_into_ms(ms, qp);
+                r += 1.0/12.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 2.0/3.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 2.0/3.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c + 2*step;
+                put_qp_into_ms(ms, qp);
+                r -= 1.0/12.0 * Hamiltonian(ms);
+
+                derivatives.data[i] = r/step; 
+                break;
+              }
+              case 6: {
+                // −1/60, 3/20, −3/4, 0, 3/4, −3/20, 1/60
+                double c = qp.data[i + 1];
+                double r = 0.0;
+
+                qp.data[i + 1] = c - 3*step;
+                put_qp_into_ms(ms, qp);
+                r -= 1.0/60.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c - 2*step;
+                put_qp_into_ms(ms, qp);
+                r += 3.0/20.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 3.0/4.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 3.0/4.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c + 2*step;
+                put_qp_into_ms(ms, qp);
+                r -= 3.0/20.0 * Hamiltonian(ms);
+                
+                qp.data[i + 1] = c + 3*step;
+                put_qp_into_ms(ms, qp);
+                r += 1.0/60.0 * Hamiltonian(ms);
+
+                derivatives.data[i] = r/step; 
+                break;
+              }
+              default: {
+                assert(false);
+              }
+            }
         } else {
-            double c = qp.data[i - 1];
+            switch (acc) {
+              case 2: {
+                double c = qp.data[i - 1];
+                double r = 0.0;
 
-            qp.data[i - 1] = c + step;
-            put_qp_into_ms(ms, qp);
-            double Ep = Hamiltonian(ms);
+                qp.data[i - 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 0.5 * Hamiltonian(ms);
 
-            qp.data[i - 1] = c - step;
-            put_qp_into_ms(ms, qp);
-            double Em = Hamiltonian(ms);
+                qp.data[i - 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 0.5 * Hamiltonian(ms);
 
-            derivatives.data[i] = -(Ep - Em) / (2.0*step);
+                derivatives.data[i] = -r/step;
+                break;
+              }
+              case 4: {
+                double c = qp.data[i - 1];
+                double r = 0.0;
+
+                qp.data[i - 1] = c - 2*step;
+                put_qp_into_ms(ms, qp);
+                r += 1.0/12.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 2.0/3.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 2.0/3.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c + 2*step;
+                put_qp_into_ms(ms, qp);
+                r -= 1.0/12.0 * Hamiltonian(ms);
+
+                derivatives.data[i] = -r/step; 
+                break;
+              }
+              case 6: {
+                // −1/60, 3/20, −3/4, 0, 3/4, −3/20, 1/60
+                double c = qp.data[i - 1];
+                double r = 0.0;
+
+                qp.data[i - 1] = c - 3*step;
+                put_qp_into_ms(ms, qp);
+                r -= 1.0/60.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c - 2*step;
+                put_qp_into_ms(ms, qp);
+                r += 3.0/20.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c - step;
+                put_qp_into_ms(ms, qp);
+                r -= 3.0/4.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c + step;
+                put_qp_into_ms(ms, qp);
+                r += 3.0/4.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c + 2*step;
+                put_qp_into_ms(ms, qp);
+                r -= 3.0/20.0 * Hamiltonian(ms);
+                
+                qp.data[i - 1] = c + 3*step;
+                put_qp_into_ms(ms, qp);
+                r += 1.0/60.0 * Hamiltonian(ms);
+
+                derivatives.data[i] = -r/step; 
+                break;
+              }
+              default: {
+                assert(false);
+              }
+            }
         }
     }
 
@@ -463,9 +594,9 @@ double kinetic_energy(MoleculeSystem *ms) {
         case ATOM: break;
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
         case LINEAR_MOLECULE: { 
-          double phi2t = ms->m2.qp[IPHI]; UNUSED(phi2t);
-          double pphi2t = ms->m2.qp[IPPHI];
-          double theta2t = ms->m2.qp[ITHETA];
+          double phi2t    = ms->m2.qp[IPHI]; UNUSED(phi2t);
+          double pphi2t   = ms->m2.qp[IPPHI];
+          double theta2t  = ms->m2.qp[ITHETA];
           double ptheta2t = ms->m2.qp[IPTHETA];
           
           double sin_theta2t = sin(theta2t);
