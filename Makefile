@@ -17,7 +17,8 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe \
 			examples/trajectory_co2_ar.exe 				\
 			examples/trajectory_ch4_co2.exe 		    \
  			examples/trajectory_h2_ar_requantized.exe   \
-			examples/correlation_co2_ar.exe
+			examples/correlation_co2_ar.exe             \
+			examples/fftrump.exe
 
 all: $(EXAMPLES) 
 
@@ -121,6 +122,8 @@ examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajector
 examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
+examples/fftrump.exe: examples/fftrump.c $(OBJ) 
+	$(CC) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
 
 build:
 	mkdir -p $@

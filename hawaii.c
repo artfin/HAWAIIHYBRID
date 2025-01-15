@@ -1287,6 +1287,103 @@ void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
     }
 }
 
+
+/*
+#define nob_da_append_many(da, new_items, new_items_count)                                  \
+    do {                                                                                    \
+        if ((da)->count + new_items_count > (da)->capacity) {                               \
+            if ((da)->capacity == 0) {                                                      \
+                (da)->capacity = NOB_DA_INIT_CAP;                                           \
+            }                                                                               \
+            while ((da)->count + new_items_count > (da)->capacity) {                        \
+                (da)->capacity *= 2;                                                        \
+            }                                                                               \
+            (da)->items = NOB_REALLOC((da)->items, (da)->capacity*sizeof(*(da)->items));    \
+            NOB_ASSERT((da)->items != NULL && "ASSERT: not enough memory!\n");              \
+        }                                                                                   \
+        memcpy((da)->items + (da)->count, new_items, new_items_count*sizeof(*(da)->items)); \
+        (da)->count += new_items_count;                                                     \
+    } while (0)
+*/
+
+void sb_append(String_Builder *sb, const char *line, size_t n) {
+    strncpy(sb->items + sb->count, line, n);
+    sb->count += n;
+}
+
+bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf) 
+{
+    bool result = true;
+
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Error: could not open the file '%s': %s\n", filename, strerror(errno));
+        return_defer(false); 
+    }
+  
+    printf("Loading correlation function from %s\n", filename);
+
+    char* line = NULL;
+    size_t n;
+
+    size_t header_lines = 0;
+
+    while (getline(&line, &n, fp) > 0) {
+        n = strlen(line);
+
+        if (line[0] != '#') break;
+
+        size_t new_count = sb->count + n;
+        if (new_count > sb->capacity) {
+            sb->items = (char*) realloc(sb->items, new_count);
+            assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+            sb->capacity = new_count;
+        }
+
+        sb_append(sb, line, n);
+    
+        free(line);
+        line = NULL; 
+
+        header_lines++;
+    }
+   
+    printf("# of lines in header: %zu\n", header_lines);
+
+    // rewind the file pointer by one line because we read forward while reading header 
+    long pos = ftell(fp);
+    fseek(fp, pos - strlen(line), SEEK_SET);
+
+    size_t INIT_CAPACITY = 4096;
+
+    cf->t    = (double*) malloc(INIT_CAPACITY * sizeof(double));
+    cf->data = (double*) malloc(INIT_CAPACITY * sizeof(double));
+    cf->len = 0;
+    cf->capacity = INIT_CAPACITY;
+
+    double vt, vc;
+    while (fscanf(fp, "%lf %lf", &vt, &vc) == 2) {
+        if (cf->len + 1 > cf->capacity) {
+            size_t new_capacity = 2 * cf->capacity;
+
+            cf->t = (double*) realloc(cf->t, new_capacity * sizeof(double));
+            assert((cf->t != NULL) && "ASSERT: not enough memory!");
+            cf->data = (double*) realloc(cf->data, new_capacity * sizeof(double));
+            assert((cf->data != NULL) && "ASSERT: not enough memory!");
+            cf->capacity = new_capacity;
+        }
+
+        cf->t[cf->len] = vt;
+        cf->data[cf->len] = vc;
+        cf->len++;
+    }
+
+defer:
+    if (fp) fclose(fp);
+    return result;
+
+}
+
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
 {
     double pf_analytic = 0.0;
