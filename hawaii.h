@@ -323,7 +323,6 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp);
 SFnc desymmetrize_sch(SFnc sf, double T); 
 Spectrum compute_alpha(SFnc sf, double T); 
     
-
 #ifdef __cplusplus
 }
 #endif

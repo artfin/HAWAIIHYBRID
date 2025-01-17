@@ -56,6 +56,9 @@ build/mtwist.o: mtwist.c | build
 build/angles_handler.o: angles_handler.cpp | build
 	$(CXX) $(FLAGS) $(INC) -c -MD $< -o $@ 
 
+build/loess.o: loess.cpp | build
+	$(CXX) $(FLAGS) $(INC) -c -MD $< -o $@
+
 ###########################################################
 ###################### CO2-Ar #############################
 ###########################################################
@@ -122,8 +125,8 @@ examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajector
 examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
-examples/fftrump.exe: examples/fftrump.c $(OBJ) 
-	$(CC) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
+examples/fftrump.exe: examples/fftrump.cpp $(OBJ) build/loess.o 
+	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
 
 build:
 	mkdir -p $@

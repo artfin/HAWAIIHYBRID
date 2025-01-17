@@ -1,12 +1,16 @@
 #include "hawaii.h"
+#include "loess.hpp"
 
 double pes(double *q) { UNUSED(q); return 0; }
 void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
+
     
 int main()
 {
-    String_Builder sb = {0};
-    CFnc cf = {0};
+    double T = 300.0;
+
+    String_Builder sb{};
+    CFnc cf{};
 
     const char *filename = "examples/CF-F-300.0.txt"; 
     if (!read_correlation_function(filename, &sb, &cf)) {
@@ -32,7 +36,29 @@ int main()
         printf("%.5f %.5e\n", sf.nu[i], sf.data[i]);
     }
     
-    double T = 300.0;
+    Spectrum spraw = compute_alpha(desymmetrize_sch(sf, T), T);
+    spraw.len = 5700;  
+    filename = "sp_raw.txt";
+    if (!writetxt(filename, spraw.nu, spraw.data, spraw.len, sb.items)) {
+        printf("ERROR: could not write into the file '%s'!\n", filename);
+    }
+
+    LOESS loess(sf.nu, sf.data, sf.len);
+    double dnu = sf.nu[1] - sf.nu[0];
+
+    double numin = 0.0;
+    double numax = 300.0;
+    size_t npoints = 3001;
+    size_t wsmin = 50;
+    double wsstep = 0.7;
+    size_t wsdelay = 100; 
+    std::vector<double> sfsmvals = loess.eval_linear_ws(2, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
+
+    free(sf.nu);
+    sf.nu = linspace(numin, numax, npoints);
+    memcpy(sf.data, sfsmvals.data(), npoints * sizeof(double)); 
+    sf.len = npoints;
+
     SFnc sfd3 = desymmetrize_sch(sf, T);
     Spectrum spd3 = compute_alpha(sfd3, T); 
 
