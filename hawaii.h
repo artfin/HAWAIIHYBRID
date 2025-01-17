@@ -12,12 +12,20 @@
 #endif // USE_MPI
 
 #include <gsl/gsl_histogram.h>
+#include <gsl/gsl_blas.h>
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_multifit_nlinear.h>
+
+#include <gsl/gsl_fft_real.h>
+#include <gsl/gsl_fft_complex.h>
+#include <gsl/gsl_fft_halfcomplex.h>
 
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
 #endif
 #include <math.h>
+#include <complex.h>
 
 #ifndef __cplusplus
 #define MT_GENERATE_CODE_IN_HEADER 0
@@ -55,6 +63,8 @@ void sincos(double, double*, double*);
 #define TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 #define UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 
+#define return_defer(value) do { result = (value); goto defer; } while(0)
+
 #ifdef USE_MPI
 #define INIT_WRANK                          \
     int _wrank;                             \
@@ -87,9 +97,10 @@ typedef enum {
     ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,
 } MonomerType;
 
+// 17.01.2025 NOTE: changed 'double I[3]' -> 'double II[3]' to avoid collision when including <complex.h> 
 typedef struct { 
     MonomerType t;
-    double I[3];
+    double II[3];
     double *qp;
     double *dVdq;
     // TODO: should this be a monomer field or a bool[2] in MoleculeSystem?
@@ -163,10 +174,41 @@ typedef enum {
 typedef struct {
     double *t; 
     double *data;
-    size_t len;
-    size_t ntraj; 
-    double T;
+    size_t len;      // # of samples in *t, *data
+    size_t capacity; // capacity *t, *data
+    size_t ntraj;    // # trajectories used for averaging
+    double T;        // Temperature
 } CFnc;
+
+typedef struct {
+    double *nu;
+    double *data;
+    size_t len;      // # of samples in *nu, *data
+    size_t capacity; // capacity of *nu, *data 
+} SFnc;
+
+typedef struct {
+    double *nu;
+    double *data;
+    size_t len;      // # of samples of *nu, *data
+    size_t capacity; // capacity of *nu, *data
+} Spectrum;
+
+/*
+ * MODEL: Lorentzian function shifted upwards by constant: 
+ *             y = C + A /(1 + B^2 x^2)
+ */
+typedef struct {
+    double A;
+    double B;
+    double C;
+} WingParams;
+    
+typedef struct {
+    size_t n;
+    double* t;
+    double* y;
+} WingData;
 
 typedef struct {
     double before2;
@@ -241,10 +283,46 @@ double* linspace(double start, double end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
 
 void free_cfnc(CFnc cf);
+void free_sfnc(SFnc cf);
+void free_spectrum(Spectrum sp); 
+
+typedef struct {
+    char *items;
+    size_t count;
+    size_t capacity;
+} String_Builder;
+
+void sb_append(String_Builder sb, const char *line, size_t n);
+void free_sb(String_Builder sb);
+
 
 void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
+bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
+bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
+
+extern WingParams INIT_WP;
+double wingmodel(WingParams *wp, double t);
+
+int wingmodel_f(const gsl_vector* x, void* data, gsl_vector* f);
+int wingmodel_df(const gsl_vector* x, void* data, gsl_matrix * J);
+
+void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params);
+WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
+
+void connes_apodization(double *a, size_t len, double sampling_time); 
+
+/* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
+inline bool is_power_of_two(size_t n) {
+    return n && !(n & (n - 1));
+}
+
+double *idct(double *v, size_t len);
+SFnc dct_numeric_sf(CFnc cf, WingParams *wp);
+SFnc desymmetrize_sch(SFnc sf, double T); 
+Spectrum compute_alpha(SFnc sf, double T); 
+    
 
 #ifdef __cplusplus
 }

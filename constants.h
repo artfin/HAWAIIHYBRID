@@ -1,16 +1,29 @@
 #ifndef CONSTANTS_H_
 #define CONSTANTS_H_
 
-#define ALU        5.29177210903e-11                           // SI: m
-#define Boltzmann  1.380649e-23                                // SI: J * K^(-1)
-#define Hartree    4.3597447222071e-18                         // SI: J 
-#define HTOCM      2.1947463136320e5                           // 1 Hartree in cm-1
+#define ALU           5.29177210903e-11                           // SI: m
+#define Boltzmann     1.380649e-23                                // SI: J * K^(-1)
+#define Hartree       4.3597447222071e-18                         // SI: J 
+#define HTOCM         2.1947463136320e5                           // 1 Hartree in cm-1
+#define ATU           2.4188843265857e-17                         // SI: s 
+#define LightSpeed    2.99792458e8                                // SI: m / s
+#define LightSpeed_cm 2.99792458e10                               // cm / s
+#define ADIPMOMU      8.4783536255e-30                            // SI: C * m
+#define EPSILON0      8.8541878128e-12                            // SI: F * m^(-1)
+                                            
+#define Planck        6.62607015e-34                              // SI: J * s^(-1)
+#define HBar          1.054571817e-34                             // SI: J * s^(-1)
+#define NL            2.686780111e25                              // SI: m^(-3)
+
 #define HkT        (Hartree/Boltzmann)                         // to use as:  -V[a.u.]*`HkT`/T
 #define VkT        (HkT / HTOCM)                               // to use as:  -V[cm-1]*`VkT`/T
     
 #define BohrToAng 0.529177210903
 
 #define ZeroCoeff  (0.00361479637/(4.0*M_PI))
+    
+// MOMENT_SF_COEFF * \int_{-\infty}^{+\infty} J(\nu) * \nu^n d\nu -> cm^(-n-1) amagat^(-2)
+#define Moment_SF_Coeff  ((8.0*M_PI*M_PI*M_PI)*NL*NL/3.0/HBar)
 
 #define RAMTOAMU 1822.888485332
 

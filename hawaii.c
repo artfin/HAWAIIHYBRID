@@ -4,7 +4,7 @@
 
 dipolePtr dipole = NULL;
 
-MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed) 
+MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
 {
     INIT_WRANK;
 
@@ -16,17 +16,17 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     switch (t1) {
         case ATOM: break;
         case LINEAR_MOLECULE: {
-          assert(I1[0] == I1[1]);
-          memcpy(ms.m1.I, I1, 2*sizeof(double));
+          assert(II1[0] == II1[1]);
+          memcpy(ms.m1.II, II1, 2*sizeof(double));
           break;
         }
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          assert(I1[0] == I1[1]);
-          memcpy(ms.m1.I, I1, 2*sizeof(double));
+          assert(II1[0] == II1[1]);
+          memcpy(ms.m1.II, II1, 2*sizeof(double));
           break;
         }
         case ROTOR: {
-          memcpy(ms.m1.I, I1, 3*sizeof(double));
+          memcpy(ms.m1.II, II1, 3*sizeof(double));
           break;
         } 
         case ROTOR_REQUANTIZED_ROTATION: {
@@ -41,17 +41,17 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     switch (t2) {
         case ATOM: break;
         case LINEAR_MOLECULE: {
-          assert(I2[0] == I2[1]);
-          memcpy(ms.m2.I, I2, 2*sizeof(double));
+          assert(II2[0] == II2[1]);
+          memcpy(ms.m2.II, II2, 2*sizeof(double));
           break;
         }
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          assert(I2[0] == I2[1]);
-          memcpy(ms.m2.I, I2, 2*sizeof(double));
+          assert(II2[0] == II2[1]);
+          memcpy(ms.m2.II, II2, 2*sizeof(double));
           break;
         }
         case ROTOR: {
-          memcpy(ms.m2.I, I2, 3*sizeof(double));
+          memcpy(ms.m2.II, II2, 3*sizeof(double));
           break;
         } 
         case ROTOR_REQUANTIZED_ROTATION: {
@@ -84,19 +84,19 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
     PRINT0("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
     switch (t1) {
         case ATOM:                                 PRINT0("\n"); break;
-        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m1.I[0], ms.m1.I[1]); break;
-        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m1.I[0], ms.m1.I[1], ms.m1.I[2]); break;
+        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
+        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
     }
     
     PRINT0("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
     switch (t2) {
         case ATOM:                                 PRINT0("\n"); break;
-        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m2.I[0], ms.m2.I[1]); break;
-        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m2.I[0], ms.m2.I[1], ms.m2.I[2]); break;
+        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); break;
+        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
+        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
     }
 
     PRINT0("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
@@ -229,10 +229,10 @@ void rhsMonomer(Monomer *m, double *deriv) {
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           deriv[IPHI]    = pPhi / m->I[0] / sin_theta / sin_theta;
+           deriv[IPHI]    = pPhi / m->II[0] / sin_theta / sin_theta;
            deriv[IPPHI]   = -m->dVdq[IPHI/2];
-           deriv[ITHETA]  = pTheta / m->I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->I[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
+           deriv[ITHETA]  = pTheta / m->II[0]; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->II[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
            
            break;                                                    
         }
@@ -257,10 +257,10 @@ void rhsMonomer(Monomer *m, double *deriv) {
            double sin_theta = sin(Theta);
            double cos_theta = cos(Theta);
 
-           deriv[IPHI]    = pPhi / m->I[0] / sin_theta / sin_theta;
+           deriv[IPHI]    = pPhi / m->II[0] / sin_theta / sin_theta;
            deriv[IPPHI]   = -m->dVdq[IPHI/2];
-           deriv[ITHETA]  = pTheta / m->I[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->I[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
+           deriv[ITHETA]  = pTheta / m->II[0]; 
+           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->II[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
     
            break;                                                    
         }
@@ -279,21 +279,21 @@ void rhsMonomer(Monomer *m, double *deriv) {
           
           double t1 = (pPhi - pPsi * cos_theta) * sin_psi + pTheta * sin_theta * cos_psi;
           double t2 = (pPhi - pPsi * cos_theta) * cos_psi - pTheta * sin_theta * sin_psi; 
-          deriv[IPHI] = t1 * sin_psi / (m->I[0] * sin_theta * sin_theta) + t2 * cos_psi / (m->I[1] * sin_theta * sin_theta);
+          deriv[IPHI] = t1 * sin_psi / (m->II[0] * sin_theta * sin_theta) + t2 * cos_psi / (m->II[1] * sin_theta * sin_theta);
           deriv[IPPHI] = -m->dVdq[IPHI/2]; 
    
-          deriv[ITHETA] = t1 * cos_psi / (m->I[0] * sin_theta) - t2 * sin_psi / (m->I[1] * sin_theta);
+          deriv[ITHETA] = t1 * cos_psi / (m->II[0] * sin_theta) - t2 * sin_psi / (m->II[1] * sin_theta);
 
           double t3 = pPhi * cos_theta - pPsi;
           double t4 = pPsi * cos_theta - pPhi; 
-          deriv[IPTHETA] = -t3 * (t4 * (m->I[0] - m->I[1]) * cos_psi * cos_psi + \
-                            pTheta * (m->I[0] - m->I[1]) * sin_theta * sin_psi * cos_psi + \
-                            t4 * m->I[1]) / (m->I[0] * m->I[1] * sin_theta * sin_theta * sin_theta) - m->dVdq[ITHETA/2];
+          deriv[IPTHETA] = -t3 * (t4 * (m->II[0] - m->II[1]) * cos_psi * cos_psi + \
+                            pTheta * (m->II[0] - m->II[1]) * sin_theta * sin_psi * cos_psi + \
+                            t4 * m->II[1]) / (m->II[0] * m->II[1] * sin_theta * sin_theta * sin_theta) - m->dVdq[ITHETA/2];
 
-          deriv[IPSI] = -t1 * cos_theta * sin_psi / (m->I[0] * sin_theta * sin_theta) - \
-                         t2 * cos_theta * cos_psi / (m->I[1] * sin_theta * sin_theta) + \
-                         pPsi / m->I[2];
-          deriv[IPPSI] = -t1*t2 / (m->I[0] * sin_theta * sin_theta) + t1*t2 / (m->I[1] * sin_theta * sin_theta) - m->dVdq[IPSI/2];
+          deriv[IPSI] = -t1 * cos_theta * sin_psi / (m->II[0] * sin_theta * sin_theta) - \
+                         t2 * cos_theta * cos_psi / (m->II[1] * sin_theta * sin_theta) + \
+                         pPsi / m->II[2];
+          deriv[IPPSI] = -t1*t2 / (m->II[0] * sin_theta * sin_theta) + t1*t2 / (m->II[1] * sin_theta * sin_theta) - m->dVdq[IPSI/2];
            
           break;                                                    
         }
@@ -563,7 +563,7 @@ double kinetic_energy(MoleculeSystem *ms) {
           
           double sin_theta1t = sin(theta1t);
            
-          KIN2 = ptheta1t * ptheta1t / (2.0 * ms->m1.I[0]) + pphi1t * pphi1t / (2.0 * ms->m1.I[1] * sin_theta1t * sin_theta1t);
+          KIN2 = ptheta1t * ptheta1t / (2.0 * ms->m1.II[0]) + pphi1t * pphi1t / (2.0 * ms->m1.II[1] * sin_theta1t * sin_theta1t);
           break;
         }
         case ROTOR_REQUANTIZED_ROTATION: 
@@ -582,10 +582,10 @@ double kinetic_energy(MoleculeSystem *ms) {
           double cos_psi = cos(psi);
 
           KIN2 = ((pphi1t - ppsi1t * cos_theta) * sin_psi + ptheta1t * sin_theta * cos_psi) * \
-                 ((pphi1t - ppsi1t * cos_theta) * sin_psi + ptheta1t * sin_theta * cos_psi) / (2.0 * ms->m1.I[0] * sin_theta * sin_theta) + \
+                 ((pphi1t - ppsi1t * cos_theta) * sin_psi + ptheta1t * sin_theta * cos_psi) / (2.0 * ms->m1.II[0] * sin_theta * sin_theta) + \
                  ((pphi1t - ppsi1t * cos_theta) * cos_psi - ptheta1t * sin_theta * sin_psi) * \
-                 ((pphi1t - ppsi1t * cos_theta) * cos_psi - ptheta1t * sin_theta * sin_psi) / (2.0 * ms->m1.I[1] * sin_theta * sin_theta) + \
-                 ppsi1t * ppsi1t / (2.0 * ms->m1.I[2]);
+                 ((pphi1t - ppsi1t * cos_theta) * cos_psi - ptheta1t * sin_theta * sin_psi) / (2.0 * ms->m1.II[1] * sin_theta * sin_theta) + \
+                 ppsi1t * ppsi1t / (2.0 * ms->m1.II[2]);
           break;
         }
     }
@@ -601,7 +601,7 @@ double kinetic_energy(MoleculeSystem *ms) {
           
           double sin_theta2t = sin(theta2t);
     
-          KIN3 = ptheta2t * ptheta2t / (2.0 * ms->m2.I[0]) + pphi2t * pphi2t / (2.0 * ms->m2.I[1] * sin_theta2t * sin_theta2t);
+          KIN3 = ptheta2t * ptheta2t / (2.0 * ms->m2.II[0]) + pphi2t * pphi2t / (2.0 * ms->m2.II[1] * sin_theta2t * sin_theta2t);
           break;
         }
         case ROTOR_REQUANTIZED_ROTATION: 
@@ -719,13 +719,13 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
 
 static void p_generator_linear_molecule(Monomer *m, double Temperature)
 {
-    double sqrt_IIKT = sqrt(m->I[0] / HkT * Temperature);
+    double sqrt_IIKT = sqrt(m->II[0] / HkT * Temperature);
     double sin_theta = sin(m->qp[ITHETA]); 
 
     double x0 = generate_normal(1.0);
     double x1 = generate_normal(1.0);
 
-    assert(m->I[0] == m->I[1]);
+    assert(m->II[0] == m->II[1]);
     m->qp[IPPHI]   = sqrt_IIKT * sin_theta * x1;
     m->qp[IPTHETA] = sqrt_IIKT * x0;
 }
@@ -735,9 +735,9 @@ static void p_generator_rotor(Monomer *m, double Temperature)
     double theta = m->qp[ITHETA]; 
     double psi = m->qp[IPSI]; 
     
-    double sqrt_II1x = sqrt(m->I[0] / HkT * Temperature);
-    double sqrt_II1y = sqrt(m->I[1] / HkT * Temperature);
-    double sqrt_II1z = sqrt(m->I[2] / HkT * Temperature);
+    double sqrt_II1x = sqrt(m->II[0] / HkT * Temperature);
+    double sqrt_II1y = sqrt(m->II[1] / HkT * Temperature);
+    double sqrt_II1z = sqrt(m->II[2] / HkT * Temperature);
 
     double sin_theta, cos_theta;
     double sin_psi, cos_psi;
@@ -1306,9 +1306,13 @@ void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
     } while (0)
 */
 
-void sb_append(String_Builder *sb, const char *line, size_t n) {
-    strncpy(sb->items + sb->count, line, n);
-    sb->count += n;
+void sb_append(String_Builder sb, const char *line, size_t n) {
+    strncpy(sb.items + sb.count, line, n);
+    sb.count += n;
+}
+
+void free_sb(String_Builder sb) {
+    free(sb.items);
 }
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf) 
@@ -1321,8 +1325,6 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         return_defer(false); 
     }
   
-    printf("Loading correlation function from %s\n", filename);
-
     char* line = NULL;
     size_t n;
 
@@ -1340,7 +1342,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
             sb->capacity = new_count;
         }
 
-        sb_append(sb, line, n);
+        sb_append(*sb, line, n);
     
         free(line);
         line = NULL; 
@@ -1361,7 +1363,9 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
     cf->len = 0;
     cf->capacity = INIT_CAPACITY;
 
+    size_t lineno = header_lines + 1;
     double vt, vc;
+
     while (fscanf(fp, "%lf %lf", &vt, &vc) == 2) {
         if (cf->len + 1 > cf->capacity) {
             size_t new_capacity = 2 * cf->capacity;
@@ -1373,15 +1377,50 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
             cf->capacity = new_capacity;
         }
 
-        cf->t[cf->len] = vt;
+        if (isnan(vt)) {
+            printf("ERROR: could not parse time on line %zu!\n", lineno);
+            return_defer(false); 
+        }
+
+        if (isnan(vc)) {
+            printf("ERROR: could not parse correlation function value on line %zu!\n", lineno);
+            return_defer(false); 
+        }
+     
+        cf->t[cf->len]    = vt;
         cf->data[cf->len] = vc;
         cf->len++;
+        lineno++;
     }
 
 defer:
     if (fp) fclose(fp);
     return result;
 
+}
+
+bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header) 
+{
+    bool result = true;
+
+    FILE *fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        printf("ERROR: could not open the file '%s': %s\n", filename, strerror(errno));
+        return_defer(false); 
+    }
+
+    size_t nchars = 0;
+    nchars += fwrite(header, strlen(header), 1, fp);
+
+    for (size_t i = 0; i < len; ++i) {
+        nchars += fprintf(fp, "%.3f %.10e\n", x[i], y[i]);
+    }
+
+    printf("INFO: writing %zu characters into '%s' finished.\n", nchars, filename); 
+
+defer:
+    if (fp) fclose(fp);
+    return result;
 }
 
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
@@ -1391,7 +1430,7 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
         TODO("analytic_full_partition_function_by_V");  
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * T / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.I[0]; 
+        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * T / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0]; 
     }
 
     return pf_analytic;
@@ -1424,5 +1463,429 @@ gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h)
 void free_cfnc(CFnc cf) {
     free(cf.t);
     free(cf.data);
+}
+
+void free_sfnc(SFnc sf) {
+    free(sf.nu);
+    free(sf.data);
+}
+
+void free_spectrum(Spectrum sp) {
+    free(sp.nu);
+    free(sp.data);
+}
+
+WingParams INIT_WP = {
+  .A = 1.0, 
+  .B = 2.0, 
+  .C = 3.0,
+};
+
+double wingmodel(WingParams *wp, double t) {
+    return wp->C + wp->A / (1.0 + wp->B * wp->B * t * t);
+}
+
+int wingmodel_f(const gsl_vector* x, void* data, gsl_vector* f)
+/*
+ * [input]  x    : parameters
+ * [input]  data : CF
+ * [output] f    : Yi - yi = difference between model and CF values
+ *
+ * MODEL: Lorentzian function shifted upwards by constant: f = c + a /(1 + b^2 x^2)
+ * https://mathworld.wolfram.com/LorentzianFunction.html 
+ */ 
+{
+    WingData *wd = (WingData*) data; 
+    size_t n  = wd->n;
+    double* t = wd->t;
+    double* y = wd->y;
+
+    double A = gsl_vector_get(x, 0);
+    double B = gsl_vector_get(x, 1);
+    double C = gsl_vector_get(x, 2);
+
+    for (size_t k = 0; k < n; ++k) {
+        double Yk = C + A / (1.0 + B * B * t[k] * t[k]);
+        gsl_vector_set(f, k, Yk - y[k]);
+    }
+
+    return GSL_SUCCESS;
+}
+
+int wingmodel_df(const gsl_vector* x, void* data, gsl_matrix * J)
+/*
+ * [input]  x    : parameters
+ * [input]  data : CF
+ * [output] J    : Jacobian matrix J(i, j) = dfi / dxj
+ *                 where fi = (Yi - yi) -- difference between model and CF values
+ *                       and the xj are the parameters  
+ *
+ * MODEL: Lorentzian function shifted upwards by constant: f = c + a /(1 + b^2 x^2)
+ * https://mathworld.wolfram.com/LorentzianFunction.html 
+ */ 
+{
+    size_t n = ((WingData*) data)->n;
+    double* t = ((WingData*) data)->t;
+
+    double A = gsl_vector_get(x, 0);
+    double B = gsl_vector_get(x, 1);
+
+    for (size_t k = 0; k < n; ++k) {
+        gsl_matrix_set(J, k, 0,  1.0 / (1.0 + B * B * t[k] * t[k]));
+        gsl_matrix_set(J, k, 1, -2.0 * A * B * t[k] * t[k] / (B * B * t[k] * t[k] + 1) / (B * B * t[k] * t[k] + 1));
+        gsl_matrix_set(J, k, 2,  1.0);
+    }
+
+    return GSL_SUCCESS;
+}
+
+void gsl_multifit_callback(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
+{
+    UNUSED(params);
+
+    gsl_vector* f = gsl_multifit_nlinear_residual(w);
+    gsl_vector* x = gsl_multifit_nlinear_position(w);
+    double rcond;
+
+    // compute reciprocal condition number of J(x) 
+    gsl_multifit_nlinear_rcond(&rcond, w);
+
+    fprintf(stdout, "    [callback] LM iter %2zu: A = %.12f, B = %.12f, C = %.4f, cond(J) = %8.4f, |f(x)| = %.4f\n",
+            iter, gsl_vector_get(x, 0), gsl_vector_get(x, 1), gsl_vector_get(x, 2), 1.0 / rcond, gsl_blas_dnrm2(f));
+}
+
+void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params)
+/*
+ * fit wing model to [x, y] data using the Levenberg-Marquardt method
+ *
+ * based on example from
+ * https://www.gnu.org/software/gsl/doc/html/nls.html 
+ *
+ * WingParams = {A, B, C} : initial parameters provided to LM method
+ *                          optimized parameters are written back into array 
+ *
+ */
+{
+#define nparams 3 
+
+    printf("n = %zu\n", n);
+
+    WingData d = {
+        .n = n, 
+        .t = x, 
+        .y = y,
+    };
+
+    const gsl_multifit_nlinear_type* T = gsl_multifit_nlinear_trust;
+
+    gsl_multifit_nlinear_fdf fdf;
+    fdf.f      = wingmodel_f;
+    fdf.df     = wingmodel_df; // set to NULL for finite-difference Jacobian
+    fdf.fvv    = NULL; // not using geodesic acceleration
+    fdf.n      = n;
+    fdf.p      = nparams;
+    fdf.params = (void*) &d;
+    
+    gsl_multifit_nlinear_parameters fdf_params = gsl_multifit_nlinear_default_parameters();
+    gsl_multifit_nlinear_workspace* w = gsl_multifit_nlinear_alloc(T, &fdf_params, n, nparams);
+    
+    double *weights = malloc(n * sizeof(double));
+    for (size_t i = 0; i < n; ++i) { 
+        weights[i] = 1.0;
+    }
+
+    double _wp[nparams] = {wing_params->A, wing_params->B, wing_params->C};
+    gsl_vector_view wp = gsl_vector_view_array(_wp, nparams);
+
+    gsl_vector_view wts = gsl_vector_view_array(weights, n);
+    gsl_multifit_nlinear_winit(&wp.vector, &wts.vector, &fdf, w); // initialize solver with starting point and weights
+
+    // compute initial cost function
+    gsl_vector* f = gsl_multifit_nlinear_residual(w);
+
+    double chisq0;
+    gsl_blas_ddot(f, f, &chisq0);
+
+    int status, info;
+
+    const double xtol = 1e-8;
+    const double gtol = 1e-8;
+    const double ftol = 1e-8;
+
+    const size_t niter_max = 100;
+    status = gsl_multifit_nlinear_driver(niter_max, xtol, gtol, ftol, gsl_multifit_callback, NULL, &info, w);
+
+    // covariance of best fit parameters
+    gsl_matrix* J = gsl_multifit_nlinear_jac(w);
+    gsl_matrix* covar = gsl_matrix_alloc(3, 3);
+    gsl_multifit_nlinear_covar(J, 0.0, covar);
+
+    double chisq;
+    gsl_blas_ddot(f, f, &chisq); // final cost
+
+    fprintf(stderr, "    summary from method '%s/%s'\n", gsl_multifit_nlinear_name(w), gsl_multifit_nlinear_trs_name(w));
+    fprintf(stderr, "    number of iterations: %zu\n", gsl_multifit_nlinear_niter(w));
+    fprintf(stderr, "    function evaluations: %zu\n", fdf.nevalf);
+    fprintf(stderr, "    Jacobian evaluations: %zu\n", fdf.nevaldf);
+    fprintf(stderr, "    reason for stopping: %s\n", (info == 1) ? "small step size" : "small gradient");
+    fprintf(stderr, "    initial |f(x)| = %f\n", sqrt(chisq0));
+    fprintf(stderr, "    final   |f(x)| = %f\n", sqrt(chisq));
+
+    double dof = n - nparams;
+    double c = fmax(1.0, sqrt(chisq / dof));
+    
+    wing_params->A = gsl_vector_get(w->x, 0);
+    wing_params->B = gsl_vector_get(w->x, 1);
+    wing_params->C = gsl_vector_get(w->x, 2);
+
+    fprintf(stderr, "chisq / dof = %g\n", chisq / dof);
+    fprintf(stderr, "A = %.10f +/- %.10f\n", wing_params->A, c * sqrt(gsl_matrix_get(covar, 0, 0)));
+    fprintf(stderr, "B = %.10f +/- %.10f\n", wing_params->B, c * sqrt(gsl_matrix_get(covar, 1, 1)));
+    fprintf(stderr, "C = %.10f +/- %.10f\n", wing_params->C, c * sqrt(gsl_matrix_get(covar, 2, 2)));
+
+    fprintf(stderr, "status = %s\n", gsl_strerror(status));
+
+    gsl_multifit_nlinear_free(w);
+    gsl_matrix_free(covar);
+
+    free(weights);
+
+#undef nparams 
+}
+
+WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
+// EXT_RANGE_MIN :: leftmost value of `tail` range to fit the parameters of the baseline function
+
+// See paper "Simulation of collision-induced absorption spectra based on classical trajectories and
+// ab initio potential and induced dipole surfaces. II. CO2-Ar rototranslational band including true 
+// dimer contribution"
+//
+// we rely on the specific structure of the correlation function (see Fig. 7)
+// specifically, we expect it to have a secondary maximum from which it decays to some POSITIVE constant
+{
+    double CFmin  = FLT_MAX; 
+    double CFmax  = FLT_MIN; 
+
+    // auxiliary variable to detect that we traversed the first minimum of the CF
+    bool wasnegative = false;
+
+    // secondary maximum: its time coordinate [max2time] and CF value [CFmax2]
+    double max2time = 0.0; 
+    double CFmax2 = FLT_MIN; 
+
+    for (size_t k = 0; k < cf->len; ++k) {
+        if (cf->data[k] > CFmax) CFmax = cf->data[k];
+        if (cf->data[k] < CFmin) CFmin = cf->data[k];
+
+        if (cf->data[k] < 0.0) wasnegative = true;
+        if (wasnegative && (cf->data[k] > CFmax2)) { CFmax2 = cf->data[k]; max2time = cf->t[k]; }
+    } 
+
+    printf("INFO: CFmin    = %.10e\n", CFmin); 
+    printf("INFO: CFmax    = %.10e\n", CFmax);
+    printf("INFO: max2time = %.10e\n", max2time / ATU); 
+    printf("INFO: CFmax2   = %.10e\n", CFmax2);
+    
+    assert(cf->len > EXT_RANGE_MIN);
+    
+    size_t itotal = cf->len - EXT_RANGE_MIN + 1;
+    double *xdat2 = (double*) malloc(itotal * sizeof(double));
+    double *ydat2 = (double*) malloc(itotal * sizeof(double));
+   
+    // selecting values of `wing tail` and also scaling them  
+    for (size_t k = EXT_RANGE_MIN, ind = 0; k < cf->len; ++k, ++ind) {
+        xdat2[ind] = cf->t[k] / max2time;
+        ydat2[ind] = cf->data[k] / CFmax2;
+    }
+
+    WingParams wp = {
+        .A = INIT_WP.A, 
+        .B = INIT_WP.B, 
+        .C = fmax(ydat2[itotal-1], INIT_WP.C)
+    }; 
+    
+    printf("Initial parameter values: %.5e %.5e %.5e\n", wp.A, wp.B, wp.C);
+
+    gsl_nonlinear_opt(itotal, xdat2, ydat2, &wp);
+
+    //assert(wp.A > 0);
+    //assert(wp.B > 0);
+    //assert(wp.C > 0);
+    if (wp.C < 0) {
+        printf("\n");
+        printf("!!! WingParams.C is negative! Deal with it. Continuing...\n\n");
+    }
+
+    if (wp.B < 0) {
+        printf("\n");
+        printf("!!! WingParams.B is negative! Probably the Lorentzian model is not applicable in selected range. Consider fitting only the constant. Continuing...\n\n");
+    }
+
+    max2time = max2time / ATU;
+
+    // descale parameters after optimization
+    wp.A *= CFmax2;
+    wp.B /= max2time;
+    wp.C *= CFmax2;
+
+    free(xdat2);
+    free(ydat2);
+
+    return wp; 
+}
+
+void connes_apodization(double *a, size_t len, double sampling_time) 
+{
+    double tmax = sampling_time * len;
+
+    for (size_t i = 0; i < len; ++i) {
+        double tcurr = sampling_time * i;
+        a[i] *= (1.0 - (tcurr / tmax) * (tcurr / tmax)) * (1.0 - (tcurr / tmax) * (tcurr / tmax)); 
+    } 
+}
+
+#define REAL(z, i) ((z)[2*(i)])
+#define IMAG(z, i) ((z)[2*(i) + 1])
+
+double *idct(double *v, size_t len)
+/*
+ * Implementation of Inverse Fast Discrete Cosine Transform using the same Makhoul trick (2N + half-sample shift) and IFFT.
+ * See original paper:
+ * http://eelinux.ee.usm.maine.edu/courses/ele486/docs/makhoul.fastDCT.pdf 
+ * 
+ * The packing of input array for IFFT procedure is more clearly demonstrated by the following Python code: 
+ * import numpy as np
+ * import scipy as sp
+
+ * N = 4
+ * v = np.array([1.0, 2.0, 3.0, 4.0])
+ * f = sp.fft.dct(v)
+ *
+ * f_mkh = np.zeros(2*N).astype(complex)
+ * f_mkh[:N] = f 
+ * f_mkh[N] = 0.0
+ * f_mkh[N + 1:] = -f[1:][::-1]
+
+ * ce = np.array([np.exp(1j * np.pi * k / (2.0 * N)) for k in range(2 * N)])
+ * f_mkh = f_mkh * ce
+ * v_mkh = np.fft.ifft(f_mkh).real[:N]
+ * print(np.allclose(v, v_mkh))
+ */
+{
+    assert(is_power_of_two(len) && "Length of the input array should be a power of 2"); 
+  
+    double *packed_v_mkh = (double*) malloc(4*len * sizeof(double)); 
+    memset(packed_v_mkh, 0, 4*len*sizeof(double));
+
+    double complex cx;
+
+    for (size_t k = 0; k < len; ++k) {
+        cx = v[k] * cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len);
+        REAL(packed_v_mkh, k) = creal(cx); 
+        IMAG(packed_v_mkh, k) = cimag(cx);
+    }
+     
+    for (size_t k = len + 1; k < 2 * len; ++k) {
+        size_t i = 2*len - k;
+        cx = -v[i] * cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len); 
+        REAL(packed_v_mkh, k) = creal(cx); 
+        IMAG(packed_v_mkh, k) = cimag(cx); 
+        
+        if (isnan(creal(cx))) {
+            printf("k = %zu ISNAN!\n", k);
+            printf("i = %zu, v[i] = %.5e\n", i, v[i]);
+            printf("exp = (%.5e, %.5e) \n", creal(cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len)),
+                                            cimag(cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len))); 
+            assert(false);
+        }
+    }
+
+
+
+    // Note:
+    // the length of array passed to gsl_fft_complex_radix2... is equal to number of `complex numbers` in it = 2 * sz
+    // even though there are 4 * sz `double numbers` 
+    gsl_fft_complex_radix2_backward(packed_v_mkh, 1, 2*len);
+    
+    double *f = (double*) malloc(len * sizeof(double));
+    memset(f, 0, len*sizeof(double));
+
+    for (size_t k = 0; k < len; ++k) {
+        f[k] = REAL(packed_v_mkh, k);
+    } 
+
+    free(packed_v_mkh);
+
+    return f;
+}
+
+SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
+{
+    double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
+    double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
+
+    double *cfnum = malloc(cf.len * sizeof(double));
+    for (size_t i = 0; i < cf.len; ++i) {
+        cfnum[i] = cf.data[i] - wingmodel(wp, cf.t[i]);    
+    }
+    
+    double dt = (cf.t[1] - cf.t[0]) / ATU;
+    connes_apodization(cfnum, cf.len, dt);
+
+    double *Ft = idct(cfnum, cf.len);
+    free(cfnum);
+
+    double tmax = cf.len * dt;
+
+    SFnc sfnum = {
+        .nu   = malloc(cf.len * sizeof(double)),
+        .data = malloc(cf.len * sizeof(double)),
+        .len  = cf.len,
+    };
+
+    for (size_t i = 0; i < cf.len; ++i) {
+        sfnum.nu[i]   = i * M_PI / tmax * Xscale;
+        sfnum.data[i] = Ft[i] * tmax / M_PI * Yscale;
+    }
+  
+    free(Ft);
+
+    return sfnum; 
+}
+
+SFnc desymmetrize_sch(SFnc sf, double T) 
+{
+    SFnc sfd = {
+        .nu   = malloc(sf.len * sizeof(double)),
+        .data = malloc(sf.len * sizeof(double)),
+        .len  = sf.len,
+    };
+
+    memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * T);
+        sfd.data[i] = sf.data[i] * exp(hnukt / 2.0);
+    }
+
+    return sfd;
+}
+
+Spectrum compute_alpha(SFnc sf, double T) 
+{
+    Spectrum sp = {
+        .nu   = malloc(sf.len * sizeof(double)),
+        .data = malloc(sf.len * sizeof(double)),
+        .len  = sf.len,
+    };
+
+    memcpy(sp.nu, sf.nu, sf.len * sizeof(double));
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * T); 
+        sp.data[i] = Moment_SF_Coeff * sp.nu[i] * (1.0 - exp(-hnukt)) * sf.data[i]; 
+    }
+
+    return sp;    
 }
 
