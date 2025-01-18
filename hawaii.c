@@ -1001,7 +1001,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     {
         status = make_step(traj, tout, &t);
         if (status) {
-            fprintf(stderr, "CVODE ERROR: status = %d\n", status);
+            printf("CVODE ERROR: status = %d\n", status);
             break;
         }
 
@@ -1035,7 +1035,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     {
         status = make_step(traj, tout, &t);
         if (status) {
-            fprintf(stderr, "CVODE ERROR: status = %d\n", status);
+            printf("CVODE ERROR: status = %d\n", status);
             break;
         }
 
@@ -1781,6 +1781,12 @@ double *idct(double *v, size_t len)
 
     for (size_t k = 0; k < len; ++k) {
         cx = v[k] * cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len);
+
+        if (isnan(creal(cx)) || isnan(creal(cy))) {
+            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n");
+            exit(1);
+        }
+
         REAL(packed_v_mkh, k) = creal(cx); 
         IMAG(packed_v_mkh, k) = cimag(cx);
     }
@@ -1791,16 +1797,11 @@ double *idct(double *v, size_t len)
         REAL(packed_v_mkh, k) = creal(cx); 
         IMAG(packed_v_mkh, k) = cimag(cx); 
         
-        if (isnan(creal(cx))) {
-            printf("k = %zu ISNAN!\n", k);
-            printf("i = %zu, v[i] = %.5e\n", i, v[i]);
-            printf("exp = (%.5e, %.5e) \n", creal(cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len)),
-                                            cimag(cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len))); 
-            assert(false);
+        if (isnan(creal(cx)) || isnan(creal(cy))) {
+            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n");
+            exit(1);
         }
     }
-
-
 
     // Note:
     // the length of array passed to gsl_fft_complex_radix2... is equal to number of `complex numbers` in it = 2 * sz
