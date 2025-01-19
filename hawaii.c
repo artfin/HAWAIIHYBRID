@@ -866,6 +866,7 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
 {
     assert(params->initialM0_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
+    assert(params->partial_partition_function_ratio > 0);
 
     INIT_WRANK;
     INIT_WSIZE;
@@ -1360,10 +1361,17 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     double t, tout;
 
     Array qp0 = create_array(ms->QP_SIZE);
+   
+    PRINT0("\n\n"); 
+    PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
+    PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
     
-
-    // TODO: the iteration should be split into 'niterations' blocks and the result should be saved 
-    //       when the end of block is reached
+    double prelim_M0, prelim_M0std;
+    mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
+    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
+    PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+    
+    double prelim_M2 = 1.0; 
 
     for (size_t iter = 0; iter < params->niterations; ++iter) {
 
@@ -1460,8 +1468,12 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         }
         sf_total.ntraj += local_ntrajectories * _wsize;
 
-        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+        double M0_est = compute_M0_from_sf(sf_total) / sf_total.ntraj;
+        double M2_est = compute_M2_from_sf(sf_total) / sf_total.ntraj;
 
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+        PRINT0("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
+        PRINT0("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
         if (_wrank == 0) {
             save_spectral_function(fp, sf_total, params);
@@ -1561,13 +1573,15 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     fprintf(fp, "# HAWAII HYBRID v0.1\n");
     fprintf(fp, "# TEMPERATURE: %.2f\n", sf.T);
     fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", sf.ntraj); 
-    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", sf.len);
+    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
     fprintf(fp, "# INITIAL DISTANCE: %.3f\n", params->R0);
     fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < sf.len; ++i) {
         fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj); 
     }
+
+    fflush(fp);
 }
 
 
@@ -2173,3 +2187,38 @@ Spectrum compute_alpha(SFnc sf, double T)
     return sp;    
 }
 
+double integrate_composite_simpson(double *x, double *y, size_t len) 
+/*
+ * Composite Simpson's 3/8 rule
+ */
+{
+    double h = x[1] - x[0];
+    double sum = y[0] + y[len - 1]; 
+    
+    for (size_t j = 1; j < len - 1; ++j) {
+        if (j % 3 == 0) {
+            sum += 2.0 * y[j];
+        } else {
+            sum += 3.0 * y[j];
+        }
+    } 
+    
+    return sum * 3.0 * h / 8.0;
+} 
+
+double compute_M0_from_sf(SFnc sf) {
+    return 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, sf.data, sf.len);
+}
+
+double compute_M2_from_sf(SFnc sf) {
+    double *y = (double*) malloc(sf.len * sizeof(double));
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        y[i] = sf.nu[i] * sf.nu[i] * sf.data[i];
+    }
+
+    double M2 = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
+    free(y);
+
+    return M2;
+}

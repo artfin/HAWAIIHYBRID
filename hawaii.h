@@ -291,6 +291,10 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 double* linspace(double start, double end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
 
+double integrate_composite_simpson(double *x, double *y, size_t len); 
+double compute_M0_from_sf(SFnc sf);
+double compute_M2_from_sf(SFnc sf);
+
 void free_cfnc(CFnc cf);
 void free_sfnc(SFnc cf);
 void free_spectrum(Spectrum sp); 
