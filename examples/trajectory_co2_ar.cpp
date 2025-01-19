@@ -74,7 +74,8 @@ void test_rhs(MoleculeSystem *ms, Array qp)
     memcpy(N_VGetArrayPointer(y), qp.data, qp.n * sizeof(double));
     rhs(0.0, y, ydot, (void*) ms);    
 
-    Array num_derivatives = compute_numerical_rhs(ms);
+    size_t order = 6;
+    Array num_derivatives = compute_numerical_rhs(ms, order);
 
     printf("# \t analytic \t numeric \t difference \n");
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
