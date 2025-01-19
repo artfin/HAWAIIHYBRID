@@ -365,19 +365,18 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     return 0;
 }
 
-Array compute_numerical_rhs(MoleculeSystem *ms) 
+Array compute_numerical_rhs(MoleculeSystem *ms, size_t order) 
 {
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
    
     double step = 1e-4;
-    size_t acc = 6;
 
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         get_qp_from_ms(ms, &qp);
 
         if (i % 2 == 0) {
-            switch (acc) {
+            switch (order) {
               case 2: {
                 // −1/2, 0, 1/2
                 double c = qp.data[i + 1];
@@ -455,7 +454,7 @@ Array compute_numerical_rhs(MoleculeSystem *ms)
               }
             }
         } else {
-            switch (acc) {
+            switch (order) {
               case 2: {
                 double c = qp.data[i - 1];
                 double r = 0.0;
@@ -1090,6 +1089,9 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
     } 
 
+    // TODO: handle the distribution of trajectories between processes so that in total we 
+    //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
+    //       the case when total_trajectories is not divisible by niterations. 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
    
     double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
@@ -1113,14 +1115,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     }; 
     memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
-    size_t print_every_nth_iteration = 1;
-    switch (params->ps) {
-        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
-        case BOUND:               print_every_nth_iteration = 1000;    break;
-    } 
-    
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
 
+    // TODO: this histogram is filled but not extended yet at the appropriate moment
+    // TODO: we should probably save it to a file at the end of the iteration if 
+    //       some variable is set in the 'params' structure.
     gsl_histogram *tps_hist = NULL;
     if (params->ps == FREE_AND_METASTABLE) {
         size_t nbins = HISTOGRAM_MAX_TPS;
@@ -1187,10 +1186,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 }
 
                 integral_counter++;
-
-                if (integral_counter % print_every_nth_iteration == 0) {
-                    printf("[%d - calculate_correlation] accumulated %zu points\n", _wrank, integral_counter);
-                }
             }
         }
 
@@ -1229,6 +1224,238 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 }
 #endif // USE_MPI
 
+void gsl_fft_square(double *farr, size_t N) {
+    farr[0] = farr[0] * farr[0];
+    farr[N/2] = farr[N/2] * farr[N/2];
+
+    for (size_t i = 1; i < N/2; ++i) {
+        farr[i] = farr[i] * farr[i] + farr[N-i] * farr[N-i];
+    }
+}
+
+#ifdef USE_MPI
+SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
+{
+    // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
+    assert(dipole != NULL);
+
+    assert(params->MaxTrajectoryLength > 0);
+    assert(params->sampling_time > 0);
+    assert(params->cvode_tolerance > 0);
+    assert(params->total_trajectories > 0);
+    assert(params->niterations >= 1);
+    assert(params->ApproximateFrequencyMax > 0);
+    assert(params->sf_filename != NULL);
+    
+    INIT_WRANK;
+    INIT_WSIZE;
+    
+    FILE *fp = NULL; 
+    if (_wrank == 0) {
+        fp = fopen(params->sf_filename, "w");
+        if (fp == NULL) { 
+            printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->sf_filename);
+            exit(1);
+        }
+    } 
+
+    double frequency_step = 1.0 / (params->sampling_time * ATU) / LightSpeed_cm / params->MaxTrajectoryLength; // cm^-1
+    double theoretical_frequency_max = 1.0 / (LightSpeed * 100.0 * params->sampling_time * ATU) / 2.0; // cm^-1
+
+    if (params->ApproximateFrequencyMax > theoretical_frequency_max) {
+        PRINT0("ERROR: Requested maximum frequency (%.3e) should be less than 1/2 of the maximum signal frequency, which is (%.3e)\n",
+                params->ApproximateFrequencyMax, theoretical_frequency_max);
+        exit(1);
+    }
+
+    size_t frequency_array_length = (int) (params->ApproximateFrequencyMax / frequency_step) + 1; 
+    double max_frequency = frequency_step * (frequency_array_length - 1);
+
+    PRINT0("\n\n");
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("Calculating spectral function using pr/mu representation at T = %.2f using following parameters:\n", Temperature);
+    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
+    PRINT0("    initial intermolecular distance (R0):                                %.2f\n", params->R0);
+    PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
+    PRINT0("    Approximate maximum frequency:                                       %.3e\n", params->ApproximateFrequencyMax);
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("\n");
+
+    PRINT0("Theoretical maximum frequency with provided parameters: %.3e\n", theoretical_frequency_max);
+    PRINT0("The frequency step with provided parameters:            %.3e\n", frequency_step);
+    PRINT0("The spectral function will be calculated in the range [0 .. %.3e] for %zu points\n", max_frequency, frequency_array_length);
+
+    PRINT0("NOTE: Connes apodization will be applied to the time dependence of dipole before applying Fourier transform\n"); 
+
+    // convert spectral funciton [atomic units -> J * m^6 * s]
+    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time;
+
+    size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
+
+    double dipt[3]; 
+
+    double *dipx = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    assert(dipx != NULL && "ASSERT: not enough memory!\n");
+    memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+    double *dipy = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    assert(dipy != NULL && "ASSERT: not enough memory!\n");
+    memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+    double *dipz = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    assert(dipz != NULL && "ASSERT: not enough memory!\n"); 
+    memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+    SFnc sf_iter = {
+        .nu       = NULL,
+        .data     = (double*) malloc(frequency_array_length * sizeof(double)),
+        .len      = frequency_array_length,
+        .capacity = frequency_array_length,
+        .ntraj    = 0,
+    };
+    assert(sf_iter.data != NULL && "ASSERT: not enough memory!\n"); 
+
+    SFnc sf_total = {
+        .nu       = linspace(0.0, max_frequency, frequency_array_length),
+        .data     = (double*) malloc(frequency_array_length * sizeof(double)),
+        .len      = frequency_array_length,
+        .capacity = frequency_array_length,
+        .ntraj    = 0,
+    };
+
+    assert(sf_total.nu != NULL && "ASSERT: not enough memory!\n"); 
+    assert(sf_total.data != NULL && "ASSERT: not enough memory!\n"); 
+    memset(sf_total.data, 0, frequency_array_length * sizeof(double)); 
+    
+
+    Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
+    
+    int status = 0; 
+    double t, tout;
+
+    Array qp0 = create_array(ms->QP_SIZE);
+    
+
+    // TODO: the iteration should be split into 'niterations' blocks and the result should be saved 
+    //       when the end of block is reached
+
+    for (size_t iter = 0; iter < params->niterations; ++iter) {
+
+        memset(sf_iter.data, 0, frequency_array_length * sizeof(double));
+
+        for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
+        {
+            q_generator(ms, params);
+            ms->intermolecular_qp[IR] = params->R0;
+            p_generator(ms, Temperature);
+
+            if (ms->intermolecular_qp[IPR] > 0.0) {
+                ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
+            }
+
+            double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
+            
+            get_qp_from_ms(ms, &qp0);
+            set_initial_condition(&traj, qp0);
+
+            t    = 0.0;
+            tout = params->sampling_time;
+
+            for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
+            {
+                status = make_step(&traj, tout, &t);
+                if (status) {
+                    printf("CVODE ERROR: status =  %d\n", status);
+                    break;
+                }
+
+                put_qp_into_ms(ms, (Array){
+                    .data = N_VGetArrayPointer(traj.y),
+                    .n    = ms->QP_SIZE,
+                });
+                extract_q_and_write_into_ms(ms);
+                (*dipole)(ms->intermediate_q, dipt);
+
+                dipx[step_counter] = dipt[0];
+                dipy[step_counter] = dipt[1];
+                dipz[step_counter] = dipt[2];
+
+                // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
+                // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
+
+                if (ms->intermolecular_qp[IR] > params->R0) {
+                    break;
+                }
+            }
+
+            if (status) {
+                printf("Caught CVode error. Resampling new conditions...\n");
+                continue;
+            }
+           
+            // if we hit this 'if', it means that the length of the trajectory turned out to be longer
+            // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
+            // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
+            // there will be only a few of those long-living metastable trajectories.  
+            if (ms->intermolecular_qp[IR] < params->R0) {
+                printf("INFO: the trajectory is too long. Fouier transform of the dipole from this trajectory will not be added to the cumulative result. Continuing...\n"); 
+                continue;
+            }
+
+            // Here we chose to apply apodization procedure to dipole time-dependence
+            // TODO: should we make it customizable? 
+            connes_apodization(dipx, params->MaxTrajectoryLength, params->sampling_time);
+            connes_apodization(dipy, params->MaxTrajectoryLength, params->sampling_time);
+            connes_apodization(dipz, params->MaxTrajectoryLength, params->sampling_time);
+            
+            gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+
+            gsl_fft_square(dipx, params->MaxTrajectoryLength);
+            gsl_fft_square(dipy, params->MaxTrajectoryLength);
+            gsl_fft_square(dipz, params->MaxTrajectoryLength);
+               
+            for (size_t i = 0; i < frequency_array_length; ++i) {
+                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]);
+            }
+
+            memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
+            memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
+            memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+            traj_counter++;
+        } 
+
+        MPI_Allreduce(MPI_IN_PLACE, sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        for (size_t i = 0; i < frequency_array_length; ++i) {
+            sf_total.data[i] += sf_iter.data[i];
+        }
+        sf_total.ntraj += local_ntrajectories * _wsize;
+
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+
+
+        if (_wrank == 0) {
+            save_spectral_function(fp, sf_total, params);
+        }
+    }
+
+    free_sfnc(sf_iter);
+
+    for (size_t i = 0; i < frequency_array_length; ++i) {
+        sf_total.data[i] /= sf_total.ntraj;
+    }
+
+    return sf_total; 
+
+}
+#endif // USE_MPI
+
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
     INIT_WRANK;
     INIT_WSIZE;
@@ -1245,6 +1472,7 @@ int assert_float_is_equal_to(double estimate, double true_value, double abs_tole
 
     UNREACHABLE("");
 }
+
 
 double* linspace(double start, double end, size_t n) {
     double step = (end - start)/(n - 1);
@@ -1263,6 +1491,10 @@ double* linspace(double start, double end, size_t n) {
 }
 
 void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
+/*
+ * Here we assume that values of the correlation function come in unnormalized by the number of trajectories
+ * (which is set in clrn.ntraj)
+ */ 
 {
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
@@ -1284,6 +1516,34 @@ void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
 
     for (size_t i = 0; i < crln.len; ++i) {
         fprintf(fp, "%.2f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj * ALU*ALU*ALU);
+    }
+}
+            
+void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 
+/*
+ * Here we assume that values of the spectral function come in unnormalized by the number of trajectories
+ * (which is set in sf.ntraj)
+ */ 
+{
+    // truncate the file to a length of 0, effectively clearing its contents
+    int fd = fileno(fp); 
+    if (ftruncate(fd, 0) < 0) {
+        printf("ERROR: could not truncate file: %s\n", strerror(errno));
+        exit(1);
+    }
+    
+    // resets the file position indicator
+    rewind(fp);
+
+    fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    fprintf(fp, "# TEMPERATURE: %.2f\n", sf.T);
+    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", sf.ntraj); 
+    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", sf.len);
+    fprintf(fp, "# INITIAL DISTANCE: %.3f\n", params->R0);
+    fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj); 
     }
 }
 
@@ -1782,8 +2042,8 @@ double *idct(double *v, size_t len)
     for (size_t k = 0; k < len; ++k) {
         cx = v[k] * cexp(I * M_PI * (double)k / (2.0 * len)) / (2.0 * len);
 
-        if (isnan(creal(cx)) || isnan(creal(cy))) {
-            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n");
+        if (isnan(creal(cx)) || isnan(cimag(cx))) {
+            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n", k);
             exit(1);
         }
 
@@ -1797,8 +2057,8 @@ double *idct(double *v, size_t len)
         REAL(packed_v_mkh, k) = creal(cx); 
         IMAG(packed_v_mkh, k) = cimag(cx); 
         
-        if (isnan(creal(cx)) || isnan(creal(cy))) {
-            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n");
+        if (isnan(creal(cx)) || isnan(cimag(cx))) {
+            printf("ERROR: idct: the value calculated at k = %zu is NaN! Check the provided array\n", k);
             exit(1);
         }
     }

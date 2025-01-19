@@ -145,13 +145,19 @@ typedef struct {
     double sampling_time;
     size_t MaxTrajectoryLength;
     double cvode_tolerance;
-    
-    /* correlation & pr/mu calculation */
-    const char* cf_filename;
-    size_t total_trajectories;
+   
+    /* applicable to both correlation function AND spectral function calculations */ 
     size_t niterations;
-    double Rcut;
-    double R0; // initial distance for pr/mu calculation 
+    size_t total_trajectories;
+    
+    /* correlation calculation ONLY */
+    const char* cf_filename;
+    double Rcut; // distance at which the trajectory is forcefully stopped 
+
+    /* pr/mu calculation */   
+    const char *sf_filename;
+    double ApproximateFrequencyMax; 
+    double R0; // initial distance 
 
     /* correlation function array */
     double *temperatures;
@@ -176,7 +182,7 @@ typedef struct {
     double *data;
     size_t len;      // # of samples in *t, *data
     size_t capacity; // capacity *t, *data
-    size_t ntraj;    // # trajectories used for averaging
+    size_t ntraj;    // # of trajectories used for averaging
     double T;        // Temperature
 } CFnc;
 
@@ -184,7 +190,9 @@ typedef struct {
     double *nu;
     double *data;
     size_t len;      // # of samples in *nu, *data
-    size_t capacity; // capacity of *nu, *data 
+    size_t capacity; // capacity of *nu, *data
+    size_t ntraj;    // # of trajectories used for averaging
+    double T;        // Temperature 
 } SFnc;
 
 typedef struct {
@@ -255,7 +263,7 @@ void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms);
 // Then, the first step is to write the phase point (N_Vector y) into the fields of MoleculeSystem
 // using the method "put_qp_into_ms".
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
-Array compute_numerical_rhs(MoleculeSystem *ms); 
+Array compute_numerical_rhs(MoleculeSystem *ms, size_t order); 
 
 double kinetic_energy(MoleculeSystem *ms);
 double Hamiltonian(MoleculeSystem *ms);
@@ -277,6 +285,7 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature); 
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
@@ -297,6 +306,8 @@ void free_sb(String_Builder sb);
 
 
 void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
+void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
+
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
 
