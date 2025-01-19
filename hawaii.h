@@ -305,7 +305,7 @@ typedef struct {
     size_t capacity;
 } String_Builder;
 
-void sb_append(String_Builder sb, const char *line, size_t n);
+void sb_append(String_Builder *sb, const char *line, size_t n);
 void free_sb(String_Builder sb);
 
 
@@ -313,6 +313,7 @@ void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
+bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);

@@ -1603,9 +1603,9 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     } while (0)
 */
 
-void sb_append(String_Builder sb, const char *line, size_t n) {
-    strncpy(sb.items + sb.count, line, n);
-    sb.count += n;
+void sb_append(String_Builder *sb, const char *line, size_t n) {
+    strncpy(sb->items + sb->count, line, n);
+    sb->count += n;
 }
 
 void free_sb(String_Builder sb) {
@@ -1639,7 +1639,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
             sb->capacity = new_count;
         }
 
-        sb_append(*sb, line, n);
+        sb_append(sb, line, n);
     
         free(line);
         line = NULL; 
@@ -1675,7 +1675,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         }
 
         if (isnan(vt)) {
-            printf("ERROR: could not parse time on line %zu!\n", lineno);
+            printf("ERROR: could not parse time value on line %zu!\n", lineno);
             return_defer(false); 
         }
 
@@ -1693,7 +1693,89 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 defer:
     if (fp) fclose(fp);
     return result;
+}
 
+bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf) 
+{
+    bool result = true;
+
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Error: could not open the file '%s': %s\n", filename, strerror(errno));
+        return_defer(false); 
+    }
+  
+    char* line = NULL;
+    size_t n;
+
+    size_t header_lines = 0;
+
+    while (getline(&line, &n, fp) > 0) {
+        n = strlen(line);
+
+        if (line[0] != '#') break;
+
+        size_t new_count = sb->count + n;
+        if (new_count > sb->capacity) {
+            sb->items = (char*) realloc(sb->items, new_count);
+            assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+            sb->capacity = new_count;
+        }
+
+        sb_append(sb, line, n);
+
+        free(line);
+        line = NULL; 
+
+        header_lines++;
+    }
+   
+    printf("# of lines in header: %zu\n", header_lines);
+
+    // rewind the file pointer by one line because we read forward while reading header 
+    long pos = ftell(fp);
+    fseek(fp, pos - strlen(line), SEEK_SET);
+
+    size_t INIT_CAPACITY = 4096;
+
+    sf->nu   = (double*) malloc(INIT_CAPACITY * sizeof(double));
+    sf->data = (double*) malloc(INIT_CAPACITY * sizeof(double));
+    sf->len = 0;
+    sf->capacity = INIT_CAPACITY;
+
+    size_t lineno = header_lines + 1;
+    double vnu, vsf;
+
+    while (fscanf(fp, "%lf %lf", &vnu, &vsf) == 2) {
+        if (sf->len + 1 > sf->capacity) {
+            size_t new_capacity = 2 * sf->capacity;
+
+            sf->nu = (double*) realloc(sf->nu, new_capacity * sizeof(double));
+            assert((sf->nu != NULL) && "ASSERT: not enough memory!");
+            sf->data = (double*) realloc(sf->data, new_capacity * sizeof(double));
+            assert((sf->data != NULL) && "ASSERT: not enough memory!");
+            sf->capacity = new_capacity;
+        }
+
+        if (isnan(vnu)) {
+            printf("ERROR: could not parse frequency value on line %zu!\n", lineno);
+            return_defer(false); 
+        }
+
+        if (isnan(vsf)) {
+            printf("ERROR: could not parse spectral function value on line %zu!\n", lineno);
+            return_defer(false); 
+        }
+     
+        sf->nu[sf->len] = vnu;
+        sf->data[sf->len] = vsf;
+        sf->len++;
+        lineno++;
+    }
+
+defer:
+    if (fp) fclose(fp);
+    return result;
 }
 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header) 

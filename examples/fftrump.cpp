@@ -4,8 +4,7 @@
 double pes(double *q) { UNUSED(q); return 0; }
 void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
 
-    
-int main()
+void process_correlation_function() 
 {
     double T = 300.0;
 
@@ -72,6 +71,48 @@ int main()
     free_sfnc(sfd3);
     free_spectrum(spd3);
     free_sb(sb);
-
-    return 0;  
 }
+
+void process_spectral_function()
+{
+    double T = 300.0;
+
+    String_Builder sb{};
+    memset(&sb, 0, sizeof(sb));
+
+    SFnc sf{};
+
+    const char *filename = "examples/SF-PRMU-300.0.txt"; 
+    if (!read_spectral_function(filename, &sb, &sf)) {
+        printf("ERROR: could not read the file '%s'!\n", filename);
+        exit(1);
+    } 
+   
+    printf("INFO: Loaded spectral function from %s\n", filename);
+    printf("HEADER:\n %s\n\n", sb.items);
+    
+    printf("Number of samples: %zu\n", sf.len);
+    printf("Frequency range: %.3lf...%.3lf\n", sf.nu[0], sf.nu[sf.len - 1]);
+    
+    SFnc sfd3 = desymmetrize_sch(sf, T);
+    Spectrum spd3 = compute_alpha(sfd3, T); 
+  
+    filename = "SP-PRMU-300.0.txt";
+    if (!writetxt(filename, spd3.nu, spd3.data, spd3.len, sb.items)) {
+        printf("ERROR: could not write into the file '%s'\n", filename);
+    }
+
+    free_sfnc(sf);
+    free_sfnc(sfd3);
+    free_spectrum(spd3);
+    free_sb(sb);
+}
+
+int main()
+{
+    // process_correlation_function();
+    process_spectral_function();
+
+    return 0;
+}
+
