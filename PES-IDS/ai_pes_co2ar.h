@@ -2,6 +2,7 @@
 #define AI_PES_CO2AR_H_
 
 #include <math.h>
+#include <stdlib.h>
 #include <gsl/gsl_sf_legendre.h>
 
 #include "../constants.h"
