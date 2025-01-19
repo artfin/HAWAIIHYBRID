@@ -979,7 +979,10 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     Array qp = create_array(ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
-    
+   
+    // return value: 
+    // 0 -- means trajectories propagated successfully
+    // >0 -- an error was encountered during trajectory propagation 
     int status = 0;
     
     double t = 0.0;
@@ -1007,6 +1010,16 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
         extract_q_and_write_into_ms(ms);
         (*dipole)(ms->intermediate_q, dipt);
+        
+        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+            printf("ERROR: one of the components of the dipole is corrupted!\n");
+            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
 
         correlation_forw[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
 
@@ -1041,6 +1054,16 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
         extract_q_and_write_into_ms(ms);
         (*dipole)(ms->intermediate_q, dipt);
+        
+        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+            printf("ERROR: one of the components of the dipole is corrupted!\n");
+            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
 
         correlation_back[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
         
