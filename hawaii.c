@@ -1546,7 +1546,7 @@ void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
     fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
     fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", crln.ntraj); 
     fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", crln.len);
-    fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.2e\n", params->partial_partition_function_ratio);
+    fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
     fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < crln.len; ++i) {
