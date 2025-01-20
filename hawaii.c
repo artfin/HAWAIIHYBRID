@@ -864,7 +864,6 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
             extract_q_and_write_into_ms(ms);
             (*dipole)(ms->intermediate_q, d);
             
-            // TODO: use running mean
             fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
             double diff = fval - *m;
             *m += diff / (integral_counter + 1.0);
@@ -881,6 +880,123 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     
     *m = *m * ZeroCoeff * params->partial_partition_function_ratio;
     *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+}
+
+void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp) 
+{
+    double R      = ms->intermolecular_qp[IR];
+    double pR     = ms->intermolecular_qp[IPR];
+    double pPhi   = ms->intermolecular_qp[IPPHI];
+    double Theta  = ms->intermolecular_qp[ITHETA];
+    double pTheta = ms->intermolecular_qp[IPTHETA];
+    
+    double sinTheta = sin(Theta);
+
+    // strange choice to use /2... 
+    gsl_matrix_set(dHdp, 0, IPHI/2,   pPhi / (ms->mu * R * R * sinTheta * sinTheta));
+    gsl_matrix_set(dHdp, 0, ITHETA/2, pTheta / (ms->mu * R * R));
+    gsl_matrix_set(dHdp, 0, IR/2,     pR / ms->mu);
+    
+    double rhs_monomer1[ms->m1.t%MODULO_BASE];
+    rhsMonomer(&ms->m1, rhs_monomer1);
+    for (size_t i = 0; i < ms->m1.t%MODULO_BASE; i += 2) {
+        gsl_matrix_set(dHdp, 0, i/2 + 6/2, rhs_monomer1[i]);
+    }
+
+    double rhs_monomer2[ms->m2.t%MODULO_BASE];
+    rhsMonomer(&ms->m2, rhs_monomer2);
+    for (size_t i = 0; i < ms->m2.t%MODULO_BASE; i += 2) {
+        gsl_matrix_set(dHdp, 0, i/2 + 6/2 + ms->m1.t%MODULO_BASE/2, rhs_monomer2[i]);
+    }
+}
+
+void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+// Running mean/variance formulas taken from GSL 1.15
+// https://github.com/ampl/gsl/blob/master/monte/plain.c 
+{
+    assert(params->initialM2_npoints > 0);
+    assert(fabs(params->pesmin) > 1e-15);
+
+    double h = 1.0e-3;
+
+    gsl_matrix *D           = gsl_matrix_alloc(ms->Q_SIZE, 3);
+    gsl_matrix *dHdp        = gsl_matrix_alloc(1, ms->Q_SIZE);
+    gsl_matrix *dip_lab_dot = gsl_matrix_alloc(1, 3);
+    
+    size_t counter = 0;
+    size_t desired_dist = 0;
+    size_t integral_counter = 0;
+
+    *m = 0.0;
+    *q = 0.0;
+
+    size_t print_every_nth_iteration = 1;
+    switch (params->ps) {
+        case FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
+        case BOUND:               print_every_nth_iteration = 1000; break;
+    } 
+
+    while (integral_counter < params->initialM2_npoints) {
+        q_generator(ms, params);
+        p_generator(ms, Temperature);
+
+        double energy = Hamiltonian(ms);
+        ++counter;
+
+        if (!reject(ms, Temperature, params->pesmin)) {
+            ++desired_dist;
+
+            if (params->ps == FREE_AND_METASTABLE) {
+                if (energy < 0.0) continue; 
+            }
+
+            if (params->ps == BOUND) {
+                if (energy > 0.0) continue;
+            }
+            
+            extract_q_and_write_into_ms(ms);
+    
+            double dp[3];
+            double dm[3];
+
+            for (size_t i = 0; i < ms->Q_SIZE; ++i) {
+                double tmp = ms->intermediate_q[i];
+                
+                ms->intermediate_q[i] = tmp + h;
+                (*dipole)(ms->intermediate_q, dp);
+                
+                ms->intermediate_q[i] = tmp - h;
+                (*dipole)(ms->intermediate_q, dm);
+
+                gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
+                gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
+                gsl_matrix_set(D, i, 2, (dp[2] - dm[2])/(2.0*h)); 
+
+                ms->intermediate_q[i] = tmp;
+            } 
+
+            compute_dHdp(ms, dHdp); 
+
+            gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D, 0.0, dip_lab_dot);
+            
+            double fval = gsl_matrix_get(dip_lab_dot, 0, 0)*gsl_matrix_get(dip_lab_dot, 0, 0) + \
+                          gsl_matrix_get(dip_lab_dot, 0, 1)*gsl_matrix_get(dip_lab_dot, 0, 1) + \
+                          gsl_matrix_get(dip_lab_dot, 0, 2)*gsl_matrix_get(dip_lab_dot, 0, 2); 
+            double diff = fval - *m;
+            *m += diff / (integral_counter + 1.0);
+            *q += diff * diff * (integral_counter / (integral_counter + 1.0));
+            integral_counter++;
+
+            if (integral_counter % print_every_nth_iteration == 0) {
+                double M2_est = *m * SecondCoeff * params->partial_partition_function_ratio;
+                double M2std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+                printf("[calculate_M2] %zu/%zu points: \t M2 = %.5e +/- %.5e\n", integral_counter, params->initialM2_npoints, M2_est, M2std_est);
+            }
+        }
+    } 
+
+    *m = *m * SecondCoeff * params->partial_partition_function_ratio;
+    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
 }
 
 #ifdef USE_MPI

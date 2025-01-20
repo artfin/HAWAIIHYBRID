@@ -20,7 +20,8 @@
     
 #define BohrToAng 0.529177210903
 
-#define ZeroCoeff  (0.00361479637/(4.0*M_PI))
+#define ZeroCoeff   (0.00361479637/(4.0*M_PI))
+#define SecondCoeff 13856114.29344114
     
 // MOMENT_SF_COEFF * \int_{-\infty}^{+\infty} J(\nu) * \nu^n d\nu -> cm^(-n-1) amagat^(-2)
 #define Moment_SF_Coeff  ((8.0*M_PI*M_PI*M_PI)*NL*NL/3.0/HBar)

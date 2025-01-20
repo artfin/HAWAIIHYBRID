@@ -135,6 +135,7 @@ typedef struct {
 
     /* initial spectral moments check */ 
     size_t initialM0_npoints;
+    size_t initialM2_npoints;
     double partial_partition_function_ratio;
    
     /* requantization */ 
@@ -278,8 +279,10 @@ double j_monomer(Monomer m);
 double torque_monomer(Monomer m); 
 
 void invert_momenta(MoleculeSystem *ms);
+void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp); 
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
 
 #ifdef USE_MPI
