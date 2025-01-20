@@ -49,14 +49,29 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
           *jac *= M_PI * (1.0 + qp[6 + IPTHETA] * qp[6 + IPTHETA]);
           break;
         }
-        default: {
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("transform_variables");
+        }
+        case ROTOR: {
+          TODO("transform_variables");
+        }
+        case ROTOR_REQUANTIZED_ROTATION: {
           TODO("transform_variables");
         }
     }
 
     switch (gms->m2.t) {
         case ATOM: break; 
-        default: {
+        case LINEAR_MOLECULE: {
+          TODO("transform_variables");
+        }
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("transform_variables");
+        }
+        case ROTOR: {
+          TODO("transform_variables");
+        }
+        case ROTOR_REQUANTIZED_ROTATION: {
           TODO("transform_variables");
         }
     }

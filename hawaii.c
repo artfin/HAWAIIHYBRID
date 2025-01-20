@@ -677,9 +677,25 @@ double generate_normal(double sigma)
  * Generate normally distributed variable using Box-Muller method
  */
 {
-    double U = mt_drand();
-    double V = mt_drand();
-    return sigma * sqrt(-2 * log(U)) * cos(2.0 * M_PI * V);
+    bool success = false;
+
+    double r;
+
+    do {
+        double U = mt_drand();
+        double V = mt_drand();
+
+        double logU = log(U);
+        if (isnan(logU) || (isinf(logU) != 0)) {
+            // printf("WARNING: generate U failed\n"); 
+            continue;    
+        }
+
+        r = sigma * sqrt(-2 * logU) * cos(2.0 * M_PI * V);
+        success = true;
+    } while(!success);
+
+    return r;
 }
 
 void q_generator(MoleculeSystem *ms, CalcParams *params) 
@@ -740,7 +756,7 @@ static void p_generator_linear_molecule(Monomer *m, double Temperature)
 
     double x0 = generate_normal(1.0);
     double x1 = generate_normal(1.0);
-
+   
     assert(m->II[0] == m->II[1]);
     m->qp[IPPHI]   = sqrt_IIKT * sin_theta * x1;
     m->qp[IPTHETA] = sqrt_IIKT * x0;
@@ -1049,7 +1065,6 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
             extract_q_and_write_into_ms(ms);
             (*dipole)(ms->intermediate_q, d);
             
-            // TODO: use running mean
             fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
             double diff = fval - ml;
             ml += diff / (integral_counter + 1.0);
@@ -1069,6 +1084,120 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
      
     *m = (ml/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
     *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+}
+
+void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+{
+    assert(params->initialM2_npoints > 0);
+    assert(fabs(params->pesmin) > 1e-15);
+    assert(params->partial_partition_function_ratio > 0);
+
+    INIT_WRANK;
+    INIT_WSIZE;
+    
+    double h = 1.0e-3;
+
+    gsl_matrix *D           = gsl_matrix_alloc(ms->Q_SIZE, 3);
+    gsl_matrix *dHdp        = gsl_matrix_alloc(1, ms->Q_SIZE);
+    gsl_matrix *dip_lab_dot = gsl_matrix_alloc(1, 3);
+
+    size_t counter = 0;
+    size_t desired_dist = 0;
+    size_t integral_counter = 0;
+
+    size_t print_every_nth_iteration = 1;
+    switch (params->ps) {
+        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case BOUND:               print_every_nth_iteration = 1000;    break;
+    } 
+    
+    size_t local_npoints = params->initialM2_npoints / _wsize;
+    
+    *m = 0.0;
+    *q = 0.0;
+    double ml = 0.0, ql = 0.0;
+
+    while (integral_counter < local_npoints) {
+        q_generator(ms, params);
+        p_generator(ms, Temperature);
+
+        double energy = Hamiltonian(ms);
+        ++counter;
+
+        if (!reject(ms, Temperature, params->pesmin)) {
+            ++desired_dist;
+
+            if (params->ps == FREE_AND_METASTABLE) {
+                if (energy < 0.0) continue; 
+            }
+
+            if (params->ps == BOUND) {
+                if (energy > 0.0) continue;
+            }
+    
+            extract_q_and_write_into_ms(ms);
+            
+            double dp[3];
+            double dm[3];
+
+            for (size_t i = 0; i < ms->Q_SIZE; ++i) {
+                double tmp = ms->intermediate_q[i];
+                
+                ms->intermediate_q[i] = tmp + h;
+                (*dipole)(ms->intermediate_q, dp);
+                
+                ms->intermediate_q[i] = tmp - h;
+                (*dipole)(ms->intermediate_q, dm);
+
+                gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
+                gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
+                gsl_matrix_set(D, i, 2, (dp[2] - dm[2])/(2.0*h)); 
+
+                ms->intermediate_q[i] = tmp;
+            } 
+
+            compute_dHdp(ms, dHdp); 
+
+            gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D, 0.0, dip_lab_dot);
+            
+            double fval = gsl_matrix_get(dip_lab_dot, 0, 0)*gsl_matrix_get(dip_lab_dot, 0, 0) + \
+                          gsl_matrix_get(dip_lab_dot, 0, 1)*gsl_matrix_get(dip_lab_dot, 0, 1) + \
+                          gsl_matrix_get(dip_lab_dot, 0, 2)*gsl_matrix_get(dip_lab_dot, 0, 2);
+
+            if (isnan(fval) || (isinf(fval) != 0)) {
+                PRINT0("Energy = %.10e\n", energy);
+                PRINT0("Caught NaN value of integrand at:\n");
+                
+                Array qp = create_array(ms->QP_SIZE);
+                get_qp_from_ms(ms, &qp);
+
+                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                    PRINT0("qp[%zu] = %.10e\n", i, qp.data[i]);
+                }
+
+                free_array(&qp);
+                    
+                continue;
+            }
+
+            double diff = fval - ml;
+            ml += diff / (integral_counter + 1.0);
+            ql += diff * diff * (integral_counter / (integral_counter + 1.0));
+            integral_counter++;
+
+            if (integral_counter % print_every_nth_iteration == 0) {
+                double M2_est    = ml * SecondCoeff * params->partial_partition_function_ratio;
+                double M2std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+                PRINT0("[mpi_calculate_M2] %zu/%zu points: \t M2 = %.5e +/- %.5e\n", _wsize*integral_counter, params->initialM2_npoints, M2_est, M2std_est);
+            }
+        }
+    } 
+
+    MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+     
+    *m = (ml/_wsize) * SecondCoeff * params->partial_partition_function_ratio;
+    *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
 }
 #endif // USE_MPI
 

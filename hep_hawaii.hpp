@@ -3,6 +3,9 @@
 
 #include "hawaii.h"
 
+// included in <complex.h> and collides with templates in hep
+#undef I
+
 #include <hep/mc-mpi.hpp>
 
 typedef double (*Integrand)(hep::mc_point<double> const&);

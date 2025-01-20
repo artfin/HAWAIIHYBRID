@@ -279,14 +279,15 @@ double j_monomer(Monomer m);
 double torque_monomer(Monomer m); 
 
 void invert_momenta(MoleculeSystem *ms);
-void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp); 
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp); 
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
+void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature); 
 #endif // USE_MPI

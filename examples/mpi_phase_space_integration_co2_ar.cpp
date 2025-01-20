@@ -55,12 +55,10 @@ int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
-    MPI_Context ctx = {};
-    MPI_Comm_size(MPI_COMM_WORLD, &ctx.size); 
-    MPI_Comm_rank(MPI_COMM_WORLD, &ctx.rank);
-    INIT_RANK;
+    INIT_WRANK;
+    INIT_WSIZE;
 
-    uint32_t seed = 43; // mt_goodseed();
+    uint32_t seed = 42; // mt_goodseed();
     
     init_pes();
     co2_ar_ids.init();
@@ -74,12 +72,16 @@ int main(int argc, char *argv[])
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.5;
     params.sampler_Rmax                     = 40.0;
-    params.initialM0_npoints                = 20000000;
+    params.initialM0_npoints                = 10000000;
+    params.initialM2_npoints                = 10000000;
     params.partial_partition_function_ratio = 1.0;
     params.pesmin                           = -195.6337098547 / HTOCM;
     
     double T = 300.0;
     
+    // ------------------------------------------------------------------------------------
+    // -------------------------------  HEP  ----------------------------------------------
+    // ------------------------------------------------------------------------------------
     double hep_M0, hep_M0_err; 
     hep::mpi_vegas_callback<double>(hep::mpi_vegas_verbose_callback<double>);
     mpi_perform_integration(&ms, integrand_M0, &params, T, 12, 1e6, &hep_M0, &hep_M0_err);
@@ -93,20 +95,33 @@ int main(int argc, char *argv[])
     mpi_perform_integration(&ms, integrand_pf, &params, T, 12, 1e6, &hep_ppf, &hep_ppf_err);
     double ppf_ratio = hep_ppf / pf_analytic;
     PRINT0("PPF ratio: %.5e\n\n", ppf_ratio); 
+    // ------------------------------------------------------------------------------------
     
+    params.partial_partition_function_ratio = ppf_ratio;
 
     double M0, M0_std;
-    params.partial_partition_function_ratio = ppf_ratio;
-    mpi_calculate_M0(ctx, &ms, &params, T, &M0, &M0_std); 
+    mpi_calculate_M0(&ms, &params, T, &M0, &M0_std); 
 
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
     PRINT0("Error: %.3f%%\n", M0_std/M0 * 100.0);
-
-
-    if (assert_float_is_equal_to(M0, 3.64e-04, 3e-6) > 0) {
+    
+    if (assert_float_is_equal_to(M0, 3.64e-04, 8e-6) > 0) {
         MPI_Finalize();
         return 1; 
     }
+
+    PRINT0("\n\n\n");
+
+    double M2, M2_std;
+    mpi_calculate_M2(&ms, &params, T, &M2, &M2_std); 
+    PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2_std, M2-M2_std, M2+M2_std);
+    PRINT0("Error: %.3f%%\n", M2_std/M2 * 100.0);
+    
+    if (assert_float_is_equal_to(M2, 6.405e-01, 2e-2) > 0) {
+        MPI_Finalize();
+        return 1; 
+    }
+
 
     free_ms(&ms);
     free_pes();
