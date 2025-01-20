@@ -4,7 +4,9 @@ CC     := gcc
 CXX    := g++
 MPICC  := mpicc
 MPICXX := mpic++
-FLAGS  := -Wall -Wextra -ggdb -O2 -march=native
+
+# -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
+FLAGS  := -Wall -Wextra -Wswitch-enum -ggdb -O2 -march=native
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
 INC_EIGEN    := -I/usr/local/include/eigen3

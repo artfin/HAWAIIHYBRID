@@ -88,6 +88,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
         case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
         case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
+
     }
     
     PRINT0("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
@@ -702,7 +703,15 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
           ms->m1.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
           break;
         }
-        default: TODO("q_generator");
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("q_generator");
+        }
+        case ROTOR: {
+          TODO("q_generator");
+        }                        
+        case ROTOR_REQUANTIZED_ROTATION: { 
+          TODO("q_generator");
+        }
     } 
     
     switch (ms->m2.t) {
@@ -712,7 +721,15 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
           ms->m2.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
           break;
         }
-        default: TODO("q_generator");
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("q_generator");
+        }
+        case ROTOR: {
+          TODO("q_generator");
+        }                        
+        case ROTOR_REQUANTIZED_ROTATION: { 
+          TODO("q_generator");
+        }
     }
 }
 
@@ -774,11 +791,16 @@ void p_generator(MoleculeSystem *ms, double Temperature)
           p_generator_linear_molecule(&ms->m1, Temperature);
           break;
         }
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("p_generator");
+        }
         case ROTOR: {
           p_generator_rotor(&ms->m1, Temperature);
           break;
         }
-        default: TODO("q_generator");
+        case ROTOR_REQUANTIZED_ROTATION: { 
+          TODO("p_generator");
+        }
     }    
 }
 
