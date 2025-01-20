@@ -87,9 +87,17 @@ int main(int argc, char *argv[])
     mpi_perform_integration(&ms, integrand_M0, &params, T, 12, 1e6, &hep_M0, &hep_M0_err);
 
     double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+
     hep_M0     *= ZeroCoeff / pf_analytic;
     hep_M0_err *= ZeroCoeff / pf_analytic;
     PRINT0("HEP M0: %.5e +/- %.5e\n\n", hep_M0, hep_M0_err);
+
+    double hep_M2, hep_M2_err;
+    mpi_perform_integration(&ms, integrand_M2, &params, T, 9, 1e6, &hep_M2, &hep_M2_err);
+
+    hep_M2     *= SecondCoeff / pf_analytic;
+    hep_M2_err *= SecondCoeff / pf_analytic;
+    PRINT0("HEP M2: %.5e +/- %.5e\n\n", hep_M2, hep_M2_err);
 
     double hep_ppf, hep_ppf_err;
     mpi_perform_integration(&ms, integrand_pf, &params, T, 12, 1e6, &hep_ppf, &hep_ppf_err);

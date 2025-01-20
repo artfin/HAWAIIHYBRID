@@ -143,6 +143,77 @@ double integrand_M0(hep::mc_point<double> const& x)
     return jac * dipsq * std::exp(-energy * HkT / gT);
 }
 
+double integrand_M2(hep::mc_point<double> const& x)
+{
+    assert(gms != NULL);
+    assert(gparams != NULL);
+    assert(gT > 0);
+    
+    double h = 1.0e-3;
+    
+    // TODO: move the memory allocation outside this function
+    gsl_matrix *D           = gsl_matrix_alloc(gms->Q_SIZE, 3);
+    gsl_matrix *dHdp        = gsl_matrix_alloc(1, gms->Q_SIZE);
+    gsl_matrix *dip_lab_dot = gsl_matrix_alloc(1, 3);
+    
+    double jac;
+    double qp[gms->QP_SIZE];
+    transform_variables(x, qp, &jac);
+    put_qp_into_ms(gms, (Array) {.data = qp, .n = gms->QP_SIZE});
+
+    double R = qp[IR];
+    if (R < gparams->sampler_Rmin || R > gparams->sampler_Rmax) {
+        return 0.0;
+    }
+
+    double energy = Hamiltonian(gms); 
+    
+    if (gparams->ps == FREE_AND_METASTABLE) {
+        if (energy < 0.0) return 0.0; 
+    }
+
+    if (gparams->ps == BOUND) {
+        if (energy > 0.0) return 0.0; 
+    }
+            
+    extract_q_and_write_into_ms(gms);
+            
+    double dp[3];
+    double dm[3];
+
+    for (size_t i = 0; i < gms->Q_SIZE; ++i) {
+        double tmp = gms->intermediate_q[i];
+        
+        gms->intermediate_q[i] = tmp + h;
+        (*dipole)(gms->intermediate_q, dp);
+        
+        gms->intermediate_q[i] = tmp - h;
+        (*dipole)(gms->intermediate_q, dm);
+
+        gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
+        gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
+        gsl_matrix_set(D, i, 2, (dp[2] - dm[2])/(2.0*h)); 
+
+        gms->intermediate_q[i] = tmp;
+    } 
+
+    compute_dHdp(gms, dHdp); 
+
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D, 0.0, dip_lab_dot);
+            
+    double dipsq = gsl_matrix_get(dip_lab_dot, 0, 0)*gsl_matrix_get(dip_lab_dot, 0, 0) + \
+                   gsl_matrix_get(dip_lab_dot, 0, 1)*gsl_matrix_get(dip_lab_dot, 0, 1) + \
+                   gsl_matrix_get(dip_lab_dot, 0, 2)*gsl_matrix_get(dip_lab_dot, 0, 2);
+
+    //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
+    
+    gsl_matrix_free(D);
+    gsl_matrix_free(dHdp);
+    gsl_matrix_free(dip_lab_dot);
+
+    return jac * dipsq * std::exp(-energy * HkT / gT);
+}
+
 void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double T, size_t niterations, size_t npoints, double *m, double *q)
 {
     gms = ms;
@@ -161,5 +232,3 @@ void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams
     *m = result.value();
     *q = result.error();
 }
-
-
