@@ -1198,6 +1198,10 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
      
     *m = (ml/_wsize) * SecondCoeff * params->partial_partition_function_ratio;
     *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+    
+    gsl_matrix_free(D);
+    gsl_matrix_free(dHdp);
+    gsl_matrix_free(dip_lab_dot);
 }
 #endif // USE_MPI
 
@@ -1431,13 +1435,19 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("    CVode tolerance:                                                     %.3e\n\n", params->cvode_tolerance);
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
-    PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
-    PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
+    PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+    PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
+    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
 
     double prelim_M0, prelim_M0std;
     mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
     PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+    
+    double prelim_M2, prelim_M2std;
+    mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std); 
+    PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2-prelim_M2std, prelim_M2+prelim_M2std);
+    PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
     
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
@@ -1492,7 +1502,13 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, total_crln.ntraj, params->cf_filename);
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff;
-        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
+        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
+
+        // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
+        double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000;
+
+        PRINT0("M2 ESTIMATE FROM CF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est, prelim_M2, (M2_crln_est - prelim_M2)/prelim_M2*100.0);
+
 
         if (_wrank == 0) { 
             save_correlation_function(fp, total_crln, params);
