@@ -214,11 +214,11 @@ double integrand_M2(hep::mc_point<double> const& x)
     return jac * dipsq * std::exp(-energy * HkT / gT);
 }
 
-void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double T, size_t niterations, size_t npoints, double *m, double *q)
+void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q)
 {
     gms = ms;
     gparams = params;
-    gT = T;
+    gT = Temperature;
 
     auto results = hep::mpi_vegas(
         MPI_COMM_WORLD,

@@ -16,7 +16,7 @@ double integrand_M0(hep::mc_point<double> const& x);
 double integrand_M2(hep::mc_point<double> const& x);
 double integrand_pf(hep::mc_point<double> const& x);
 
-void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double T, size_t niterations, size_t npoints, double *m, double *q);
+void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q);
 
 
 #endif // HAWAII_HEP_
