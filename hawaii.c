@@ -1724,9 +1724,9 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
             // Here we chose to apply apodization procedure to dipole time-dependence
             // TODO: should we make it customizable? 
-            connes_apodization(dipx, params->MaxTrajectoryLength, params->sampling_time);
-            connes_apodization(dipy, params->MaxTrajectoryLength, params->sampling_time);
-            connes_apodization(dipz, params->MaxTrajectoryLength, params->sampling_time);
+            connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
             
             gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
             gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
@@ -2098,6 +2098,8 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
         TODO("analytic_full_partition_function_by_V");  
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
         pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * Temperature / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0]; 
+    } else {
+        TODO("analytic_full_partition_function_by_V");  
     }
 
     return pf_analytic;
@@ -2401,13 +2403,13 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     return wp; 
 }
 
-void connes_apodization(double *a, size_t len, double sampling_time) 
+void connes_apodization(Array a, double sampling_time) 
 {
-    double tmax = sampling_time * len;
+    double tmax = sampling_time * a.n;
 
-    for (size_t i = 0; i < len; ++i) {
+    for (size_t i = 0; i < a.n; ++i) {
         double tcurr = sampling_time * i;
-        a[i] *= (1.0 - (tcurr / tmax) * (tcurr / tmax)) * (1.0 - (tcurr / tmax) * (tcurr / tmax)); 
+        a.data[i] *= (1.0 - (tcurr / tmax) * (tcurr / tmax)) * (1.0 - (tcurr / tmax) * (tcurr / tmax)); 
     } 
 }
 
@@ -2498,7 +2500,7 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
     }
     
     double dt = (cf.t[1] - cf.t[0]) / ATU;
-    connes_apodization(cfnum, cf.len, dt);
+    connes_apodization((Array) {.data = cfnum, .n = cf.len }, dt);
 
     double *Ft = idct(cfnum, cf.len);
     free(cfnum);

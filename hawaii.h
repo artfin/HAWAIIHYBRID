@@ -331,7 +331,7 @@ int wingmodel_df(const gsl_vector* x, void* data, gsl_matrix * J);
 void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params);
 WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 
-void connes_apodization(double *a, size_t len, double sampling_time); 
+void connes_apodization(Array a, double sampling_time); 
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
 inline bool is_power_of_two(size_t n) {
