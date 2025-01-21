@@ -108,6 +108,7 @@ double integrand_pf(hep::mc_point<double> const& x)
 
 double integrand_M0(hep::mc_point<double> const& x) 
 {
+    assert(dipole != NULL);
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
@@ -145,6 +146,7 @@ double integrand_M0(hep::mc_point<double> const& x)
 
 double integrand_M2(hep::mc_point<double> const& x)
 {
+    assert(dipole != NULL);
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);

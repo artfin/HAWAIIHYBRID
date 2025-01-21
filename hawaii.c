@@ -1817,6 +1817,8 @@ void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
  * (which is set in clrn.ntraj)
  */ 
 {
+    assert(cf.ntraj > 0);
+
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
@@ -1848,6 +1850,8 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
  * (which is set in sf.ntraj)
  */ 
 {
+    assert(sf.ntraj > 0);
+
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
