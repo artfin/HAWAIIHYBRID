@@ -1393,20 +1393,20 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
     
     CFnc total_crln = {
-        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
-        .data  = malloc(params->MaxTrajectoryLength * sizeof(double)),
-        .len   = params->MaxTrajectoryLength,
-        .ntraj = 0,
-        .T     = Temperature, 
+        .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
+        .len         = params->MaxTrajectoryLength,
+        .ntraj       = 0,
+        .Temperature = Temperature,
     }; 
     memset(total_crln.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
     CFnc total_crln_iter = {
-        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
-        .data  = malloc(params->MaxTrajectoryLength * sizeof(double)),
-        .len   = params->MaxTrajectoryLength,
-        .ntraj = 0,
-        .T     = Temperature, 
+        .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
+        .len         = params->MaxTrajectoryLength,
+        .ntraj       = 0,
+        .Temperature = Temperature,
     }; 
     memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
@@ -1652,9 +1652,12 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     double prelim_M0, prelim_M0std;
     mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
-    PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+    PRINT0("Error: %.3f%%\n\n", prelim_M0std/prelim_M0 * 100.0);
     
-    double prelim_M2 = 1.0; 
+    double prelim_M2, prelim_M2std; 
+    mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std);
+    PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2 - prelim_M2std, prelim_M2 + prelim_M2std);
+    PRINT0("Error: %.3f%%\n\n", prelim_M2std/prelim_M2 * 100.0);
 
     for (size_t iter = 0; iter < params->niterations; ++iter) {
 
@@ -1808,7 +1811,7 @@ double* linspace(double start, double end, size_t n) {
     return v;
 }
 
-void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
+void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
 /*
  * Here we assume that values of the correlation function come in unnormalized by the number of trajectories
  * (which is set in clrn.ntraj)
@@ -1825,16 +1828,18 @@ void save_correlation_function(FILE *fp, CFnc crln, CalcParams *params)
     rewind(fp);
 
     fprintf(fp, "# HAWAII HYBRID v0.1\n");
-    fprintf(fp, "# TEMPERATURE: %.2f\n", crln.T);
+    fprintf(fp, "# TEMPERATURE: %.2f\n", cf.Temperature);
     fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
-    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", crln.ntraj); 
-    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", crln.len);
+    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", cf.ntraj); 
+    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", cf.len);
     fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
     fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
-    for (size_t i = 0; i < crln.len; ++i) {
-        fprintf(fp, "%.2f %.10e\n", crln.t[i], crln.data[i] / crln.ntraj * ALU*ALU*ALU);
+    for (size_t i = 0; i < cf.len; ++i) {
+        fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i] / cf.ntraj * ALU*ALU*ALU);
     }
+    
+    fflush(fp);
 }
             
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 
@@ -1854,7 +1859,7 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     rewind(fp);
 
     fprintf(fp, "# HAWAII HYBRID v0.1\n");
-    fprintf(fp, "# TEMPERATURE: %.2f\n", sf.T);
+    fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
     fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", sf.ntraj); 
     fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
     fprintf(fp, "# INITIAL DISTANCE: %.3f\n", params->R0);
@@ -2085,14 +2090,14 @@ defer:
     return result;
 }
 
-double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T)
+double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature)
 {
     double pf_analytic = 0.0;
 
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
         TODO("analytic_full_partition_function_by_V");  
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * T / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0]; 
+        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * Temperature / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0]; 
     }
 
     return pf_analytic;
@@ -2516,7 +2521,7 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
     return sfnum; 
 }
 
-SFnc desymmetrize_sch(SFnc sf, double T) 
+SFnc desymmetrize_sch(SFnc sf) 
 {
     SFnc sfd = {
         .nu   = malloc(sf.len * sizeof(double)),
@@ -2527,14 +2532,14 @@ SFnc desymmetrize_sch(SFnc sf, double T)
     memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
 
     for (size_t i = 0; i < sf.len; ++i) {
-        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * T);
+        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
         sfd.data[i] = sf.data[i] * exp(hnukt / 2.0);
     }
 
     return sfd;
 }
 
-Spectrum compute_alpha(SFnc sf, double T) 
+Spectrum compute_alpha(SFnc sf) 
 {
     Spectrum sp = {
         .nu   = malloc(sf.len * sizeof(double)),
@@ -2545,7 +2550,7 @@ Spectrum compute_alpha(SFnc sf, double T)
     memcpy(sp.nu, sf.nu, sf.len * sizeof(double));
 
     for (size_t i = 0; i < sf.len; ++i) {
-        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * T); 
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * sf.Temperature); 
         sp.data[i] = Moment_SF_Coeff * sp.nu[i] * (1.0 - exp(-hnukt)) * sf.data[i]; 
     }
 

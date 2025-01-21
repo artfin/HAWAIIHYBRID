@@ -148,19 +148,19 @@ typedef struct {
     double cvode_tolerance;
    
     /* applicable to both correlation function AND spectral function calculations */ 
-    size_t niterations;
-    size_t total_trajectories;
+    size_t niterations; // the accumulation of the total_trajectories is split into this number of iterations
+    size_t total_trajectories; // the total number of accumulated trajectories (ALL iterations) 
     
     /* correlation calculation ONLY */
     const char* cf_filename;
     double Rcut; // distance at which the trajectory is forcefully stopped 
 
-    /* pr/mu calculation */   
+    /* pr/mu calculation ONLY */   
     const char *sf_filename;
     double ApproximateFrequencyMax; 
     double R0; // initial distance 
 
-    /* correlation function array */
+    /* correlation function array ONLY (NOT IMPLEMENTED) */
     double *temperatures;
     size_t ntemperatures;
 } CalcParams;
@@ -184,7 +184,7 @@ typedef struct {
     size_t len;      // # of samples in *t, *data
     size_t capacity; // capacity *t, *data
     size_t ntraj;    // # of trajectories used for averaging
-    double T;        // Temperature
+    double Temperature;        
 } CFnc;
 
 typedef struct {
@@ -193,7 +193,7 @@ typedef struct {
     size_t len;      // # of samples in *nu, *data
     size_t capacity; // capacity of *nu, *data
     size_t ntraj;    // # of trajectories used for averaging
-    double T;        // Temperature 
+    double Temperature;       
 } SFnc;
 
 typedef struct {
@@ -283,7 +283,7 @@ void invert_momenta(MoleculeSystem *ms);
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp); 
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-double analytic_full_partition_function_by_V(MoleculeSystem *ms, double T);
+double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
@@ -313,7 +313,7 @@ void sb_append(String_Builder *sb, const char *line, size_t n);
 void free_sb(String_Builder sb);
 
 
-void save_correlation_function(FILE *fd, CFnc crln, CalcParams *params);
+void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
@@ -340,8 +340,8 @@ inline bool is_power_of_two(size_t n) {
 
 double *idct(double *v, size_t len);
 SFnc dct_numeric_sf(CFnc cf, WingParams *wp);
-SFnc desymmetrize_sch(SFnc sf, double T); 
-Spectrum compute_alpha(SFnc sf, double T); 
+SFnc desymmetrize_sch(SFnc sf); 
+Spectrum compute_alpha(SFnc sf); 
     
 #ifdef __cplusplus
 }

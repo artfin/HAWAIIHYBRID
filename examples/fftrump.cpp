@@ -6,7 +6,7 @@ void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
 
 void process_correlation_function() 
 {
-    double T = 300.0;
+    double Temperature = 300.0;
 
     String_Builder sb{};
     CFnc cf{};
@@ -31,11 +31,13 @@ void process_correlation_function()
     WingParams wp = fit_baseline(&cf, EXT_RANGE_MIN);
 
     SFnc sf = dct_numeric_sf(cf, &wp);
+    sf.Temperature = Temperature;
+
     for (size_t i = 0; i < 10; ++i) {
         printf("%.5f %.5e\n", sf.nu[i], sf.data[i]);
     }
     
-    Spectrum spraw = compute_alpha(desymmetrize_sch(sf, T), T);
+    Spectrum spraw = compute_alpha(desymmetrize_sch(sf));
     spraw.len = 5700;  
     filename = "sp_raw.txt";
     if (!writetxt(filename, spraw.nu, spraw.data, spraw.len, sb.items)) {
@@ -58,8 +60,7 @@ void process_correlation_function()
     memcpy(sf.data, sfsmvals.data(), npoints * sizeof(double)); 
     sf.len = npoints;
 
-    SFnc sfd3 = desymmetrize_sch(sf, T);
-    Spectrum spd3 = compute_alpha(sfd3, T); 
+    Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
 
     filename = "sp.txt";
     if (!writetxt(filename, spd3.nu, spd3.data, spd3.len, sb.items)) {
@@ -68,14 +69,13 @@ void process_correlation_function()
 
     free_cfnc(cf);
     free_sfnc(sf);
-    free_sfnc(sfd3);
     free_spectrum(spd3);
     free_sb(sb);
 }
 
 void process_spectral_function()
 {
-    double T = 300.0;
+    double Temperature = 300.0;
 
     String_Builder sb{};
     memset(&sb, 0, sizeof(sb));
@@ -93,9 +93,9 @@ void process_spectral_function()
     
     printf("Number of samples: %zu\n", sf.len);
     printf("Frequency range: %.3lf...%.3lf\n", sf.nu[0], sf.nu[sf.len - 1]);
-    
-    SFnc sfd3 = desymmetrize_sch(sf, T);
-    Spectrum spd3 = compute_alpha(sfd3, T); 
+
+    sf.Temperature = Temperature;    
+    Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
   
     filename = "SP-PRMU-300.0.txt";
     if (!writetxt(filename, spd3.nu, spd3.data, spd3.len, sb.items)) {
@@ -103,15 +103,14 @@ void process_spectral_function()
     }
 
     free_sfnc(sf);
-    free_sfnc(sfd3);
     free_spectrum(spd3);
     free_sb(sb);
 }
 
 int main()
 {
-    // process_correlation_function();
-    process_spectral_function();
+    process_correlation_function();
+    // process_spectral_function();
 
     return 0;
 }
