@@ -1299,7 +1299,10 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
 
         if (step_counter > 1) {
-            double ratio = fabs(curr_value / prev_value); 
+            double ratio = fabs(curr_value / prev_value);
+            if (ratio > 10000) {
+                printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+            }
             if (ratio > 1e10) {
                 printf("ERROR: unexpectedly large jump in dipole value!\n"); 
                 printf("The initial phase-point for broken trajectory in the forward direction is:\n");
@@ -1360,6 +1363,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 
         if (step_counter > 1) {
             double ratio = fabs(curr_value / prev_value); 
+            if (ratio > 10000) {
+                printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+            }
             if (ratio > 1e10) {
                 printf("ERROR: unexpectedly large jump in dipole value!\n"); 
                 printf("The initial phase-point for broken trajectory in the backward direction is:\n");
