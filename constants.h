@@ -37,8 +37,12 @@
 #define m_Ar (39.9623831237 * RAMTOAMU)
 
 #define m_H2 (2.0 * m_H)
+#define m_CO (m_C + m_O)
 #define m_CO2 (m_C + 2.0 * m_O)
 #define m_CH4 (m_C + 4.0 * m_H)
+
+// ?
+#define l_CO 2.132 // bohr 
 
 // ? 
 #define l_CO2 4.398
@@ -51,7 +55,8 @@
     
 #define II_CO2 (m_O/2.0*l_CO2*l_CO2)
 #define II_H2  (m_H/2.0*l_H2*l_H2)
-    
+#define II_CO  ((m_C * m_O)/(m_C + m_O)*l_CO*l_CO)
+
 // Source: S. Albert, S. Bauerecker, V. Boudon, L. R. Brown, J. P. Champion, M. Loete, A. Nikitin, M. Quack, Chemical Physics, 2009, 356, 131-146.
 // B0 = 5.241040019 cm-1 (page 8; Supplementary material)  
 #define l_CH4 2.067354047786849 

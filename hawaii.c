@@ -139,11 +139,11 @@ const char* pair_state_name(PairState ps) {
     UNREACHABLE("pair_state_name");
 }
 
-void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
-    for (size_t k = 0; k < QP_SIZE; k += 2) {
-        qp[k + 1] = q[k / 2];
-    }
-} 
+//void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
+//    for (size_t k = 0; k < QP_SIZE; k += 2) {
+//        qp[k + 1] = q[k / 2];
+//    }
+//} 
 
 double find_closest_half_integer(double j) 
 /*

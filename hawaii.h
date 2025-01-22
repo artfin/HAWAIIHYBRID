@@ -129,9 +129,9 @@ typedef struct {
     PairState ps;
 
     /* sampling */
-    double sampler_Rmin;
-    double sampler_Rmax;
-    double pesmin;
+    double sampler_Rmin; // a.u.
+    double sampler_Rmax; // a.u.
+    double pesmin; // Hartree 
 
     /* initial spectral moments check */ 
     size_t initialM0_npoints;
@@ -143,7 +143,7 @@ typedef struct {
     double torque_bound;
 
     /* trajectory */
-    double sampling_time;
+    double sampling_time; // a.t.u.
     size_t MaxTrajectoryLength;
     double cvode_tolerance;
    
@@ -153,12 +153,12 @@ typedef struct {
     
     /* correlation calculation ONLY */
     const char* cf_filename;
-    double Rcut; // distance at which the trajectory is forcefully stopped 
+    double Rcut; // distance at which the trajectory is forcefully stopped, a.u. 
 
     /* pr/mu calculation ONLY */   
     const char *sf_filename;
-    double ApproximateFrequencyMax; 
-    double R0; // initial distance 
+    double ApproximateFrequencyMax; // cm-1
+    double R0; // initial distance, a.u. 
 
     /* correlation function array ONLY (NOT IMPLEMENTED) */
     double *temperatures;

@@ -1,6 +1,7 @@
 .PHONY: all clean test docs
 
 CC     := gcc
+F      := gfortran
 CXX    := g++
 MPICC  := mpicc
 MPICXX := mpic++
@@ -17,10 +18,10 @@ LIB_SUNDIALS := /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe \
 			examples/trajectory_co2_ar.exe 				\
-			examples/trajectory_ch4_co2.exe 		    \
  			examples/trajectory_h2_ar_requantized.exe   \
 			examples/correlation_co2_ar.exe             \
-			examples/fftrump.exe
+			examples/fftrump.exe                        \
+			# examples/trajectory_ch4_co2.exe 		    \
 
 all: $(EXAMPLES) 
 
@@ -79,6 +80,16 @@ build/ai_pes_h2ar_leroy.o: ./PES-IDS/ai_pes_h2ar_leroy.c | build
 ###########################################################
 
 ###########################################################
+###################### CO-Ar ##############################
+###########################################################
+build/potv.o: ./PES-IDS/potv.f | build
+	$(F) -c $< -o $@ 
+
+build/potv_d.o: ./PES-IDS/potv_d.f03 | build
+	$(F) -c $< -o $@
+###########################################################
+
+###########################################################
 ##################### CH4-CO2 #############################
 ###########################################################
 build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
@@ -104,6 +115,7 @@ OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o bu
 MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
 CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
 H2_AR   := build/ai_pes_h2ar_leroy.o
+CO_AR   := build/potv.o build/potv_d.o 
 CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
 		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o
  
@@ -121,7 +133,7 @@ examples/trajectory_co2_ar.exe: examples/trajectory_co2_ar.cpp build/trajectory.
 examples/trajectory_h2_ar_requantized.exe: examples/trajectory_h2_ar_requantized.cpp build/trajectory.o $(OBJ) $(H2_AR)
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
-examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) $(CH4_CO2) 
+examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) # $(CH4_CO2) 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
@@ -132,6 +144,9 @@ examples/prmu_calculation_co2_ar.exe: examples/prmu_calculation_co2_ar.cpp build
 
 examples/fftrump.exe: examples/fftrump.cpp $(OBJ) build/loess.o 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
+
+examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
 build:
 	mkdir -p $@
