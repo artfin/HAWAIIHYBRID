@@ -34,13 +34,13 @@ typedef struct
 } Trajectory;
 
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 
-void free_trajectory(Trajectory *t);
+void free_trajectory(Trajectory *traj);
 
 int make_step(Trajectory *traj, double tout, double *t);
 
-void set_initial_condition(Trajectory *t, Array qp);
-N_Vector make_vector(const int size);
-void set_tolerance(Trajectory *t, double tolerance);
+void set_initial_condition(Trajectory *traj, Array qp);
+N_Vector make_vector(int size);
+void set_tolerance(Trajectory *traj, double tolerance);
 
 void reinit_trajectory(Trajectory *traj, double t);
 

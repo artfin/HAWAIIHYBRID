@@ -6,7 +6,14 @@
 
 #include "ai_pes_co2ar.h"
 
-double pes(double *q) {
+double pes(double *q)
+/*
+ * q: the order of coordinates is the same as in MoleculeSystem
+ *    Phi, Theta, R, phi1, theta1
+ * R: bohr, angles: rad
+ * Returns: Hartree 
+ */ 
+{
     static double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
     return pes_co2ar(qmol[0], qmol[4]);

@@ -1267,6 +1267,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
       .ready   = false,
     };
 
+    double prev_value, curr_value;
+
     /*
      * We start step_counter from 1 so that correlation value after the first integration step
      * will go into correlation_forw[1] 
@@ -1292,8 +1294,24 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+        
+        prev_value = curr_value;
+        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
 
-        correlation_forw[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
+        if (step_counter > 1) {
+            double ratio = fabs(curr_value / prev_value); 
+            if (ratio > 1e10) {
+                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+                printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                    printf("%.10e ", qp.data[i]);
+                }
+                printf("\n");
+                return 1;         
+            } 
+        }
+
+        correlation_forw[step_counter] = curr_value; 
 
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
 
@@ -1336,8 +1354,25 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+        
+        prev_value = curr_value;
+        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
 
-        correlation_back[step_counter] = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2]; 
+        if (step_counter > 1) {
+            double ratio = fabs(curr_value / prev_value); 
+            if (ratio > 1e10) {
+                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+                printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                    printf("%.10e ", qp.data[i]);
+                }
+                printf("\n");
+                return 1;         
+            } 
+        }
+
+
+        correlation_back[step_counter] = curr_value; 
         
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
 

@@ -60,15 +60,15 @@ Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
     return traj;
 }
 
-void free_trajectory(Trajectory *t)
+void free_trajectory(Trajectory *traj)
 {
-    N_VDestroy(t->y);
-    N_VDestroy(t->abstol);
+    N_VDestroy(traj->y);
+    N_VDestroy(traj->abstol);
 
-    SUNLinSolFree(t->LS);
-    SUNMatDestroy(t->A);
+    SUNLinSolFree(traj->LS);
+    SUNMatDestroy(traj->A);
 
-    CVodeFree(&t->cvode_mem);
+    CVodeFree(&traj->cvode_mem);
 }
 
 
@@ -78,13 +78,13 @@ int make_step(Trajectory *traj, double tout, double *t)
     return flag;
 }
 
-void set_initial_condition(Trajectory *t, Array qp)
+void set_initial_condition(Trajectory *traj, Array qp)
 {
-    memcpy(N_VGetArrayPointer(t->y), qp.data, qp.n * sizeof(double));
-    CVodeReInit(t->cvode_mem, 0.0, t->y);
+    memcpy(N_VGetArrayPointer(traj->y), qp.data, qp.n * sizeof(double));
+    CVodeReInit(traj->cvode_mem, 0.0, traj->y);
 }
 
-N_Vector make_vector(const int size) 
+N_Vector make_vector(int size) 
 {
     N_Vector nv = N_VNew_Serial(size);
     assert(nv != NULL); 
@@ -93,15 +93,15 @@ N_Vector make_vector(const int size)
 }
 
 
-void set_tolerance(Trajectory *t, double tolerance) 
+void set_tolerance(Trajectory *traj, double tolerance) 
 {
-    t->reltol = tolerance;
-    for (size_t k = 0; k < t->DIM; ++k) { 
-        NV_Ith_S(t->abstol, k) = tolerance; 
+    traj->reltol = tolerance;
+    for (size_t k = 0; k < traj->DIM; ++k) { 
+        NV_Ith_S(traj->abstol, k) = tolerance; 
     }
 
     // specify the scalar relative tolerance and vector absolute tolerances
-    int flag = CVodeSVtolerances(t->cvode_mem, t->reltol, t->abstol);
+    int flag = CVodeSVtolerances(traj->cvode_mem, traj->reltol, traj->abstol);
     if (flag < 0) {
         fprintf(stderr, "ERROR: CVodeSVtolerances -- unrecoverable error\n"); 
         exit(1);
