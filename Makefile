@@ -93,22 +93,25 @@ build/potv_d.o: ./PES-IDS/potv_d.f03 | build
 ##################### CH4-CO2 #############################
 ###########################################################
 build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_pes_ch4_co2_dEdR.o: ./PES-IDS/ai_pes_ch4_co2_dEdR.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_pes_ch4_co2_dEdphi1.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi1.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_pes_ch4_co2_dEdtheta1.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta1.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_pes_ch4_co2_dEdphi2.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi2.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_pes_ch4_co2_dEdtheta2.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta2.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_ids_ch4_co2.o: ./PES-IDS/ai_ids_ch4_co2.cpp | build
+	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 ###########################################################
 
 OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
@@ -117,7 +120,7 @@ CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
 H2_AR   := build/ai_pes_h2ar_leroy.o
 CO_AR   := build/potv.o build/potv_d.o 
 CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
-		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o
+		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o build/ai_ids_ch4_co2.o
  
  
 

@@ -5,6 +5,7 @@
 #include "angles_handler.hpp"
 
 #include "ai_pes_ch4_co2.h"
+#include "ai_ids_ch4_co2.hpp"
 
 #define NLAB 8
 #define NKAL 5
@@ -38,6 +39,33 @@ void dpes(double *qlab, double *dpesdq)
     derivatives_lab = jac * derivatives_kal;
 
     Eigen::VectorXd::Map(dpesdq, NLAB) = derivatives_lab;
+}
+
+void dipole_lab(double *qlab, double diplab[3]) {
+    double qkal[NKAL];
+    CH4_linear_molecule_lab_to_kal(qlab, qkal);
+    
+    double dipkal[3];
+    dipole_vector(qkal, dipkal);
+
+    double sinphi, cosphi;
+    double sintheta, costheta;
+    double sinpsi, cospsi;
+
+    sincos(qlab[3], &sinphi, &cosphi);
+    sincos(qlab[4], &sintheta, &costheta);
+    sincos(qlab[5], &sinpsi, &cospsi);
+
+    Sz_filler(Sphi1t, sinphi, cosphi);
+    Sx_filler(Stheta1t, sintheta, costheta);
+    Sz_filler(Spsi1t, sinpsi, cospsi);
+      
+    Eigen::Vector3d dipkal_eig = Eigen::Map<Eigen::Vector3d>(dipkal, 3);
+    Eigen::Vector3d diplab_eig = Sphi1t.transpose() * Stheta1t.transpose() * Spsi1t.transpose() * dipkal_eig; 
+   
+    diplab[0] = diplab_eig(0); 
+    diplab[1] = diplab_eig(1); 
+    diplab[2] = diplab_eig(2); 
 }
 
 const char *var_to_cstring(int n) {
@@ -203,7 +231,8 @@ int main()
     MoleculeSystem ms = init_ms(MU, ROTOR, LINEAR_MOLECULE, I1, I2, seed);
 
     init_pes();
-
+    init_ids();
+    
     Array qp = create_array(ms.QP_SIZE);
     
     double data[ms.QP_SIZE] = {
@@ -231,6 +260,8 @@ int main()
     double t = 0.0;
     double tout = params.sampling_time;
 
+    double dipt[3];
+
     for (size_t nstep = 0; ; ++nstep, tout += params.sampling_time)
     {
         int status = make_step(&traj, tout, &t);
@@ -247,7 +278,11 @@ int main()
         put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
         
         double E = Hamiltonian(&ms);
-        printf("%10.1lf \t %12.10lf \t %12.15lf\n", t, ms.intermolecular_qp[IR], E-E0);
+
+        extract_q_and_write_into_ms(&ms);
+        dipole_lab(ms.intermediate_q, dipt);
+        
+        printf("%10.1lf \t %12.10lf \t %12.15lf %12.12lf\n", t, ms.intermolecular_qp[IR], E-E0, dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]);
 
         if (ms.intermolecular_qp[IR] > 30.0) break;
 
@@ -259,6 +294,7 @@ int main()
     free_trajectory(&traj);
     free_ms(&ms);
     free_array(&qp);
+    free_ids();
 
     return 0;
 }

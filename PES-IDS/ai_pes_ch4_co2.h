@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <gsl/gsl_sf_legendre.h>
 
 #include "../constants.h"
