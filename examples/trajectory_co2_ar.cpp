@@ -86,12 +86,16 @@ void test_rhs(MoleculeSystem *ms, Array qp)
 
     printf("# \t analytic \t numeric \t difference \n");
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-        printf("dot(%s): %.10e \t %.10e \t %.10e\n", var_to_cstring(i), NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
+        printf("dot(%s): \t %.10e \t %.10e \t %.10e\n", var_to_cstring(i), NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
+    }
 
+    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-4) > 0) {
+            printf("ERROR: The element (%zu) disagree!\n", i);
             exit(1);
         }
     }
+
     printf("-----------------------------------------\n\n\n");
     
     put_qp_into_ms(ms, qp);
@@ -101,6 +105,60 @@ void test_rhs(MoleculeSystem *ms, Array qp)
     N_VDestroy(ydot);
 }
 
+void test_jac()
+{
+    printf("\n-----------------------------------------\n");
+    printf("Testing analytic derivatives of angles transformation against the numerical ones\n");
+
+    double qlab[5] = {0.1, 0.2, 5.0, 0.3, 0.4};
+
+    size_t order = 4;
+    size_t ninput_coordinates = 5;
+    size_t noutput_coordinates = 5;
+    gsl_matrix* numerical_jac = compute_numerical_jac(linear_molecule_atom_lab_to_mol, qlab, ninput_coordinates, noutput_coordinates, order);
+
+    printf("Numerical jacobian:\n");
+    for (size_t i = 0; i < ninput_coordinates; ++i) {
+        for (size_t j = 0; j < noutput_coordinates; ++j) {
+            printf("%.10e ", gsl_matrix_get(numerical_jac, i, j));
+        }
+        printf("\n");
+    }
+   
+    static Eigen::Matrix<double, 5, 5> analytic_jac = Eigen::Matrix<double, 5, 5>::Zero(5, 5);
+    double qmol[5];
+    linear_molecule_atom_lab_to_mol(qlab, qmol);
+    linear_molecule_atom_Jacobi_mol_by_lab(analytic_jac, qlab, qmol); 
+    
+    printf("Analytic jacobian:\n");
+    for (size_t i = 0; i < 5; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            printf("%.10e ", analytic_jac(i, j)); 
+        }
+        printf("\n");
+    }
+
+    printf("Difference:\n");
+    for (size_t i = 0; i < 5; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            printf("%.10e ", analytic_jac(i, j) - gsl_matrix_get(numerical_jac, i, j)); 
+        }
+        printf("\n");
+    }
+
+    for (size_t i = 0; i < 5; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            if (assert_float_is_equal_to(analytic_jac(i, j), gsl_matrix_get(numerical_jac, i, j), 1e-9) > 0) {
+                printf("ERROR: The elements (%zu, %zu) disagree!\n", i, j);
+                exit(1);
+            }
+        }
+    }
+
+    printf("-----------------------------------------\n");
+
+    gsl_matrix_free(numerical_jac);
+}
 
 int main()
 {
@@ -129,6 +187,7 @@ int main()
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
 
+    test_jac();
     test_rhs(&ms, qp);
 
     double tolerance = 1e-12;
