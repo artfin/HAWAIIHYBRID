@@ -366,12 +366,99 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
     return 0;
 }
 
+
+gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double *qmol), double *qlab, size_t ninput_coordinates, size_t noutput_coordinates, size_t order)
+{
+    gsl_matrix *jac = gsl_matrix_alloc(ninput_coordinates, noutput_coordinates);
+    for (size_t i = 0; i < ninput_coordinates; ++i) {
+        for (size_t j = 0; j < noutput_coordinates; ++j) {
+            gsl_matrix_set(jac, i, j, 0.0);
+        }
+    }
+
+    double *result = (double*) malloc(noutput_coordinates * sizeof(double));
+    double *temp = (double*) malloc(noutput_coordinates * sizeof(double));
+
+    double step = 1e-5;
+
+    for (size_t i = 0; i < ninput_coordinates; ++i) {
+        memset(result, 0, noutput_coordinates*sizeof(double));
+
+        switch (order) {
+            case 2: {
+                double c = qlab[i];
+                qlab[i] = c + step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 1.0/2.0 * temp[j]; 
+                }
+
+                qlab[i] = c - step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 1.0/2.0 * temp[j]; 
+                }
+
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    gsl_matrix_set(jac, i, j, result[j]/step);
+                }
+                
+                qlab[i] = c;
+                break;
+            }
+            case 4: {
+                // 1/12, −2/3, 0, 2/3, −1/12	
+                double c = qlab[i]; 
+                qlab[i] = c - 2*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 1.0/12.0 * temp[j]; 
+                }
+                
+                qlab[i] = c - step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 2.0/3.0 * temp[j]; 
+                }
+                
+                qlab[i] = c + step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 2.0/3.0 * temp[j]; 
+                }
+
+                qlab[i] = c + 2*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 1.0/12.0 * temp[j]; 
+                }
+                
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    gsl_matrix_set(jac, i, j, result[j]/step);
+                }
+                
+                qlab[i] = c;
+                break;
+            }
+
+            default: {
+                assert(0 && "ERROR: only order = 2 is implemented"); 
+            }
+        }
+    }
+
+    free(result);
+    free(temp);
+    
+    return jac;
+}
+
 Array compute_numerical_rhs(MoleculeSystem *ms, size_t order) 
 {
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
    
-    double step = 1e-4;
+    double step = 1e-6;
 
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         get_qp_from_ms(ms, &qp);

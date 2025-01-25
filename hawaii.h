@@ -264,7 +264,9 @@ void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms);
 // Then, the first step is to write the phase point (N_Vector y) into the fields of MoleculeSystem
 // using the method "put_qp_into_ms".
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
+
 Array compute_numerical_rhs(MoleculeSystem *ms, size_t order); 
+gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double *qmol), double *qlab, size_t ninput_coordinates, size_t noutput_coordinates, size_t order);
 
 double kinetic_energy(MoleculeSystem *ms);
 double Hamiltonian(MoleculeSystem *ms);
