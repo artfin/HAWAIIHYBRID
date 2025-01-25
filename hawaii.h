@@ -265,6 +265,7 @@ void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms);
 // using the method "put_qp_into_ms".
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data);
 
+Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t len, size_t order);
 Array compute_numerical_rhs(MoleculeSystem *ms, size_t order); 
 gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double *qmol), double *qlab, size_t ninput_coordinates, size_t noutput_coordinates, size_t order);
 

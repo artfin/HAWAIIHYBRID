@@ -234,7 +234,7 @@ void rhsMonomer(Monomer *m, double *deriv) {
            deriv[IPPHI]   = -m->dVdq[IPHI/2];
            deriv[ITHETA]  = pTheta / m->II[0]; 
            deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->II[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
-           
+          
            break;                                                    
         }
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
@@ -307,6 +307,14 @@ void rhsMonomer(Monomer *m, double *deriv) {
 void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
     memcpy(ms->m1.dVdq, ms->dVdq + 3,                            (ms->m1.t%MODULO_BASE)/2 * sizeof(double));
     memcpy(ms->m2.dVdq, ms->dVdq + 3 + (ms->m1.t%MODULO_BASE)/2, (ms->m2.t%MODULO_BASE)/2 * sizeof(double));
+    
+    // for (size_t i = 0; i < ms->m1.t%MODULO_BASE/2; ++i) {
+    //   printf("m1.dVdq[%zu] = %.10e\n", i, ms->m1.dVdq[i]);
+    // }
+
+    // for (size_t i = 0; i < ms->m2.t%MODULO_BASE/2; ++i) {
+    //   printf("m2.dVdq[%zu] = %.10e\n", i, ms->m2.dVdq[i]);
+    // }
 }
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
@@ -379,7 +387,7 @@ gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double 
     double *result = (double*) malloc(noutput_coordinates * sizeof(double));
     double *temp = (double*) malloc(noutput_coordinates * sizeof(double));
 
-    double step = 1e-5;
+    double step = 1e-3;
 
     for (size_t i = 0; i < ninput_coordinates; ++i) {
         memset(result, 0, noutput_coordinates*sizeof(double));
@@ -440,9 +448,55 @@ gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double 
                 qlab[i] = c;
                 break;
             }
+            case 6: {
+                // −1/60, 3/20, −3/4, 0, 3/4, −3/20, 1/60
+                double c = qlab[i];
 
+                qlab[i] = c - 3*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 1.0/60.0 * temp[j]; 
+                }
+                
+                qlab[i] = c - 2*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 3.0/20.0 * temp[j]; 
+                }
+                
+                qlab[i] = c - step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 3.0/4.0 * temp[j]; 
+                }
+                
+                qlab[i] = c + step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 3.0/4.0 * temp[j]; 
+                }
+                
+                qlab[i] = c + 2*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] -= 3.0/20.0 * temp[j]; 
+                }
+                
+                qlab[i] = c + 3*step;
+                transform_angles(qlab, temp);
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    result[j] += 1.0/60.0 * temp[j]; 
+                }
+                
+                for (size_t j = 0; j < noutput_coordinates; ++j) {
+                    gsl_matrix_set(jac, i, j, result[j]/step);
+                }
+                        
+                qlab[i] = c;
+                break;
+            }
             default: {
-                assert(0 && "ERROR: only order = 2 is implemented"); 
+                assert(0 && "ERROR: only order = 2, 4 and 6 are implemented"); 
             }
         }
     }
@@ -453,12 +507,100 @@ gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double 
     return jac;
 }
 
+Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t len, size_t order)
+{
+    Array derivatives = create_array(len);
+    
+    double step = 1e-6;
+    if (order == 4) {
+        step = 1e-4;
+    } else if (order == 6) {
+        step = 1e-3;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        switch (order) {
+            case 2: {
+              // -1/2, 0, 1/2
+              double c = q[i]; 
+              double r = 0.0;
+
+              q[i] = c + step;
+              r += 1.0/2.0 * f(q);
+
+              q[i] = c - step;
+              r -= 1.0/2.0 * f(q);
+
+              q[i] = c;
+              derivatives.data[i] = r/step; 
+              break; 
+            }
+            case 4: {
+                // 1/12, −2/3, 0, 2/3, −1/12	
+                double c = q[i];
+                double r = 0.0;
+
+                q[i] = c - 2*step;
+                r += 1.0/12.0 * f(q);
+
+                q[i] = c - step;
+                r -= 2.0/3.0 * f(q);
+
+                q[i] = c + step;
+                r += 2.0/3.0 * f(q);
+
+                q[i] = c + 2*step;
+                r -= 1.0/12.0 * f(q);
+
+                q[i] = c;
+                derivatives.data[i] = r/step; 
+                break;
+            }
+            case 6: {
+                // −1/60, 3/20, −3/4, 0, 3/4, −3/20, 1/60
+                double c = q[i];
+                double r = 0.0;
+
+                q[i] = c - 3*step;
+                r -= 1.0/60.0 * f(q);
+
+                q[i] = c - 2*step;
+                r += 3.0/20.0 * f(q);
+
+                q[i] = c - step;
+                r -= 3.0/4.0 * f(q);
+
+                q[i] = c + step;
+                r += 3.0/4.0 * f(q);
+
+                q[i] = c + 2*step;
+                r -= 3.0/20.0 * f(q);
+
+                q[i] = c + 3*step;
+                r += 1.0/60.0 * f(q);
+
+                q[i] = c;
+                derivatives.data[i] = r/step;
+                break;
+            }
+            default: {
+                assert(0 && "ERROR: only order = 2, 4 and 6 are implemented"); 
+            }
+        }
+    }
+
+    return derivatives;
+}
+
 Array compute_numerical_rhs(MoleculeSystem *ms, size_t order) 
 {
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
    
     double step = 1e-6;
+    if (order == 6) {
+        step = 1e-3;
+    }
 
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         get_qp_from_ms(ms, &qp);
@@ -477,7 +619,10 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i + 1] = c - step;
                 put_qp_into_ms(ms, qp);
                 r -= 0.5 * Hamiltonian(ms);
-                
+     
+                qp.data[i + 1] = c; 
+                put_qp_into_ms(ms, qp);
+
                 derivatives.data[i] = r/step;
                 break;
               }
@@ -501,6 +646,9 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i + 1] = c + 2*step;
                 put_qp_into_ms(ms, qp);
                 r -= 1.0/12.0 * Hamiltonian(ms);
+
+                qp.data[i + 1] = c; 
+                put_qp_into_ms(ms, qp);
 
                 derivatives.data[i] = r/step; 
                 break;
@@ -534,6 +682,9 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 put_qp_into_ms(ms, qp);
                 r += 1.0/60.0 * Hamiltonian(ms);
 
+                qp.data[i + 1] = c; 
+                put_qp_into_ms(ms, qp);
+
                 derivatives.data[i] = r/step; 
                 break;
               }
@@ -554,6 +705,9 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i - 1] = c - step;
                 put_qp_into_ms(ms, qp);
                 r -= 0.5 * Hamiltonian(ms);
+
+                qp.data[i - 1] = c; 
+                put_qp_into_ms(ms, qp);
 
                 derivatives.data[i] = -r/step;
                 break;
@@ -577,6 +731,9 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i - 1] = c + 2*step;
                 put_qp_into_ms(ms, qp);
                 r -= 1.0/12.0 * Hamiltonian(ms);
+
+                qp.data[i - 1] = c; 
+                put_qp_into_ms(ms, qp);
 
                 derivatives.data[i] = -r/step; 
                 break;
@@ -609,6 +766,9 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i - 1] = c + 3*step;
                 put_qp_into_ms(ms, qp);
                 r += 1.0/60.0 * Hamiltonian(ms);
+
+                qp.data[i - 1] = c; 
+                put_qp_into_ms(ms, qp);
 
                 derivatives.data[i] = -r/step; 
                 break;
@@ -730,7 +890,7 @@ void extract_q(double *qp, double *q, size_t QP_SIZE) {
 void extract_q_and_write_into_ms(MoleculeSystem *ms) {
     extract_q(ms->intermolecular_qp, ms->intermediate_q,                              6);
     extract_q(ms->m1.qp,             ms->intermediate_q+6/2,                          ms->m1.t%MODULO_BASE);
-    extract_q(ms->m1.qp,             ms->intermediate_q+6/2+(ms->m1.t%MODULO_BASE)/2, ms->m2.t%MODULO_BASE);
+    extract_q(ms->m2.qp,             ms->intermediate_q+6/2+(ms->m1.t%MODULO_BASE)/2, ms->m2.t%MODULO_BASE);
 }
 
 void invert_momenta(MoleculeSystem *ms) {
