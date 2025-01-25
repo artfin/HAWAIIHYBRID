@@ -151,14 +151,14 @@ void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, dou
     jac(0, 1) = 1.0;
     jac(1, 2) = 1.0;
 
-    double sinphiem = 0.0, cosphiem = 0.0;
+    double sinphiem   = 0.0,   cosphiem = 0.0;
     double sinthetaem = 0.0, costhetaem = 0.0;
-    double sinpsiem = 0.0, cospsiem = 0.0;
+    double sinpsiem   = 0.0,   cospsiem = 0.0;
     sincos(qmol[1], &sinphiem, &cosphiem);
     sincos(qmol[2], &sinthetaem, &costhetaem);
     sincos(qmol[3], &sinpsiem, &cospsiem);
 
-    double sinphi1t = 0.0, cosphi1t = 0.0;
+    double sinphi1t   = 0.0, cosphi1t   = 0.0;
     double sintheta1t = 0.0, costheta1t = 0.0;
     sincos(qlab[3], &sinphi1t, &cosphi1t);
     sincos(qlab[4], &sintheta1t, &costheta1t);
@@ -177,7 +177,8 @@ void linear_molecule_atom_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, dou
     //std::cout << "Sphiem_dot:\n" << Sphiem_dot << "\n"; 
     //std::cout << "Sphi1t:\n" << Sphi1t << "\n"; 
     //std::cout << "Stheta1t:\n" << Stheta1t << "\n"; 
-    
+   
+
     dd = Sthetaem * Sphiem * Sphi1t_dot.transpose() * Stheta1t.transpose() * zvec;
     jac(3, 4) = -dd(2) / sin_thetam; // d(thetam) / d(phi1t)
     jac(3, 3) = (dd(1) * cospsiem - dd(0) * sinpsiem) / sin_thetam; // d(psiem) / d(phi1t)
@@ -421,13 +422,13 @@ void CH4_linear_molecule_lab_to_kal(double *qlab, double *qkal)
     qkal[3] = std::atan2(sinphi2k, cosphi2k); 
 }
 
-void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qkal)
+void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, double *qlab, double *qkal)
  /*
   * Матрица упорядочена по столбцам 
   *          d(R)        d(phi1K)    d(theta1K)    d(phi2K)    d(theta2K)
-  *  R       ...          ...         ...            ...          ...
   *  Phi     ...          ...         ...            ...          ...
   *  Theta   ...          ...         ...            ...          ...
+  *  R       ...          ...         ...            ...          ...
   *  phi1t   ...          ...         ...            ...          ... 
   *  theta1t ...          ...         ...            ...          ... 
   *  psi1t   ...          ...         ...            ...          ...
@@ -435,7 +436,8 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std:
   *  theta2t ...          ...         ...            ...          ...
   */
 {
-    jac(0, 0) = 1.0;
+    jac(2, 0) = 1.0;
+    
     
     double sinPhi, cosPhi;
     double sinTheta, cosTheta;
@@ -445,8 +447,8 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std:
     double sinphi2t, cosphi2t;
     double sintheta2t, costheta2t;
 
-    sincos(qlab[1], &sinPhi, &cosPhi); 
-    sincos(qlab[2], &sinTheta, &cosTheta);
+    sincos(qlab[0], &sinPhi, &cosPhi); 
+    sincos(qlab[1], &sinTheta, &cosTheta);
     sincos(qlab[3], &sinphi1t, &cosphi1t);
     sincos(qlab[4], &sintheta1t, &costheta1t);
     sincos(qlab[5], &sinpsi1t, &cospsi1t);
@@ -479,9 +481,6 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std:
         SPhi_dot, STheta_dot, Sphi1t_dot, Stheta1t_dot, Spsi1t_dot, Sphi2t_dot, Stheta2t_dot
     };
 
-    const int NN = 7;
-    int ind[NN] = {0, 0, 0, 0, 0, 0, 0};
-
     double sinphi1k, cosphi1k;
     double sintheta1k, costheta1k;
     double sinphi2k, cosphi2k;
@@ -491,30 +490,71 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std:
     sincos(qkal[2], &sintheta1k, &costheta1k);
     sincos(qkal[3], &sinphi2k, &cosphi2k);
     sincos(qkal[4], &sintheta2k, &costheta2k);
+    
+    // jac(IND_LAB, IND_MOL)
+    
+    // k = 0: d(...)/d(Phi)
+    dd  = Spsi1t * Stheta1t * Sphi1t * SPhi_dot.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t * Sphi1t * Sphi2t.transpose() * Stheta2t.transpose() * zvec;
+    jac(0, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(Phi)
+    jac(0, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(Phi)
+    jac(0, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(Phi)
+    jac(0, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(Phi)
+  
+    // k = 1: d(...)/d(Theta) 
+    dd  = Spsi1t * Stheta1t * Sphi1t * SPhi.transpose() * STheta_dot.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t * Sphi1t * Sphi2t.transpose() * Stheta2t.transpose() * zvec;
+    jac(1, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(Theta)
+    jac(1, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(Theta)
+    jac(1, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(Theta)
+    jac(1, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(Theta)
 
-    for (size_t k = 0; k < NN; ++k) { 
-        ind[k] = NN;
-        dd = mvec[4 + ind[4]] * mvec[3 + ind[3]] * mvec[2 + ind[2]] * mvec[0 + ind[0]].transpose() * mvec[1 + ind[1]].transpose() * zvec; 
-        dd2 = mvec[4 + ind[4]] * mvec[3 + ind[3]] * mvec[2 + ind[2]] * mvec[5 + ind[5]].transpose() * mvec[6 + ind[6]].transpose() * zvec;
-        
-        jac(k + 1, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k;
-        jac(k + 1, 2) = -dd(2) / sintheta1k;
-        jac(k + 1, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k;
-        jac(k + 1, 4) = -dd2(2) / sintheta2k;
+    // k = : d(...)/d(phi1t) 
+    dd  = Spsi1t * Stheta1t * Sphi1t_dot * SPhi.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t * Sphi1t_dot * Sphi2t.transpose() * Stheta2t.transpose() * zvec;
+    jac(3, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(phi1t)
+    jac(3, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(phi1t)
+    jac(3, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(phi1t)
+    jac(3, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(phi1t)
+    
+    // k = 3: d(...)/d(theta1t) 
+    dd  = Spsi1t * Stheta1t_dot * Sphi1t * SPhi.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t_dot * Sphi1t * Sphi2t.transpose() * Stheta2t.transpose() * zvec;
+    jac(4, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(theta1t)
+    jac(4, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(theta1t)
+    jac(4, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(theta1t)
+    jac(4, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(theta1t)
+    
+    // k = 4: d(...)/d(psi1t) 
+    dd  = Spsi1t_dot * Stheta1t * Sphi1t * SPhi.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t_dot * Stheta1t * Sphi1t * Sphi2t.transpose() * Stheta2t.transpose() * zvec;
+    jac(5, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(psi1t)
+    jac(5, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(psi1t)
+    jac(5, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(psi1t)
+    jac(5, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(psi1t)
+    
+    // k = 5: d(...)/d(phi2t) 
+    dd  = Spsi1t * Stheta1t * Sphi1t * SPhi.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t * Sphi1t * Sphi2t_dot.transpose() * Stheta2t.transpose() * zvec;
+    jac(6, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(phi2t)
+    jac(6, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(phi2t)
+    jac(6, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(phi2t)
+    jac(6, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(phi2t)
+    
+    // k = 6: d(...)/d(theta2t) 
+    dd  = Spsi1t * Stheta1t * Sphi1t * SPhi.transpose() * STheta.transpose() * zvec;
+    dd2 = Spsi1t * Stheta1t * Sphi1t * Sphi2t.transpose() * Stheta2t_dot.transpose() * zvec;
+    jac(7, 1) = (-dd(0) * sinphi1k + dd(1) * cosphi1k) / sintheta1k; // d(phi1k)/d(theta2t)
+    jac(7, 2) = -dd(2) / sintheta1k; // d(theta1k)/d(theta2t)
+    jac(7, 3) = (-dd2(0) * sinphi2k + dd2(1) * cosphi2k) / sintheta2k; // d(phi2k)/d(theta2t)
+    jac(7, 4) = -dd2(2) / sintheta2k; // d(theta2k)/d(theta2t)
 
-        ind[k] = 0;
-    }
-
-    // why doesn't this happen automatically?
-
-    // phi2k, theta2k do not depend on Phi, Theta
+    // theta2k do not depend on Phi, Theta
+    jac(0, 4) = 0.0;
     jac(1, 4) = 0.0;
-    jac(2, 4) = 0.0;
 
-    // phi1k, theta1k do not depend on phi2t, theta2t
+    // theta1k do not depend on phi2t, theta2t
     jac(6, 2) = 0.0;
     jac(7, 2) = 0.0;
 } 
-
-
 

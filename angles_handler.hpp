@@ -41,4 +41,4 @@ void linear_molecule_linear_molecule_lab_to_mol(std::vector<double> const& qlab,
 void linear_molecule_linear_molecule_Jacobi_mol_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qmol);
 
 void CH4_linear_molecule_lab_to_kal(double *qlab, double *qkal);
-void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, std::vector<double> const& qlab, std::vector<double> const& qkal); 
+void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, double *qlab, double *qkal);

@@ -6,32 +6,38 @@
 
 #include "ai_pes_ch4_co2.h"
 
+#define NLAB 8
+#define NKAL 5
+
 double pes(double *qlab) {
-    static double qkal[5];
+    static double qkal[NKAL];
     CH4_linear_molecule_lab_to_kal(qlab, qkal); 
     return pes_ch4co2(qkal[0], qkal[1], qkal[2], qkal[3], qkal[4]); 
 } 
 
-void dpes(double *q, double *dpesdq) {
-    UNUSED(q);
-    memset(dpesdq, 0, 8 * sizeof(double)); 
-    // static Eigen::Matrix<double, 5, 5> jac;
-    // static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
-    // static double qmol[5];
-    // 
-    // jac.setZero();
-    // linear_molecule_atom_lab_to_mol(q, qmol);
-    // linear_molecule_atom_Jacobi_mol_by_lab(jac, q, qmol);  
-    // 
-    // double dR, dTheta;
-    // dpes_co2ar(qmol[0], qmol[4], &dR, &dTheta); // [R, THETAM] -> [dpes_dR, dpes_dTheta]
+void dpes(double *qlab, double *dpesdq) 
+{
+    static Eigen::Matrix<double, NLAB, NKAL> jac;
+    static Eigen::Matrix<double, NKAL, 1> derivatives_kal;
+    static Eigen::Matrix<double, NLAB, 1> derivatives_lab; 
+    static double qkal[NKAL];
 
-    // // [dpes_dR, 0, 0, 0, dpes_dTheta]
-    // derivatives_mol(0) = dR; 
-    // derivatives_mol(4) = dTheta; 
+    jac.setZero();
+    CH4_linear_molecule_lab_to_kal(qlab, qkal);
+    CH4_linear_molecule_Jacobi_kal_by_lab(jac, qlab, qkal);  
 
-    // derivatives_lab = jac * derivatives_mol;
-    // Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
+    double dR, dphi1, dphi2, dtheta1, dtheta2; 
+    dpes_ch4co2(qkal[0], qkal[1], qkal[2], qkal[3], qkal[4], &dR, &dphi1, &dtheta1, &dphi2, &dtheta2); 
+
+    derivatives_kal(0) = dR; 
+    derivatives_kal(1) = dphi1;
+    derivatives_kal(2) = dtheta1;
+    derivatives_kal(3) = dphi2;
+    derivatives_kal(4) = dtheta2;
+
+    derivatives_lab = jac * derivatives_kal;
+
+    Eigen::VectorXd::Map(dpesdq, NLAB) = derivatives_lab;
 }
 
 const char *var_to_cstring(int n) {
@@ -57,6 +63,96 @@ const char *var_to_cstring(int n) {
     UNREACHABLE("var_to_cstring");
 }
 
+void test_jac()
+{
+    double qlab[8] = {0.1, 1.2, 8.0, 0.3, 0.4, 1.5, 0.6, 2.7};
+
+    printf("\n-----------------------------------------\n");
+    printf("Testing analytic derivatives of angles transformation against the numerical ones\n");
+
+    size_t order = 6;
+    size_t ninput_coordinates = 8;
+    size_t noutput_coordinates = 5;
+    gsl_matrix* numerical_jac = compute_numerical_jac(CH4_linear_molecule_lab_to_kal, qlab, ninput_coordinates, noutput_coordinates, order);
+
+    printf("Numerical jacobian:\n");
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            printf("%.10e ", gsl_matrix_get(numerical_jac, i, j));
+        }
+        printf("\n");
+    }
+   
+    static Eigen::Matrix<double, 8, 5> analytic_jac = Eigen::Matrix<double, 8, 5>::Zero(8, 5);
+    double qkal[5];
+    CH4_linear_molecule_lab_to_kal(qlab, qkal);
+    CH4_linear_molecule_Jacobi_kal_by_lab(analytic_jac, qlab, qkal); 
+    
+    printf("Analytic jacobian:\n");
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            printf("%.10e ", analytic_jac(i, j)); 
+        }
+        printf("\n");
+    }
+
+    printf("Difference:\n");
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            printf("%.10e ", analytic_jac(i, j) - gsl_matrix_get(numerical_jac, i, j)); 
+        }
+        printf("\n");
+    }
+
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 5; ++j) {
+            if (assert_float_is_equal_to(analytic_jac(i, j), gsl_matrix_get(numerical_jac, i, j), 1e-9) > 0) {
+                printf("ERROR: The elements (%zu, %zu) disagree!\n", i, j);
+                exit(1);
+            }
+        }
+    }
+
+    printf("-----------------------------------------\n");
+    
+    double dR, dphi1, dphi2, dtheta1, dtheta2; 
+    dpes_ch4co2(qkal[0], qkal[1], qkal[2], qkal[3], qkal[4], &dR, &dphi1, &dtheta1, &dphi2, &dtheta2); 
+    
+    printf("\n-----------------------------------------\n");
+    printf("Value of potential: %.10e\n", pes(qlab));
+    printf("Value of derivatives in kalugina frame of reference:\n");
+    printf("dV/dR:      %.10e\n", dR);
+    printf("dV/dphi1:   %.10e\n", dphi1);
+    printf("dV/dtheta1: %.10e\n", dtheta1);
+    printf("dV/dphi2:   %.10e\n", dphi2);
+    printf("dV/dtheta2: %.10e\n", dtheta2);
+    printf("-----------------------------------------\n\n");
+    
+    Eigen::VectorXd derivatives_kal = Eigen::VectorXd::Zero(5, 1);
+    derivatives_kal(0) = dR; 
+    derivatives_kal(1) = dphi1;
+    derivatives_kal(2) = dtheta1;
+    derivatives_kal(3) = dphi2;
+    derivatives_kal(4) = dtheta2;
+
+    Eigen::VectorXd analytic_derivatives = analytic_jac * derivatives_kal;
+   
+    Array numeric_derivatives = compute_numerical_derivatives(pes, qlab, 8, 6);
+
+    printf("-----------------------------------------\n");
+    printf("Numeric vs analytic derivatives of potential energy in laboratory frame:\n");
+    printf("Numeric \t analytic \t difference\n"); 
+    for (size_t i = 0; i < 8; ++i) {
+        double num = numeric_derivatives.data[i];
+        double an = analytic_derivatives(i); 
+        printf("%16.10e \t %16.10e \t %16.10e\n", num, an, num - an);
+    } 
+    printf("-----------------------------------------\n");
+
+    free_array(&numeric_derivatives);
+    gsl_matrix_free(numerical_jac);
+}
+
 void test_rhs(MoleculeSystem *ms, Array qp)
 {
     printf("\n-----------------------------------------\n");
@@ -74,11 +170,16 @@ void test_rhs(MoleculeSystem *ms, Array qp)
     size_t order = 6;
     Array num_derivatives = compute_numerical_rhs(ms, order);
 
-    printf("# \t analytic \t numeric \t difference \n");
+    printf("#       \t analytic \t numeric \t difference \n");
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-        printf("dot(%s): %.10e \t %.10e \t %.10e\n", var_to_cstring(i), NV_Ith_S(ydot, i), num_derivatives.data[i], NV_Ith_S(ydot, i) - num_derivatives.data[i]);
-
+        double an = NV_Ith_S(ydot, i);
+        double num = num_derivatives.data[i]; 
+        printf("dot(%s): \t %.10e \t %.10e \t %.10e\n", var_to_cstring(i), an, num, an - num);
+    }
+    
+    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
         if (assert_float_is_equal_to(NV_Ith_S(ydot, i), num_derivatives.data[i], 1e-4) > 0) {
+            printf("ERROR: The element (%zu) disagree!\n", i);
             exit(1);
         }
     }
@@ -104,18 +205,19 @@ int main()
     init_pes();
 
     Array qp = create_array(ms.QP_SIZE);
-
+    
     double data[ms.QP_SIZE] = {
-      0.33, -0.0115, 0.44, -0.037, 25.0, -0.03,   
-      0.55, -2.622135, 0.66, -2.55059, 0.77, 4.0234,
-      0.88, -0.033, 0.99, 0.51,
+      0.1, -0.0115, 1.2, -0.037, 8.0, -0.03,   
+      0.3, -2.622135, 0.4, -2.55059, 1.5, 4.0234,
+      0.6, -0.033, 2.7, 0.51,
     }; 
     
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
-    
-    test_rhs(&ms, qp);
 
+    test_jac();
+    test_rhs(&ms, qp);
+        
     double tolerance = 1e-15;
     Trajectory traj = init_trajectory(&ms, tolerance);
    

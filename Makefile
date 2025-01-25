@@ -21,7 +21,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe \
  			examples/trajectory_h2_ar_requantized.exe   \
 			examples/correlation_co2_ar.exe             \
 			examples/fftrump.exe                        \
-			# examples/trajectory_ch4_co2.exe 		    \
+			examples/trajectory_ch4_co2.exe 		    \
 
 all: $(EXAMPLES) 
 
@@ -133,7 +133,7 @@ examples/trajectory_co2_ar.exe: examples/trajectory_co2_ar.cpp build/trajectory.
 examples/trajectory_h2_ar_requantized.exe: examples/trajectory_h2_ar_requantized.cpp build/trajectory.o $(OBJ) $(H2_AR)
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
-examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) # $(CH4_CO2) 
+examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) $(CH4_CO2) 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
