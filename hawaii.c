@@ -2389,7 +2389,9 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
         TODO("analytic_full_partition_function_by_V");  
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0 * M_PI * pow(2.0 * M_PI * Temperature / HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0]; 
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+    } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
+        pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/HkT, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];
     } else {
         TODO("analytic_full_partition_function_by_V");  
     }

@@ -42,37 +42,68 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
           qp[6 + IPPHI] = std::tan(M_PI * (x.point()[6 + IPPHI] - 0.5));
           *jac *= M_PI * (1.0 + qp[6 + IPPHI] * qp[6 + IPPHI]);
           
-          qp[6 + ITHETA] = x.point()[6 + ITHETA] * 2.0 * M_PI;
+          qp[6 + ITHETA] = x.point()[6 + ITHETA] * M_PI;
           *jac *= M_PI;
         
           qp[6 + IPTHETA] = std::tan(M_PI * (x.point()[6 + IPTHETA] - 0.5));
           *jac *= M_PI * (1.0 + qp[6 + IPTHETA] * qp[6 + IPTHETA]);
+          
+          break;
+        }
+        case ROTOR: {
+          qp[6 + IPHI] = x.point()[6 + IPHI] * 2.0 * M_PI;
+          *jac *= 2.0 * M_PI;
+        
+          qp[6 + IPPHI] = std::tan(M_PI * (x.point()[6 + IPPHI] - 0.5));
+          *jac *= M_PI * (1.0 + qp[6 + IPPHI] * qp[6 + IPPHI]);
+          
+          qp[6 + ITHETA] = x.point()[6 + ITHETA] * M_PI;
+          *jac *= M_PI;
+        
+          qp[6 + IPTHETA] = std::tan(M_PI * (x.point()[6 + IPTHETA] - 0.5));
+          *jac *= M_PI * (1.0 + qp[6 + IPTHETA] * qp[6 + IPTHETA]);
+
+          qp[6 + IPSI] = x.point()[6 + IPSI] * 2.0 * M_PI;
+          *jac *= 2.0 * M_PI;
+        
+          qp[6 + IPPSI] = std::tan(M_PI * (x.point()[6 + IPPSI] - 0.5));
+          *jac *= M_PI * (1.0 + qp[6 + IPPSI] * qp[6 + IPPSI]);
+          
           break;
         }
         case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("transform_variables");
-        }
-        case ROTOR: {
-          TODO("transform_variables");
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQUANTIZED_ROTATION\n"); // ? 
         }
         case ROTOR_REQUANTIZED_ROTATION: {
-          TODO("transform_variables");
+          assert(0 && "ERROR: not applicable for ROTOR_REQUANTIZED_ROTATION\n"); // ? 
         }
     }
 
     switch (gms->m2.t) {
         case ATOM: break; 
         case LINEAR_MOLECULE: {
-          TODO("transform_variables");
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("transform_variables");
+          qp[6 + gms->m1.t%MODULO_BASE + IPHI] = x.point()[6 + gms->m1.t%MODULO_BASE + IPHI] * 2.0 * M_PI;
+          *jac *= 2.0 * M_PI;
+        
+          qp[6 + gms->m1.t%MODULO_BASE + IPPHI] = std::tan(M_PI * (x.point()[6 + gms->m1.t%MODULO_BASE + IPPHI] - 0.5));
+          *jac *= M_PI * (1.0 + qp[6 + gms->m1.t%MODULO_BASE + IPPHI] * qp[6 + gms->m1.t%MODULO_BASE + IPPHI]);
+          
+          qp[6 + gms->m1.t%MODULO_BASE + ITHETA] = x.point()[6 + gms->m1.t%MODULO_BASE + ITHETA] * M_PI;
+          *jac *= M_PI;
+        
+          qp[6 + gms->m1.t%MODULO_BASE + IPTHETA] = std::tan(M_PI * (x.point()[6 + gms->m1.t%MODULO_BASE + IPTHETA] - 0.5));
+          *jac *= M_PI * (1.0 + qp[6 + gms->m1.t%MODULO_BASE + IPTHETA] * qp[6 + gms->m1.t%MODULO_BASE + IPTHETA]);
+
+          break;
         }
         case ROTOR: {
           TODO("transform_variables");
         }
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQUANTIZED_ROTATION\n"); // ? 
+        }
         case ROTOR_REQUANTIZED_ROTATION: {
-          TODO("transform_variables");
+          assert(0 && "ERROR: not applicable for ROTOR_REQUANTIZED_ROTATION\n"); // ? 
         }
     }
 }

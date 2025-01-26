@@ -88,10 +88,6 @@ void Sy_dot_filler(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const 
     m(2, 2) = -sin_angle;
 }
 
-/*
- * This definition of Y-rotation matrix is usually used in quantum mechanical considerations.
- * For example, the basis functions for CH4-N2/CH4-CO2 surfaces utilize this Y-rotation matrix.
- */
 void Sy_filler_non_standard(Eigen::Ref<Eigen::Matrix3d> m, const double sin_angle, const double cos_angle) {
     m(0, 0) = cos_angle;
     m(0, 2) = sin_angle; 
