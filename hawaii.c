@@ -2844,9 +2844,10 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
 SFnc desymmetrize_sch(SFnc sf) 
 {
     SFnc sfd = {
-        .nu   = malloc(sf.len * sizeof(double)),
-        .data = malloc(sf.len * sizeof(double)),
-        .len  = sf.len,
+        .nu          = malloc(sf.len * sizeof(double)),
+        .data        = malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .Temperature = sf.Temperature,
     };
 
     memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
