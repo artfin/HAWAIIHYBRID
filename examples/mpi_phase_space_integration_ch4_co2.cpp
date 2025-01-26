@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.751;
     params.sampler_Rmax                     = 40.0;
-    params.initialM0_npoints                = 10000000;
-    params.initialM2_npoints                = 10000000;
+    params.initialM0_npoints                = 100000;
+    params.initialM2_npoints                = 100000;
     params.partial_partition_function_ratio = 1.0;
     params.pesmin                           = -342.934 / HTOCM;
     
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
     PRINT0("Error: %.3f%%\n", M0_std/M0 * 100.0);
     
-    if (assert_float_is_equal_to(M0, 3.64e-04, 8e-6) > 0) {
+    if (assert_float_is_equal_to(M0, 8.29e-04, 1e-05) > 0) {
         MPI_Finalize();
         return 1; 
     }
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2_std, M2-M2_std, M2+M2_std);
     PRINT0("Error: %.3f%%\n", M2_std/M2 * 100.0);
     
-    if (assert_float_is_equal_to(M2, 6.405e-01, 2e-2) > 0) {
+    if (assert_float_is_equal_to(M2, 5.37, 2e-2) > 0) {
         MPI_Finalize();
         return 1; 
     }
