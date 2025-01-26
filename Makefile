@@ -7,7 +7,9 @@ MPICC  := mpicc
 MPICXX := mpic++
 
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
-FLAGS  := -Wall -Wextra -Wswitch-enum -ggdb -O2 -march=native
+FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
+FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native
+FLAGS := $(FLAGS_DEBUG)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
 INC_EIGEN    := -I/usr/local/include/eigen3
