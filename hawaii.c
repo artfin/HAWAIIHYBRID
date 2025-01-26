@@ -970,7 +970,10 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
           TODO("q_generator");
         }
         case ROTOR: {
-          TODO("q_generator");
+          ms->m1.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
+          ms->m1.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
+          ms->m1.qp[IPSI]   = mt_drand() * 2.0 * M_PI;
+          break;
         }                        
         case ROTOR_REQUANTIZED_ROTATION: { 
           TODO("q_generator");
@@ -988,7 +991,10 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
           TODO("q_generator");
         }
         case ROTOR: {
-          TODO("q_generator");
+          ms->m2.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
+          ms->m2.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
+          ms->m2.qp[IPSI]   = mt_drand() * 2.0 * M_PI;
+          break;
         }                        
         case ROTOR_REQUANTIZED_ROTATION: { 
           TODO("q_generator");
@@ -1014,9 +1020,9 @@ static void p_generator_rotor(Monomer *m, double Temperature)
     double theta = m->qp[ITHETA]; 
     double psi = m->qp[IPSI]; 
     
-    double sqrt_II1x = sqrt(m->II[0] / HkT * Temperature);
-    double sqrt_II1y = sqrt(m->II[1] / HkT * Temperature);
-    double sqrt_II1z = sqrt(m->II[2] / HkT * Temperature);
+    double sqrt_IIx = sqrt(m->II[0] / HkT * Temperature);
+    double sqrt_IIy = sqrt(m->II[1] / HkT * Temperature);
+    double sqrt_IIz = sqrt(m->II[2] / HkT * Temperature);
 
     double sin_theta, cos_theta;
     double sin_psi, cos_psi;
@@ -1028,9 +1034,9 @@ static void p_generator_rotor(Monomer *m, double Temperature)
     double x1 = generate_normal(1.0);
     double x2 = generate_normal(1.0);
 
-    m->qp[IPPHI]   = sqrt_II1x * sin_theta * sin_psi * x0 + sqrt_II1y * sin_theta * cos_psi * x1 + sqrt_II1z * cos_theta * x2;
-    m->qp[IPTHETA] = sqrt_II1x * cos_psi * x0 - sqrt_II1y * sin_psi * x1;
-    m->qp[IPPSI]   = sqrt_II1z * x2;
+    m->qp[IPPHI]   = sqrt_IIx * sin_theta * sin_psi * x0 + sqrt_IIy * sin_theta * cos_psi * x1 + sqrt_IIz * cos_theta * x2;
+    m->qp[IPTHETA] = sqrt_IIx * cos_psi * x0 - sqrt_IIy * sin_psi * x1;
+    m->qp[IPPSI]   = sqrt_IIz * x2;
 }
 
 
@@ -1064,7 +1070,25 @@ void p_generator(MoleculeSystem *ms, double Temperature)
         case ROTOR_REQUANTIZED_ROTATION: { 
           TODO("p_generator");
         }
-    }    
+    }
+
+    switch (ms->m2.t) {
+        case ATOM: break;
+        case LINEAR_MOLECULE: {
+          p_generator_linear_molecule(&ms->m2, Temperature);
+          break;
+        }
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+          TODO("p_generator");
+        }
+        case ROTOR: {
+          p_generator_rotor(&ms->m2, Temperature);
+          break;
+        }
+        case ROTOR_REQUANTIZED_ROTATION: { 
+          TODO("p_generator");
+        }
+    }
 }
 
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
