@@ -24,6 +24,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/fftrump.exe                             \
 			examples/trajectory_ch4_co2.exe 		         \
 			examples/mpi_phase_space_integration_ch4_co2.exe \
+			examples/correlation_ch4_co2.exe                 \
 
 all: $(EXAMPLES) 
 
@@ -155,6 +156,9 @@ examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.
 
 examples/mpi_phase_space_integration_ch4_co2.exe: examples/mpi_phase_space_integration_ch4_co2.cpp $(MPI_OBJ) build/hep_hawaii.o $(CH4_CO2)  
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
+
+examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
 build:
 	mkdir -p $@
