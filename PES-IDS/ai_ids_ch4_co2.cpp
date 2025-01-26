@@ -18,16 +18,6 @@ static double cosP1_1, cosP1_2, cosP1_3, cosP1_4, cosP1_5, cosP1_6, cosP1_7, cos
 static double cosP2_1, cosP2_2, cosP2_3, cosP2_4, cosP2_5, cosP2_6, cosP2_7, cosP2_8, cosP2_9, cosP2_10, cosP2_11, cosP2_12, cosP2_13;
 
 
-// Eigen::Vector3cd AI_IDS_ch4_co2::tmp;
-	
-// Eigen::Vector3d AI_IDS_ch4_co2::dipole_vector(std::vector<double> const& q) {
-//     assert(q.size() == 5 && "ERROR: expected 5 coordinates");
-// 
-//     Eigen::Vector3d res;
-//     ids(res, q[0], q[1], q[2], q[3], q[4]);
-//     return res;
-// }
-
 static void idsbf_0_0_0_1_0(Eigen::Ref<Eigen::Vector3cd> bf);
 static void idsbf_0_2_2_1_0(Eigen::Ref<Eigen::Vector3cd> bf);
 static void idsbf_0_2_2_3_0(Eigen::Ref<Eigen::Vector3cd> bf);
@@ -671,11 +661,11 @@ static double radcoeff_9_10_1_0_0(double R);
 static double radcoeff_9_12_3_2_0(double R);
 
 void fill_legP1() {
-    gsl_sf_legendre_array_e(norm, lmax_bond, cosT1, csphase, &LegP1[0]);
+    gsl_sf_legendre_array_e(norm, lmax_bond, cosT1, csphase, LegP1);
 }
 
 void fill_legP2() {
-    gsl_sf_legendre_array_e(norm, lmax_n2, cosT2, csphase, &LegP2[0]);
+    gsl_sf_legendre_array_e(norm, lmax_n2, cosT2, csphase, LegP2);
 }
 
 
@@ -1078,9 +1068,9 @@ void dipole_vector(double *q, double dip[3])
 
 void init_ids() {
     size_t size1 = gsl_sf_legendre_array_n(lmax_bond);
-    size_t size2 = gsl_sf_legendre_array_n(lmax_n2);
-    
     LegP1 = (double*) malloc(size1 * sizeof(double));
+    
+    size_t size2 = gsl_sf_legendre_array_n(lmax_n2);
     LegP2 = (double*) malloc(size2 * sizeof(double));
 }
 
