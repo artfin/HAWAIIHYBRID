@@ -9,7 +9,7 @@ MPICXX := mpic++
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native
-FLAGS := $(FLAGS_DEBUG)
+FLAGS := $(FLAGS_RELEASE)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
 INC_EIGEN    := -I/usr/local/include/eigen3
@@ -20,13 +20,16 @@ LIB_SUNDIALS := /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/mpi_phase_space_integration_co2_ar.exe  \
+			examples/mpi_phase_space_integration_ch4_co2.exe \
 			examples/trajectory_co2_ar.exe 				     \
  			examples/trajectory_h2_ar_requantized.exe        \
-			examples/correlation_co2_ar.exe                  \
-			examples/fftrump.exe                             \
 			examples/trajectory_ch4_co2.exe 		         \
-			examples/mpi_phase_space_integration_ch4_co2.exe \
+			examples/correlation_co_ar.exe                   \
+			examples/correlation_co2_ar.exe                  \
+			examples/correlation_array_co2_ar.exe            \
 			examples/correlation_ch4_co2.exe                 \
+			examples/prmu_calculation_co2_ar.exe             \
+			examples/fftrump.exe                             \
 
 all: $(EXAMPLES) 
 
@@ -135,6 +138,9 @@ examples/phase_space_integration_co2_ar.exe: examples/phase_space_integration_co
 examples/mpi_phase_space_integration_co2_ar.exe: examples/mpi_phase_space_integration_co2_ar.cpp $(MPI_OBJ) build/hep_hawaii.o $(CO2_AR)  
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
+examples/mpi_phase_space_integration_ch4_co2.exe: examples/mpi_phase_space_integration_ch4_co2.cpp $(MPI_OBJ) build/hep_hawaii.o $(CH4_CO2)  
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
+
 examples/trajectory_co2_ar.exe: examples/trajectory_co2_ar.cpp build/trajectory.o $(OBJ) $(CO2_AR) 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
@@ -146,6 +152,9 @@ examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajector
 
 examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
+			
+examples/correlation_array_co2_ar.exe: examples/correlation_array_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR)
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
 examples/prmu_calculation_co2_ar.exe: examples/prmu_calculation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
@@ -155,9 +164,6 @@ examples/fftrump.exe: examples/fftrump.cpp $(OBJ) build/loess.o
 
 examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
-
-examples/mpi_phase_space_integration_ch4_co2.exe: examples/mpi_phase_space_integration_ch4_co2.cpp $(MPI_OBJ) build/hep_hawaii.o $(CH4_CO2)  
-	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 

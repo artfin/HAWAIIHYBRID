@@ -4,6 +4,8 @@
 
 dipolePtr dipole = NULL;
 
+static int INIT_SB_CAPACITY = 256;
+
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
 {
     INIT_WRANK;
@@ -1670,7 +1672,302 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     return status;
 }
 
+void gsl_fft_square(double *farr, size_t N) {
+    farr[0] = farr[0] * farr[0];
+    farr[N/2] = farr[N/2] * farr[N/2];
+
+    for (size_t i = 1; i < N/2; ++i) {
+        farr[i] = farr[i] * farr[i] + farr[N-i] * farr[N-i];
+    }
+}
+
 #ifdef USE_MPI
+CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature)
+{
+    assert(dipole != NULL);
+    
+    assert(params->MaxTrajectoryLength > 0);
+    assert(params->Rcut > 0);
+    assert(params->sampling_time > 0);
+    assert(params->total_trajectories > 0);
+    assert(params->partial_partition_function_ratios != NULL);
+    assert(params->cvode_tolerance > 0);
+    assert(params->niterations >= 1);
+    assert(params->num_satellite_temperatures >= 1);
+    assert(params->satellite_temperatures != NULL); 
+    assert(params->cf_filenames != NULL);
+    
+    INIT_WRANK;
+    INIT_WSIZE;
+   
+    FILE **fps = malloc(params->num_satellite_temperatures * sizeof(FILE*)); 
+    if (_wrank == 0) {
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            fps[st] = fopen(params->cf_filenames[st], "w");
+            if (fps[st] == NULL) { 
+                printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->cf_filenames[st]);
+                exit(1);
+            }
+        }
+    } 
+    
+    // TODO: handle the distribution of trajectories between processes so that in total we 
+    //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
+    //       the case when total_trajectories is not divisible by niterations. 
+    size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
+
+
+    CFncArray ca = {
+        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data  = malloc(params->num_satellite_temperatures * sizeof(double*)),
+        .ntemp = params->num_satellite_temperatures,
+        .len   = params->MaxTrajectoryLength,
+        .nstar = malloc(params->num_satellite_temperatures * sizeof(double)),
+        .ntraj = 0,
+    };
+    memset(ca.nstar, 0.0, params->num_satellite_temperatures*sizeof(double));
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        ca.data[st] = malloc(params->MaxTrajectoryLength * sizeof(double));
+        memset(ca.data[st], 0.0, params->MaxTrajectoryLength * sizeof(double));
+    }
+
+    CFncArray ca_iter = {
+        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data  = malloc(params->num_satellite_temperatures * sizeof(double*)),
+        .ntemp = params->num_satellite_temperatures,
+        .len   = params->MaxTrajectoryLength,
+        .nstar = malloc(params->num_satellite_temperatures * sizeof(double)),
+        .ntraj = 0,
+    };
+    memset(ca_iter.nstar, 0.0, params->num_satellite_temperatures*sizeof(double));
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        ca_iter.data[st] = malloc(params->MaxTrajectoryLength * sizeof(double));
+        memset(ca_iter.data[st], 0.0, params->MaxTrajectoryLength * sizeof(double));
+    }
+
+    CFncArray ca_total = {
+        .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
+        .data  = malloc(params->num_satellite_temperatures * sizeof(double*)),
+        .ntemp = params->num_satellite_temperatures,
+        .len   = params->MaxTrajectoryLength,
+        .nstar = malloc(params->num_satellite_temperatures * sizeof(double)),
+        .ntraj = 0,
+    };
+    memset(ca_total.nstar, 0.0, params->num_satellite_temperatures*sizeof(double));
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        ca_total.data[st] = malloc(params->MaxTrajectoryLength * sizeof(double));
+        memset(ca_total.data[st], 0.0, params->MaxTrajectoryLength * sizeof(double));
+    }
+
+    double *base_crln  = malloc(params->MaxTrajectoryLength * sizeof(double));
+
+    Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
+    
+    PRINT0("\n\n"); 
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("Calculating an array of correlation functions using following parameters:\n");
+    PRINT0("    base temperature:                                                    %.2f\n", base_temperature);
+    PRINT0("    number of satellite temperatures:                                    %zu\n", params->num_satellite_temperatures);
+
+    String_Builder sb = {0};
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        sb_append_format(&sb, "%.2f ", params->satellite_temperatures[st]);
+    }
+    PRINT0("      %s\n", sb.items);
+    sb_reset(&sb);
+
+
+    PRINT0("    pair state (pair_state):                                             %s\n",     pair_state_name(params->ps));
+    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",    params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",    params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",    params->MaxTrajectoryLength);
+
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        sb_append_format(&sb, "%.6e ", params->partial_partition_function_ratios[st]);
+    }
+    PRINT0("      %s\n", sb.items);
+    sb_reset(&sb); 
+    
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n",   params->sampling_time);
+    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n",   params->Rcut);
+    PRINT0("    CVode tolerance:                                                     %.3e\n\n", params->cvode_tolerance);
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("\n\n"); 
+    PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+    PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
+    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
+
+    // TODO: preliminary calculation of spectral moments should be done (INDEPENDENTLY?) for all satellite temperatures 
+    params->partial_partition_function_ratio = params->partial_partition_function_ratios[0];
+
+    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
+    double *prelim_M0std = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &prelim_M0[st], &prelim_M0std[st]);
+        PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
+        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0[st], prelim_M0std[st], prelim_M0[st] - prelim_M0std[st], prelim_M0[st] + prelim_M0std[st]);
+        PRINT0("Error: %.3f%%\n\n", prelim_M0std[st]/prelim_M0[st] * 100.0);
+    }
+        
+    PRINT0("\n\n");
+
+    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
+    double *prelim_M2std = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        mpi_calculate_M2(ms, params, base_temperature, &prelim_M2[st], &prelim_M2std[st]); 
+        PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
+        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2[st], prelim_M2std[st], prelim_M2[st] - prelim_M2std[st], prelim_M2[st] + prelim_M2std[st]);
+        PRINT0("Error: %.3f%%\n", prelim_M2std[st]/prelim_M2[st] * 100.0);
+    }
+    
+    for (size_t iter = 0; iter < params->niterations; ++iter) 
+    {
+        size_t counter = 0;
+        size_t desired_dist = 0;
+        size_t integral_counter = 0;
+        size_t tps = 0; 
+
+        while (integral_counter < local_ntrajectories) 
+        {
+            q_generator(ms, params);
+            p_generator(ms, base_temperature);
+
+            double energy = Hamiltonian(ms);
+            ++counter;
+
+            if (!reject(ms, base_temperature, params->pesmin)) {
+                ++desired_dist;
+
+                if (params->ps == FREE_AND_METASTABLE) {
+                    if (energy < 0.0) continue; 
+                }
+
+                if (params->ps == BOUND) {
+                    if (energy > 0.0) continue;
+                }
+
+                int status = correlation_eval(ms, &traj, params, base_crln, &tps); 
+                if (status == -1) continue;
+
+                // TODO: turning points counting
+                //
+                // if (params->ps == FREE_AND_METASTABLE) {
+                //     gsl_histogram_increment(tps_hist, tps);
+                // }
+
+                double WTT = 1.0; // maximum weight for the pair state
+                double weight; 
+                
+                for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+                    double satellite_temperature = params->satellite_temperatures[st];
+
+                    switch (params->ps) {
+                        case FREE_AND_METASTABLE: {
+                          WTT = 1.0;
+                          break;
+                        }
+                        case BOUND: {
+                          if (satellite_temperature < base_temperature) {
+                              WTT = exp(-params->pesmin*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature));
+                          } else {
+                              WTT = 1.0;
+                          }
+                          break;
+                        }
+                    }
+
+                    weight = exp(-energy*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature)) / WTT;
+                    
+                    if (params->ps == FREE_AND_METASTABLE) {
+                        if (satellite_temperature > base_temperature) {
+                            weight = 0.0;
+                            continue;
+                        }
+                    }
+
+                    double ratio = params->partial_partition_function_ratios[st];
+                    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+                        ca.data[st][i] += weight * ratio * base_crln[i]; 
+                    }
+                    ca.nstar[st] += weight;
+                }
+
+                ca.ntraj++;
+                integral_counter++;
+            }
+        }
+
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            MPI_Allreduce(ca.data[st], ca_iter.data[st], params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        }
+        MPI_Allreduce(ca.nstar, ca_iter.nstar, params->num_satellite_temperatures, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(&ca.ntraj, &ca_iter.ntraj, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+                ca_total.data[st][i] += ca_iter.data[st][i];
+            }
+            
+            ca_total.nstar[st] += ca_iter.nstar[st];
+            ca_total.ntraj += ca_iter.ntraj; 
+        }
+
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            memset(ca.data[st],      0, params->MaxTrajectoryLength * sizeof(double));
+            memset(ca_iter.data[st], 0, params->MaxTrajectoryLength * sizeof(double));
+        }
+
+        memset(ca.nstar,      0, params->num_satellite_temperatures * sizeof(double));
+        memset(ca_iter.nstar, 0, params->num_satellite_temperatures * sizeof(double));
+        ca.ntraj = 0;
+        ca_iter.ntraj = 0;
+        
+
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary results\n", iter+1, params->niterations, ca_total.ntraj);
+       
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) { 
+            double M0_crln_est =  ca_total.data[st][0] / ca_total.nstar[st] * ZeroCoeff;
+            PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0[st], (M0_crln_est - prelim_M0[st])/prelim_M0[st]*100.0);
+        }
+
+        // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
+        // double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000;
+
+        // PRINT0("M2 ESTIMATE FROM CF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est, prelim_M2, (M2_crln_est - prelim_M2)/prelim_M2*100.0);
+
+        if (_wrank == 0) { 
+            for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+                CFnc cf = {
+                    .t = ca_total.t,
+                    .data = ca_total.data[st],
+                    .len = ca_total.len,
+                    .ntraj = ca_total.nstar[st],
+                    .Temperature = params->satellite_temperatures[st], 
+                }; 
+
+                PRINT0("Writing to '%s'\n", params->cf_filenames[st]); 
+                save_correlation_function(fps[st], cf, params);
+            }
+        }
+    }
+
+    free_cfnc_array(ca_iter);
+    free_cfnc_array(ca);
+
+    free(prelim_M0);
+    free(prelim_M0std);
+    free(prelim_M2);
+    free(prelim_M2std);
+
+    if (_wrank == 0) {    
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            fclose(fps[st]);
+        }
+    }
+
+    return ca_total;
+} 
+
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 {
     assert(dipole != NULL);
@@ -1812,7 +2109,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
-        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, total_crln.ntraj, params->cf_filename);
+        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, (size_t)total_crln.ntraj, params->cf_filename);
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
 
@@ -1822,7 +2119,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("M2 ESTIMATE FROM CF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est, prelim_M2, (M2_crln_est - prelim_M2)/prelim_M2*100.0);
 
 
-        if (_wrank == 0) { 
+        if (_wrank == 0) {
             save_correlation_function(fp, total_crln, params);
         }
     }
@@ -1841,18 +2138,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
     return total_crln; 
 }
-#endif // USE_MPI
 
-void gsl_fft_square(double *farr, size_t N) {
-    farr[0] = farr[0] * farr[0];
-    farr[N/2] = farr[N/2] * farr[N/2];
 
-    for (size_t i = 1; i < N/2; ++i) {
-        farr[i] = farr[i] * farr[i] + farr[N-i] * farr[N-i];
-    }
-}
-
-#ifdef USE_MPI
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
     // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
@@ -2144,7 +2431,7 @@ void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
     fprintf(fp, "# HAWAII HYBRID v0.1\n");
     fprintf(fp, "# TEMPERATURE: %.2f\n", cf.Temperature);
     fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
-    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", cf.ntraj); 
+    fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", cf.ntraj); 
     fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", cf.len);
     fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
     fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
@@ -2207,9 +2494,55 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     } while (0)
 */
 
-void sb_append(String_Builder *sb, const char *line, size_t n) {
+void sb_append(String_Builder *sb, const char *line, size_t n) 
+// TODO: move the memory allocation of string builder in here (?)
+{
     strncpy(sb->items + sb->count, line, n);
     sb->count += n;
+}
+
+void sb_reset(String_Builder *sb) {
+    sb->count = 0;
+}
+
+void sb_append_format(String_Builder *sb, const char *format, ...) 
+{
+    va_list args;
+
+    va_start(args, format);
+    int needed_length = vsnprintf(NULL, 0, format, args);
+    va_end(args);
+
+    if (needed_length < 0) {
+        printf("ERROR: formatted string is incorrect\n");
+        return;
+    }
+   
+    size_t new_count = sb->count + needed_length + 1; 
+    if (new_count > sb->capacity) {
+
+        size_t new_capacity;
+        if (sb->capacity == 0) {
+            new_capacity = INIT_SB_CAPACITY; 
+        } else {
+            new_capacity = sb->capacity * 2;
+        }
+
+        while (new_count > new_capacity) {
+            new_capacity *= 2;
+            printf("new_capacity: %zu, new_count: %zu\n",new_capacity, new_count); 
+        }
+
+        sb->items = (char*) realloc(sb->items, new_capacity);
+        assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+        sb->capacity = new_capacity;
+    }    
+
+    va_start(args, format);
+    vsnprintf(sb->items + sb->count, needed_length + 1, format, args);
+    va_end(args);
+
+    sb->count += needed_length;    
 }
 
 void free_sb(String_Builder sb) {
@@ -2450,6 +2783,17 @@ gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h)
 void free_cfnc(CFnc cf) {
     free(cf.t);
     free(cf.data);
+}
+
+void free_cfnc_array(CFncArray ca) { 
+    free(ca.t);
+    
+    for (size_t i = 0; i < ca.ntemp; ++i) {
+        free(ca.data[i]);
+    }
+    
+    free(ca.data);
+    free(ca.nstar);
 }
 
 void free_sfnc(SFnc sf) {

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -137,6 +138,7 @@ typedef struct {
     size_t initialM0_npoints;
     size_t initialM2_npoints;
     double partial_partition_function_ratio;
+    double* partial_partition_function_ratios;
    
     /* requantization */ 
     size_t torque_cache_len;
@@ -160,9 +162,10 @@ typedef struct {
     double ApproximateFrequencyMax; // cm-1
     double R0; // initial distance, a.u. 
 
-    /* correlation function array ONLY (NOT IMPLEMENTED) */
-    double *temperatures;
-    size_t ntemperatures;
+    /* correlation function array ONLY */
+    double *satellite_temperatures;
+    size_t num_satellite_temperatures;
+    const char **cf_filenames;
 } CalcParams;
 
 
@@ -183,9 +186,23 @@ typedef struct {
     double *data;
     size_t len;      // # of samples in *t, *data
     size_t capacity; // capacity *t, *data
-    size_t ntraj;    // # of trajectories used for averaging
+    double ntraj;    // # of trajectories used for averaging
     double Temperature;        
 } CFnc;
+
+/*
+ * An array of correlation functions for a fixed 'base temperature'
+ * 'base temperature'      -- a temperature for which sampling of initial conditions is performed
+ * 'satellite temperature' -- a target temperature for which correlation function is re-weighted 
+ */ 
+typedef struct {
+    double *t;
+    double **data;
+    size_t ntemp;
+    size_t len;    // # of samples in *t and elements of *data 
+    double *nstar; // array of # effective trajectories
+    size_t ntraj; // # of calculated trajectories
+} CFncArray;
 
 typedef struct {
     double *nu;
@@ -291,8 +308,10 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
-SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature); 
+
+CFnc      calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+SFnc      calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature); 
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
@@ -303,6 +322,7 @@ double compute_M0_from_sf(SFnc sf);
 double compute_M2_from_sf(SFnc sf);
 
 void free_cfnc(CFnc cf);
+void free_cfnc_array(CFncArray ca);
 void free_sfnc(SFnc cf);
 void free_spectrum(Spectrum sp); 
 
@@ -313,6 +333,8 @@ typedef struct {
 } String_Builder;
 
 void sb_append(String_Builder *sb, const char *line, size_t n);
+void sb_append_format(String_Builder *sb, const char *format, ...);
+void sb_reset(String_Builder *sb);
 void free_sb(String_Builder sb);
 
 
@@ -337,7 +359,7 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 void connes_apodization(Array a, double sampling_time); 
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
-inline bool is_power_of_two(size_t n) {
+static inline bool is_power_of_two(size_t n) {
     return n && !(n & (n - 1));
 }
 
