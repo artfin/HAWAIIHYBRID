@@ -6,12 +6,16 @@ void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
 
 void process_correlation_function() 
 {
-    double Temperature = 300.0;
+    double Temperature = 270.0;
 
     String_Builder sb{};
     CFnc cf{};
 
-    const char *filename = "examples/CF-F-300.0.txt"; 
+    //const char *filename = "examples/CF-F-300.0.txt"; 
+    //const char *filename = "./CH4-CO2/CF-CH4-CO2-F-300.0.txt"; 
+    // const char *filename = "./CO-Ar/CF-CO-AR-300.0.txt"; 
+    
+    const char *filename = "MT_CO2_Ar/CF-F-270.0.txt";
     if (!read_correlation_function(filename, &sb, &cf)) {
         printf("ERROR: could not read the file '%s'!\n", filename);
         exit(1);
@@ -25,10 +29,11 @@ void process_correlation_function()
     }
 
     printf("Number of samples: %zu\n", cf.len);
-    printf("t range: %.3lf...%.3lf\n", cf.t[0], cf.t[cf.len - 1]);
+    printf("t range: %.3e...%.3e\n", cf.t[0], cf.t[cf.len - 1]);
     
-    size_t EXT_RANGE_MIN = 8192; // far-infrared: 70K-300K
+    size_t EXT_RANGE_MIN = 8192; // far-infrared CO2-Ar: 70K-300K
     WingParams wp = fit_baseline(&cf, EXT_RANGE_MIN);
+    // WingParams wp = { .A = 0.0, .B = 0.0, .C = 0.0 };
 
     SFnc sf = dct_numeric_sf(cf, &wp);
     sf.Temperature = Temperature;
@@ -36,22 +41,29 @@ void process_correlation_function()
     for (size_t i = 0; i < 10; ++i) {
         printf("%.5f %.5e\n", sf.nu[i], sf.data[i]);
     }
-    
+
+    double M0 = compute_M0_from_sf(sf);
+    double M2 = compute_M2_from_sf(sf);
+    printf("\n-------------------------------------\n");
+    printf("M0 from raw SF: %.6e\n", M0);
+    printf("M2 from raw SF: %.6e\n", M2);
+    printf("-------------------------------------\n");
+
     Spectrum spraw = compute_alpha(desymmetrize_sch(sf));
-    spraw.len = 5700;  
-    filename = "sp_raw.txt";
+    spraw.len = 20000;  
+    filename = "MT_CO2_Ar/sp_raw.txt";
     if (!writetxt(filename, spraw.nu, spraw.data, spraw.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
-
+   
     LOESS loess(sf.nu, sf.data, sf.len);
     double dnu = sf.nu[1] - sf.nu[0];
 
     double numin = 0.0;
     double numax = 300.0;
     size_t npoints = 3001;
-    size_t wsmin = 50;
-    double wsstep = 0.7;
+    size_t wsmin = 30;
+    double wsstep = 1.0;
     size_t wsdelay = 100; 
     std::vector<double> sfsmvals = loess.eval_linear_ws(2, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
 
@@ -62,7 +74,7 @@ void process_correlation_function()
 
     Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
 
-    filename = "sp.txt";
+    filename = "MT_CO2_Ar/SPD3-F-270.0.txt";
     if (!writetxt(filename, spd3.nu, spd3.data, spd3.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
@@ -70,7 +82,7 @@ void process_correlation_function()
     free_cfnc(cf);
     free_sfnc(sf);
     free_spectrum(spd3);
-    free_sb(sb);
+    sb_free(&sb);
 }
 
 void process_spectral_function()
@@ -104,7 +116,7 @@ void process_spectral_function()
 
     free_sfnc(sf);
     free_spectrum(spd3);
-    free_sb(sb);
+    sb_free(&sb);
 }
 
 int main()

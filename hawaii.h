@@ -327,6 +327,9 @@ void free_cfnc_array(CFncArray ca);
 void free_sfnc(SFnc cf);
 void free_spectrum(Spectrum sp); 
 
+// ----------------------------------------------------------
+// String manipulation
+// ----------------------------------------------------------
 typedef struct {
     char *items;
     size_t count;
@@ -334,11 +337,16 @@ typedef struct {
 } String_Builder;
 
 void sb_append(String_Builder *sb, const char *line, size_t n);
+void sb_append_cstring(String_Builder *sb, const char *line);
 void sb_append_format(String_Builder *sb, const char *format, ...);
 void sb_reset(String_Builder *sb);
-void free_sb(String_Builder sb);
+void sb_free(String_Builder *sb);
+// ----------------------------------------------------------
 
 
+// ----------------------------------------------------------
+// Processing the results   
+// ----------------------------------------------------------
 void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 

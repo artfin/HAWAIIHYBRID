@@ -4,7 +4,7 @@
 
 dipolePtr dipole = NULL;
 
-static int INIT_SB_CAPACITY = 256;
+static size_t INIT_SB_CAPACITY = 256;
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
 {
@@ -1777,20 +1777,23 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     sb_reset(&sb);
 
 
-    PRINT0("    pair state (pair_state):                                             %s\n",     pair_state_name(params->ps));
-    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",    params->total_trajectories);
-    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",    params->niterations);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",    params->MaxTrajectoryLength);
+    PRINT0("    pair state (pair_state):                                             %s\n",  pair_state_name(params->ps));
+    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n", params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n", params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n", params->MaxTrajectoryLength);
 
+    PRINT0("    partial partition functions:\n");
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
         sb_append_format(&sb, "%.6e ", params->partial_partition_function_ratios[st]);
     }
     PRINT0("      %s\n", sb.items);
     sb_reset(&sb); 
     
-    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n",   params->sampling_time);
-    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n",   params->Rcut);
-    PRINT0("    CVode tolerance:                                                     %.3e\n\n", params->cvode_tolerance);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
+    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
+    PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
+    PRINT0("    minimum intermolecular distance for sampler (sampler_Rmin):          %.3e\n", params->sampler_Rmin);
+    PRINT0("    maximum intermolecular distance for sampler (sampler_Rmax):          %.3e\n", params->sampler_Rmax);
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
     PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
@@ -1960,6 +1963,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     free(prelim_M0std);
     free(prelim_M2);
     free(prelim_M2std);
+    sb_free(&sb);
 
     if (_wrank == 0) {    
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -2492,27 +2496,18 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
 }
 
 
-/*
-#define nob_da_append_many(da, new_items, new_items_count)                                  \
-    do {                                                                                    \
-        if ((da)->count + new_items_count > (da)->capacity) {                               \
-            if ((da)->capacity == 0) {                                                      \
-                (da)->capacity = NOB_DA_INIT_CAP;                                           \
-            }                                                                               \
-            while ((da)->count + new_items_count > (da)->capacity) {                        \
-                (da)->capacity *= 2;                                                        \
-            }                                                                               \
-            (da)->items = NOB_REALLOC((da)->items, (da)->capacity*sizeof(*(da)->items));    \
-            NOB_ASSERT((da)->items != NULL && "ASSERT: not enough memory!\n");              \
-        }                                                                                   \
-        memcpy((da)->items + (da)->count, new_items, new_items_count*sizeof(*(da)->items)); \
-        (da)->count += new_items_count;                                                     \
-    } while (0)
-*/
+void sb_append(String_Builder *sb, const char *line, size_t n) {
+    size_t new_count = sb->count + n;
 
-void sb_append(String_Builder *sb, const char *line, size_t n) 
-// TODO: move the memory allocation of string builder in here (?)
-{
+    if (new_count > sb->capacity) {
+        size_t new_capacity = (sb->capacity == 0) ? INIT_SB_CAPACITY : 2 * sb->capacity;
+        for ( ; new_count > new_capacity; new_capacity *= 2);
+
+        sb->items = (char*) realloc(sb->items, new_capacity);
+        assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+        sb->capacity = new_capacity;
+    } 
+
     strncpy(sb->items + sb->count, line, n);
     sb->count += n;
 }
@@ -2521,7 +2516,29 @@ void sb_reset(String_Builder *sb) {
     sb->count = 0;
 }
 
+void sb_append_cstring(String_Builder *sb, const char *line) 
+{
+    size_t n = strlen(line);
+
+    size_t new_count = sb->count + n;
+    if (new_count > sb->capacity) {
+        size_t new_capacity = (sb->capacity == 0) ? INIT_SB_CAPACITY : 2 * sb->capacity;
+        for ( ; new_count > new_capacity; new_capacity *= 2);
+        
+        sb->items = (char*) realloc(sb->items, new_capacity);
+        assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+        sb->capacity = new_capacity;
+    }
+
+    strcpy(sb->items + sb->count, line);
+    sb->count += n;
+}
+
 void sb_append_format(String_Builder *sb, const char *format, ...) 
+/* This function takes a format string and a variable number of arguments, formats them according to the specified format, and appends the resulting string to the provided 
+ * \texttt{String\_Builder}.  If the \texttt{String\_Builder} lacks sufficient capacity, its storage is automatically extended to accommodate the new content. 
+ * If the \texttt{String\_Builder}'s capacity is zero, it is first resized to \texttt{INIT\_SB\_CAPACITY} bytes before any extension occurs.
+ */
 {
     va_list args;
 
@@ -2536,18 +2553,8 @@ void sb_append_format(String_Builder *sb, const char *format, ...)
    
     size_t new_count = sb->count + needed_length + 1; 
     if (new_count > sb->capacity) {
-
-        size_t new_capacity;
-        if (sb->capacity == 0) {
-            new_capacity = INIT_SB_CAPACITY; 
-        } else {
-            new_capacity = sb->capacity * 2;
-        }
-
-        while (new_count > new_capacity) {
-            new_capacity *= 2;
-            printf("new_capacity: %zu, new_count: %zu\n",new_capacity, new_count); 
-        }
+        size_t new_capacity = (sb->capacity == 0) ? INIT_SB_CAPACITY : 2 * sb->capacity;
+        for ( ; new_count > new_capacity; new_capacity *= 2);
 
         sb->items = (char*) realloc(sb->items, new_capacity);
         assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
@@ -2561,8 +2568,11 @@ void sb_append_format(String_Builder *sb, const char *format, ...)
     sb->count += needed_length;    
 }
 
-void free_sb(String_Builder sb) {
-    free(sb.items);
+void sb_free(String_Builder *sb) {
+    free(sb->items);
+    sb->items = NULL;
+    sb->count = 0;
+    sb->capacity = 0;
 }
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf) 
@@ -2584,14 +2594,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         n = strlen(line);
 
         if (line[0] != '#') break;
-
-        size_t new_count = sb->count + n;
-        if (new_count > sb->capacity) {
-            sb->items = (char*) realloc(sb->items, new_count);
-            assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
-            sb->capacity = new_count;
-        }
-
+        
         sb_append(sb, line, n);
     
         free(line);
