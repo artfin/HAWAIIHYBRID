@@ -28,6 +28,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/correlation_co2_ar.exe                  \
 			examples/correlation_array_co2_ar.exe            \
 			examples/correlation_ch4_co2.exe                 \
+			examples/correlation_array_ch4_co2.exe           \
 			examples/prmu_calculation_co2_ar.exe             \
 			examples/fftrump.exe                             \
 
@@ -166,6 +167,9 @@ examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
 examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
+
+examples/correlation_array_ch4_co2.exe: examples/correlation_array_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2)
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
 build:
