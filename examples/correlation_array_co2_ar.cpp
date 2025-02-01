@@ -88,28 +88,31 @@ int main(int argc, char *argv[])
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 40.0;
-    params.niterations                      = 2;
-    params.total_trajectories               = 30;
+    params.niterations                      = 100;
+    params.total_trajectories               = 10000000;
     params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
-    params.initialM0_npoints                = 10000;
-    params.initialM2_npoints                = 10000;
+    params.initialM0_npoints                = 20000000;
+    params.initialM2_npoints                = 20000000;
     params.pesmin                           = -195.6337098547 / HTOCM;
     
-    params.num_satellite_temperatures = 2;
+    params.num_satellite_temperatures = 3;
     params.satellite_temperatures = (double*) malloc(params.num_satellite_temperatures * sizeof(double));
     params.satellite_temperatures[0] = 300.0;
-    params.satellite_temperatures[1] = 290.0;
+    params.satellite_temperatures[1] = 270.0;
+    params.satellite_temperatures[2] = 250.0;
     
     params.partial_partition_function_ratios = (double*) malloc(params.num_satellite_temperatures * sizeof(double)); 
     params.partial_partition_function_ratios[0] = 2.68854e+05;
-    params.partial_partition_function_ratios[1] = 2.68854e+05;
+    params.partial_partition_function_ratios[1] = 2.68926e+05;
+    params.partial_partition_function_ratios[2] = 2.69177e+05;
     
     params.cf_filenames = (const char **) malloc(params.num_satellite_temperatures * sizeof(char *));
     params.cf_filenames[0] = "./CF-F-300.0.txt";
-    params.cf_filenames[1] = "./CF-F-290.0.txt";
+    params.cf_filenames[1] = "./CF-F-270.0.txt";
+    params.cf_filenames[2] = "./CF-F-250.0.txt";
 
     double base_temperature = 300.0;
     
