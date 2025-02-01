@@ -2496,7 +2496,15 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
 }
 
 
-void sb_append(String_Builder *sb, const char *line, size_t n) {
+void sb_append(String_Builder *sb, const char *line, size_t n)
+/* Appends a sequence of characters to the String_Builder.
+ *
+ * This function appends the first `n` characters from the provided `line` to
+ * the String_Builder}. If `n` exceeds the length of `line`, the behavior
+ * is undefined. The String_Builder automatically resizes its buffer if necessary 
+ * to accommodate the new characters.
+ */
+{
     size_t new_count = sb->count + n;
 
     if (new_count > sb->capacity) {
@@ -2512,11 +2520,21 @@ void sb_append(String_Builder *sb, const char *line, size_t n) {
     sb->count += n;
 }
 
-void sb_reset(String_Builder *sb) {
+void sb_reset(String_Builder *sb) 
+/* 
+ * This function effectively clears the content of the String_Builder by setting its length to zero.
+ */
+{
     sb->count = 0;
 }
 
-void sb_append_cstring(String_Builder *sb, const char *line) 
+void sb_append_cstring(String_Builder *sb, const char *line)
+/*
+ * This function appends a C-style (null-terminated) string 'line' to the String_Builder's buffer. 
+ * If the String_Builder does not have sufficient capacity, its storage is automatically extended 
+ * to accommodate the new content. If the String_Builder's capacity is zero, it is first resized 
+ * to INIT_SB_CAPACITY bytes before any extension occurs.
+ */
 {
     size_t n = strlen(line);
 
@@ -2535,9 +2553,11 @@ void sb_append_cstring(String_Builder *sb, const char *line)
 }
 
 void sb_append_format(String_Builder *sb, const char *format, ...) 
-/* This function takes a format string and a variable number of arguments, formats them according to the specified format, and appends the resulting string to the provided 
- * \texttt{String\_Builder}.  If the \texttt{String\_Builder} lacks sufficient capacity, its storage is automatically extended to accommodate the new content. 
- * If the \texttt{String\_Builder}'s capacity is zero, it is first resized to \texttt{INIT\_SB\_CAPACITY} bytes before any extension occurs.
+/* 
+ * This function takes a format string and a variable number of arguments, formats them according to the specified format, 
+ * and appends the resulting string to the provided String_Builder.  
+ * If the String_Builder lacks sufficient capacity, its storage is automatically extended to accommodate the new content. 
+ * If the String_Builder's capacity is zero, it is first resized to INIT_SB_CAPACITY bytes before any extension occurs.
  */
 {
     va_list args;
@@ -2568,7 +2588,11 @@ void sb_append_format(String_Builder *sb, const char *format, ...)
     sb->count += needed_length;    
 }
 
-void sb_free(String_Builder *sb) {
+void sb_free(String_Builder *sb)
+/*
+ * This function releases the memory held by the internal buffer of the String_Builder and resets the fields.
+ */ 
+{
     free(sb->items);
     sb->items = NULL;
     sb->count = 0;
@@ -2750,8 +2774,16 @@ bool writetxt(const char *filename, double *x, double *y, size_t len, const char
     for (size_t i = 0; i < len; ++i) {
         nchars += fprintf(fp, "%.3f %.10e\n", x[i], y[i]);
     }
+    
+    fflush(fp);
+    
+    int fd = fileno(fp); 
+    if (syncfs(fd) < 0) {
+        printf("ERROR: could not commit filesystem cache to disk\n");
+        return_defer(false); 
+    }
 
-    printf("INFO: writing %zu characters into '%s' finished.\n", nchars, filename); 
+    printf("INFO: wrote %zu characters to '%s'\n", nchars, filename); 
 
 defer:
     if (fp) fclose(fp);

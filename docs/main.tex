@@ -21,6 +21,10 @@
 
 \newcommand{\lb}{\left(}
 \newcommand{\rb}{\right)}
+\newcommand{\mf}{\mathbf}
+\newcommand*\diff{\mathop{}\!\mathrm{d}}
+
+
 \newcommand{\libname}{\texttt{Hawaii Hybrid}\,}
 
 \title{Documentation for \libname v.0.1}
@@ -34,11 +38,17 @@
 \tableofcontents
 \newpage 
 
+\section{Problems addressed by library}
+\label{sec:tasks}
+
+\begin{enumerate}
+\item Compute statistical averages over ensembles of classical trajectories restricted by chosen phase-space domains (e.g., bound or unbound states), enabling the calculation of dipole autocorrelation functions. 
+\item Calculate static phase-space averages using rejection sampling and adaptive Monte Carlo algorithms to estimate zeroth and second spectral moments.
+\item Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
+\end{enumerate}
 
 \section{\libname code organization}
 \label{sec:code-organization}
-
-
 
 \subsection{Module \texttt{hawaii}}
 \label{subsec:module-hawaii}
@@ -144,13 +154,26 @@
 \end{longtable}
 
 \noindent
+\recttext{\texttt{struct CFncArray}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{double *t} \\
+           & \texttt{double **data} \\
+           & \texttt{size\_t ntemp} \\
+           & \texttt{size\_t len} -- number of samples in \texttt{*t} and elements of \texttt{*data} \\
+           & \texttt{double* nstar} -- number of effective trajectories at each temperature \\
+           & \texttt{size\_t ntraj} - number of calculated trajectories at base temperature \\
+    Description & An array of correlation functions for a fixed \texttt{base temperature} (sampling temperature) and a \texttt{satellite temperature} (target temperature for re-weighting).
+\end{longtable}
+
+
+\noindent
 \recttext{\texttt{struct CalcParams}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Fields & \texttt{PairState ps} \\
            & \texttt{/* sampling */} \\
-           & \texttt{double sampler\_Rmin} \\ 
-           & \texttt{double sampler\_Rmax} \\
-           & \texttt{double pesmin} \\
+           & \texttt{double sampler\_Rmin // a.u.} \\ 
+           & \texttt{double sampler\_Rmax // a.u.} \\
+           & \texttt{double pesmin // Hartree} \\
            & \texttt{/* initial spectral moments check */} \\ 
            & \texttt{size\_t initialM0\_npoints} \\
            & \texttt{size\_t initialM2\_npoints} \\
@@ -167,14 +190,16 @@
            & \texttt{size\_t total\_trajectories} \\
            & \texttt{/*correlation function calculation ONLY */} \\
            & \texttt{const char *cf\_filename} \\
-           & \texttt{double Rcut} \\
+           & \texttt{double Rcut // distance at which the trajectory is forcefully stopped, a.u.} \\
            & \texttt{/* pr/mu calculation ONLY */} \\
            & \texttt{const char *sf\_filename} \\
-           & \texttt{double ApproximateFrequencyMax} \\
-           & \texttt{double R0} \\
-           & \texttt{/*correlation function array ONLY (NOT IMPLEMENTED)*/} \\
-           & \texttt{double *temperatures} \\
-           & \texttt{size\_t ntemperatures} \\
+           & \texttt{double ApproximateFrequencyMax // cm-1} \\
+           & \texttt{double R0 // initial distance, a.u.} \\
+           & \texttt{/*correlation function array ONLY */} \\
+           & \texttt{double* partial\_partition\_function\_ratios} \\
+           & \texttt{double *satellite\_temperatures} \\
+           & \texttt{size\_t num\_satellite\_temperatures} \\
+           & \texttt{const char **cf\_filenames} \\
 \end{longtable} 
 
 
@@ -189,7 +214,7 @@ Function \recttext{\texttt{init\_ms}} \vspace*{-0.25em}
               & \texttt{double* I1} contains inertia tensor values for first monomer. If the monomer is atom, no values will be read from the pointer, so \texttt{NULL} can be passed. Two and three values are expected for the rotor and linear molecule, respectively. \\
               & \texttt{double* I2} contains inertia tensor values for second monomer. \\
               & \texttt{size\_t seed} is the seed for random number generator. A unique seed will be produced if \texttt{0} is passed. \\
-    Description & The function prepares the \texttt{MoleculeSystem} struct based on the specified monomer types, {\color{red} allocates the memory using \texttt{malloc}} and initializes the random number generator. 
+    Description & The function prepares the \texttt{MoleculeSystem} struct based on the specified monomer types, {\color{red} allocates the memory using \texttt{malloc}} (probably should be avoided due to cache locality) and initializes the random number generator. 
 \end{longtable} 
 
 \noindent
@@ -197,7 +222,21 @@ Function \recttext{\texttt{kinetic\_energy}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{double kinetic\_energy(*ms)} \\
     Arguments & \texttt{MoleculeSystem* ms} \\
-    Description & The kinetic energy function is calculated at the phase-point stored in \texttt{MoleculeSystem}. {\color{red} Currently, implemented for intermolecular degrees of freedom, LINEAR\_MOLECULE (tested) and ROTOR (tested).}
+    Description & The kinetic energy function is calculated at the phase-point stored in \texttt{MoleculeSystem}. {\color{red} Currently, implemented for intermolecular degrees of freedom, linear molecule (tested) and rotor (tested).}
+    Parts of the kinetic energy corresponding to intermolecular degrees of freedom: 
+    \begin{gather}
+        \displaystyle T_\textrm{int} = \frac{p_R^2}{2 \mu} + \frac{p_\Theta^2}{2 \mu R^2} + \frac{p_\Phi^2}{2\mu R^2 \sin^2 \Theta}; \notag
+    \end{gather}
+    %
+    to linear molecule:
+    \begin{gather}
+        \displaystyle T_\textrm{lin} = \frac{p_\theta^2}{2 I} + \frac{p_\varphi^2}{2 I \sin^2 \theta}; \notag
+    \end{gather}
+    to rotor:
+    \begin{gather}
+        \displaystyle T_\textrm{rotor} = \frac{1}{2 I_1 \sin^2 \theta_2} \Big[ \lb p_\varphi - p_\psi \cos \theta \rb \sin \psi + p_\theta \sin \theta \cos \psi \Big]^2 + \notag \\ 
+        \displaystyle + \frac{1}{2 I_2 \sin^2 \theta} \Big[ \lb p_\varphi - p_\psi \cos \theta \rb \cos \psi - p_\theta \sin \theta \sin \psi \Big]^2 + \frac{1}{2 I_3} \lb p_\psi \rb^2. \notag 
+    \end{gather}
 \end{longtable}
 
 \noindent
@@ -214,7 +253,7 @@ Function \recttext{\texttt{q\_generator}} \vspace*{-0.25em}
     Call & \texttt{void q\_generator(*ms, *params)} \\
     Arguments & \texttt{MoleculeSystem* ms} \\
               & \texttt{CalcParams *params} \\
-    Description & Generates $R$ with density $\rho \sim R^2$ in the range [\texttt{params.sampler\_Rmin}, \texttt{params.sampler\_Rmax}]. The distributions of $\varphi, \psi$ are $\varphi, \psi \sim U[0, 2\pi]$ and for $\theta$ is $\cos \theta \sim U[0, 1]$. {\color{red} Currently implemented for intermolecular degrees of freedom and linear molecules.}
+    Description & Generates $R$ with density $\rho \sim R^2$ in the range [\texttt{params.sampler\_Rmin}, \texttt{params.sampler\_Rmax}]. The distributions of $\varphi, \psi$ are $\varphi, \psi \sim U[0, 2\pi]$ and for $\theta$ is $\cos \theta \sim U[0, 1]$. Implemented for intermolecular degrees of freedom, linear molecule and rotor.
 \end{longtable} 
 
 \noindent
@@ -272,6 +311,13 @@ Function \recttext{\texttt{j\_monomer}} \vspace*{-0.25em}
     Call & \texttt{double j\_monomer(m);} \\
     Arguments & \texttt{Monomer m} \\
     Description &  Computes the magnitude of angular momentum of passed-in monomer. {\color{red} Currently, implemented only for linear molecules.} 
+    \begin{gather}
+        [\textrm{linear molecule}]: j = \begin{bmatrix}
+          - p_\theta \sin \varphi - p_\varphi \cos \varphi / \tan \theta \\
+          p_\theta \cos \varphi - p_\varphi \sin \varphi / \tan \theta \\
+          p_\varphi
+        \end{bmatrix} \notag
+    \end{gather}
 \end{longtable}
 
 \noindent
@@ -279,7 +325,14 @@ Function \recttext{\texttt{torque\_monomer}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{double torque\_monomer(m);} \\
     Arguments & \texttt{Monomer m} \\
-    Description &  Computes the magnitude of torque of passed-in monomer. {\color{red} Currently, implemented only for linear molecules.}
+    Description &  Computes the magnitude of torque of passed-in monomer. Needs the derivative of potential \texttt{m.dVdq} to be set within the monomer. {\color{red} Currently, implemented only for linear molecules.}
+    \begin{gather}
+        [\textrm{linear molecule}]: \tau = \begin{bmatrix}
+            \displaystyle \sin \varphi \frac{\diff{V}}{\diff{\theta}} + \cos \varphi / \tan \theta \frac{\diff{V}}{\diff{\varphi}} \\
+            \displaystyle -\cos \varphi \frac{\diff{V}}{\diff{\theta}} + \sin \varphi / \tan \theta \frac{\diff{V}}{\diff{\varphi}} \\
+            \displaystyle -\frac{\diff{V}}{\diff{\varphi}}
+        \end{bmatrix} \notag
+    \end{gather}
 \end{longtable} 
 
 \noindent
@@ -297,7 +350,11 @@ Function \recttext{\texttt{analytic\_full\_partition\_function\_by\_V}} \vspace*
     Call & \texttt{double analytic\_full\_partition\_function\_by\_V(*ms, *params, Temperature)} \\
     Arguments & \texttt{MoleculeSystem *ms} \\ 
               & \texttt{double Temperature} \\
-    Description & Returns analytically calculated value for the ratio of the partition function for the totality of states to the volume. {\color{red} Currently, implemented only for linear molecule-atom.}
+    Description & Returns analytically calculated value for the ratio of the partition function for the totality of states to the volume. {\color{red} Currently, implemented only for linear molecule-atom and rotor-linear molecule.}
+    \begin{gather}
+        [\textrm{linear molecule - atom}]: Q = 4 \pi \times \lb 2 \pi \mu k T \rb^{3/2} \times (2 \pi I k T) \notag \\
+        [\textrm{rotor - linear molecule}]: Q = 32 \pi^3 \times \lb 2 \pi \mu k T \rb^{3/2} \times (2 \pi k T)^{3/2} \sqrt{I_1^\textrm{rotor} I_2^\textrm{rotor} I_3^\textrm{rotor}} \times (2 \pi I^\textrm{lin}_1 k T) \notag 
+    \end{gather}
 \end{longtable}
 
 \noindent
@@ -393,6 +450,17 @@ MPI Function \recttext{\texttt{ calculate\_spectral\_function\_using\_prmu\_repr
     Description & First, we check that \texttt{params.ApproximateFrequencyMax} is less than Nyquist frequency of the signal that will be sampled with requested \texttt{params.sampling\_time}. Then, based on the calculated frequency step, a length of the frequency array is calculated. Since the frequency step depends on the \texttt{params.sampling\_time} and \texttt{params.MaxTrajectoryLength}, the maximum frequency of the calculated spectral function will be somewhat close to the requested \texttt{params.ApproximateFrequencyMax} (as close as possible using the frequency step). The estimates of the zeroth and second spectral moments are obtained using \texttt{params.initialM0\_npoints} and \texttt{params.initialM2\_npoints}, respectively. The accumulation of \texttt{params.total\_trajectories} is divided into \texttt{params.niterations}. For each trajectory the intermolecular distance is set to \texttt{params.R0}. The trajectory is cut at the same distance \texttt{params.R0}. 
     Connes apodization is applied to time dependencies of Cartesian components of dipole throughout collisional trajectory before applying Fourier transform to them. The length of the dipole array which is equal to \texttt{params.MaxTrajectoryLength} needs to be a power of 2. The current estimate of the spectral function is saved to \texttt{params.sf\_filename} at the end of each iteration. The zeroth and second spectral moments are obtained from the current estimate of the spectral function and compared to the values obtained through static phase-space sampling.     
 \end{longtable} 
+ 
+\noindent
+MPI Function \recttext{\texttt{calculate\_correlation\_array\_and\_save}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{CFncArray calculate\_correlation\_array\_and\_save(*ms, *params, Temperature);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\ 
+              & \texttt{CalcParams *params} \\
+              & \texttt{double base\_temperature} \\
+    Description &  
+\end{longtable} 
+
 
 \noindent
 Function \recttext{\texttt{connes\_apodization}} \vspace*{-0.25em}
@@ -481,7 +549,10 @@ Function \recttext{\texttt{compute\_M2\_from\_sf}} \vspace*{-0.25em}
     Fields & \texttt{double A} \\
            & \texttt{double B} \\
            & \texttt{double C} \\
-    Description & Stores the parameters for the Lorentzian function shifted vertically by constant value: $y = C + A/(1 + B^2 x^2)$.
+    Description & Stores the parameters for the Lorentzian function shifted vertically by constant value: 
+    \begin{gather}
+        y = C + A/(1 + B^2 x^2). \notag
+    \end{gather}
 \end{longtable}
 
 \noindent
@@ -545,6 +616,84 @@ Function \recttext{\texttt{compute\_alpha}} \vspace*{-0.25em}
     Description & \\
 \end{longtable}
 
+\subsection{Interfacing with \texttt{CVode} library}
+\label{subsec:cvode}
+
+\noindent
+\recttext{\texttt{struct Trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{size\_t DIM} \\
+           & \texttt{size\_t mxsteps} \\
+           & \texttt{N\_Vector y} \\
+           & \texttt{N\_Vector abstol} \\
+           & \texttt{N\_Vector reltol} \\
+           & \texttt{SUNMatrix A} \\
+           & \texttt{SUNLinearSolver LS} \\
+           & \texttt{void *cvode\_mem} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{init\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{Trajectory init\_trajectory(*ms, *transformed, reltol);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+              & \texttt{double reltol} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{free\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void free\_trajectory(*traj);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{reinit\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void reinit\_trajectory(*traj, t);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{double t} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{make\_step}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{int make\_step(*traj, tout, *t);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{double tout} \\
+              & \texttt{double *t} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{set\_initial\_condition}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void set\_initial\_condition(*traj, qp);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{Array qp} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{make\_vector}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{N\_Vector make\_vector(size);} \\
+    Arguments & \texttt{int size} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{set\_tolerance}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void set\_tolerance(*traj, tolerance);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              * \texttt{double tolerance} \\
+    Description & 
+\end{longtable}
 
 \subsection{Interfacing with hep}
 \label{subsec:hep}
@@ -561,10 +710,10 @@ Function \recttext{\texttt{transform\_variables}} \vspace*{-0.25em}
         R \leftarrow 1/x, \notag \\
         \theta \leftarrow \pi x, \notag \\
         \phi \leftarrow 2 \pi x, \notag \\
-        p \leftarrow \tan(\pi (x - \sfrac{1}{2})).
+        p \leftarrow \tan(\pi (x - \sfrac{1}{2})). \notag
     \end{gather}
     %
-    The jacobian of the transformation is accumulated along the steps. {\color{red} Implemented only for linear molecule-atom pair.}  
+    The jacobian of the transformation is accumulated along the steps. {\color{red} Implemented for linear molecule-atom and rotor-linear molecule pairs.}  
 \end{longtable}
 
 \noindent
@@ -574,7 +723,7 @@ Function \recttext{\texttt{integrand\_pf}} \vspace*{-0.25em}
     Arguments & \texttt{hep::mc\_point<double> const\& x} \\
     Description & Based on the point in hypercube returns the value of the following integrand:
     \begin{gather}
-        \textrm{jac} \cdot \exp \lb -\frac{E}{k T} \rb. 
+        \textrm{jac} \cdot \exp \lb -\frac{E}{k T} \rb. \notag
     \end{gather}
     %
     (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer.) 
@@ -587,7 +736,7 @@ Function \recttext{\texttt{integrand\_M0}} \vspace*{-0.25em}
     Arguments & \texttt{hep::mc\_point<double> const\& x} \\
     Description & Based on the point in hypercube returns the value of the following integrand:
     \begin{gather}
-        \textrm{jac} \cdot \mu^2 \cdot \exp \lb -\frac{E}{k T} \rb. 
+        \textrm{jac} \cdot \mu^2 \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
     \end{gather}
     %
     (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
@@ -600,7 +749,7 @@ Function \recttext{\texttt{integrand\_M2}} \vspace*{-0.25em}
     Arguments & \texttt{hep::mc\_point<double> const\& x} \\
     Description & Based on the point in hypercube returns the value of the following integrand:
     \begin{gather}
-        \textrm{jac} \cdot \Big[ \mu, H \Big] \cdot \exp \lb -\frac{E}{k T} \rb. 
+        \textrm{jac} \cdot \Big[ \mu, H \Big] \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
     \end{gather}
     %
     The derivative of dipole with respect to coordinates is computed using 2-point central finite-difference formula. (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
@@ -621,8 +770,48 @@ Function \recttext{\texttt{mpi\_perform\_integration}} \vspace*{-0.25em}
     Description & Evaluates the integral of requested \texttt{integrand} 
 \end{longtable}
 
+\subsection{Functions to transform angles between frames of reference}
+\label{subsec:angle-transformation}
 
-\subsection{Utility}
+\noindent
+Function \recttext{\texttt{linear\_molecule\_atom\_lab\_to\_mol}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void linear\_molecule\_atom\_lab\_to\_mol(*qlab, *qmol);} \\
+    Arguments & \texttt{double *qlab} \\
+              & \texttt{double *qmol} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{linear\_molecule\_atom\_Jacobi\_mol\_by\_lab}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void linear\_molecule\_atom\_Jacobi\_mol\_by\_lab(jac, *qlab, *qmol);} \\
+    Arguments & \texttt{Eigen::Ref<Eigen::MatrixXd> jac} \\
+              & \texttt{double *qlab} \\
+              & \texttt{double *qmol} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{CH4\_linear\_molecule\_lab\_to\_kal}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void CH4\_linear\_molecule\_lab\_to\_kal(*qlab, *qkal);} \\
+    Arguments & \texttt{double *qlab} \\
+              & \texttt{double *qkal} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{CH4\_linear\_molecule\_Jacobi\_kal\_by\_lab}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void CH4\_linear\_molecule\_Jacobi\_kal\_by\_lab(jac, *qlab, *qkal);} \\
+    Arguments & \texttt{Eigen::Ref<Eigen::MatrixXd> jac} \\
+              & \texttt{double *qlab} \\
+              & \texttt{double *qkal} \\
+    Description &
+\end{longtable}
+
+\subsection{Utility structs \& functions}
 \label{subsec:utility}
 
 \noindent
@@ -663,9 +852,10 @@ Function \recttext{\texttt{free\_array}} \vspace*{-0.25em}
 \noindent
 \recttext{\texttt{struct String\_Builder}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Fields & \texttt{char *nu} \\
-           & \texttt{size\_t count} \\
-           & \texttt{size\_t capacity} 
+    Fields & \texttt{char *items} -- dynamically allocated buffer holding the string data \\
+           & \texttt{size\_t count} -- the current number of characters in the buffer \\
+           & \texttt{size\_t capacity} -- the total allocated capacity of the buffer in bytes \\ 
+    Description & This struct represents a resizable buffer designed to build strings dynamically. It stores characters in a contiguous block of memory, allowing for manipulation of strings.
 \end{longtable}
 
 \noindent
@@ -675,21 +865,78 @@ Function \recttext{\texttt{sb\_append}} \vspace*{-0.25em}
     Arguments & \texttt{String\_Builder *sb} \\
               & \texttt{const char *line} \\
               & \texttt{size\_t n} \\
-    Description &
+    Description & Appends a sequence of characters to the \texttt{String\_Builder}. This function appends the first `n` characters from the provided `line` to the \texttt{String\_Builder}. If `n` exceeds the length of `line`, the behavior is undefined. The \texttt{String\_Builder} automatically resizes its buffer if necessary to accommodate the new characters.
 \end{longtable}
 
 \noindent
-Function \recttext{\texttt{free\_sb}} \vspace*{-0.25em}
+Function \recttext{\texttt{sb\_append\_cstring}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{void free\_sb(sb);} \\
-    Arguments & \texttt{String\_Builder sb} \\
-    Description &
+    Call & \texttt{void sb\_append(*sb, *line, n);} \\
+    Arguments & \texttt{String\_Builder *sb} \\
+              & \texttt{const char *line} \\
+    Description & This function appends a C-style (null-terminated) string \texttt{line} to the \texttt{String\_Builder}'s buffer. If the \texttt{String\_Builder} does not have sufficient capacity, its storage is automatically extended to accommodate the new content. If the \texttt{String\_Builder}'s capacity is zero, it is first resized to \texttt{INIT\_SB\_CAPACITY} bytes before any extension occurs.
 \end{longtable}
+
+\noindent
+Function \recttext{\texttt{sb\_append\_format}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void sb\_append\_format(*sb, *format, ...);} \\
+    Arguments & \texttt{String\_Builder *sb} \\
+              & \texttt{const char *format} \\
+              & \texttt{varargs(...)} \\
+    Description & This function takes a format string and a variable number of arguments, formats them according to the specified format, and appends the resulting string to the provided \texttt{String\_Builder}.  If the \texttt{String\_Builder} lacks sufficient capacity, its storage is automatically extended to accommodate the new content. If the \texttt{String\_Builder}'s capacity is zero, it is first resized to \texttt{INIT\_SB\_CAPACITY} bytes before any extension occurs.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{sb\_reset}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void sb\_reset(*sb);} \\
+    Arguments & \texttt{String\_Builder *sb} \\
+    Description & This function effectively clears the content of the \texttt{String\_Builder} by setting its length to zero. The underlying buffer is not deallocated, allowing it to be reused for subsequent operations. 
+\end{longtable}
+
+
+\noindent
+Function \recttext{\texttt{sb\_free}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void sb\_free(*sb);} \\
+    Arguments & \texttt{String\_Builder *sb} \\
+    Description & This function releases the memory held by the internal buffer of the \texttt{String\_Builder} and resets the fields. 
+ \end{longtable}
 
 \subsection{External functions}
 \label{subsec:external-functions}
 
-{\color{red} Signatures}
+The potential energy and its derivatives are expected to be provided as functions with the following signatures:   
+
+\noindent
+Function \recttext{\texttt{pes}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double pes(*q);} \\
+    Arguments & \texttt{double *q} \\
+    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return energy in Hartree.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dpes}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void dpes(*q, *dpesdq);} \\
+    Arguments & \texttt{double *q} \\
+              & \texttt{double *dpesdq} \\
+    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return an array of derivatives of energy in units of Hartree/Bohr of length \texttt{Q\_SIZE}.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dipole}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void dpes(*q, *dpesdq);} \\
+    Arguments & \texttt{double *q} \\
+              & \texttt{double *dpesdq} \\
+    Description &
+\end{longtable}
+
+\texttt{pes} and \texttt{dpes} are defined as external functions in the header \texttt{hawaii.h}, so they have to be implemented in the user program, whereas the dipole function needs to be set through function pointer named \texttt{dipole}. 
+
 
 \noindent
 \textbf{Supplied routines:}
@@ -699,6 +946,8 @@ Function \recttext{\texttt{free\_sb}} \vspace*{-0.25em}
     \item spherical decomposition for \textit{ab initio} PES for CH$_4-$CO$_2$ (Finenko)
     \item spherical decomposition for \textit{ab initio} IDS for CH$_4-$CO$_2$ (Finenko)
     \item spherical decomposition for \textit{ab initio} PES for H$_2-$Ar (LeRoy/Chistikov)
+    \item spherical decomposition for \textit{ab initio} PES for CO$-$Ar (Pederson)
+\item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
 \end{enumerate}
 
 \noindent
@@ -721,12 +970,9 @@ Function \recttext{\texttt{free\_sb}} \vspace*{-0.25em}
 \item spherical decomposition for \textit{ab initio} PES for CH$_4-$N$_2$ (Finenko)
 \item spherical decomposition for \textit{ab initio} IDS for CH$_4-$N$_2$ (Finenko)
 \item PIP-NN representation for full-dimensional \textit{ab initio} PES for CH$_4-$N$_2$ (Finenko)
-\item spherical decomposition for \textit{ab initio} PES for CO$-$Ar (Pederson)
-\item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
 \end{enumerate}
 
-\subsection{Interfacing with \texttt{CVode} library}
-\label{subsec:cvode}
+
 
 \section{A skeleton of the user's program}
 \label{sec:user-program}
@@ -746,28 +992,61 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
 \end{enumerate}
 
 
-\section{Examples}
-\label{sec:examples}
+\section{Serial examples}
+\label{sec:serial-examples}
 
 \subsection{Propagating trajectory for CO$_2-$Ar}
 \label{subsec:example-trajectory}
 
-See the file \texttt{examples/trajectory\_co2\_ar.cpp}. 
+As an initial illustration of the use of \libname package, we give a sample program called \texttt{trajectory\_co2\_ar.cpp} to propagate a trajectory of collision between CO$_2$ and Ar. The problem consists of solving the following Hamilton dynamical equations:
+
+\begin{align*}
+    \dot{R} &= \frac{p_R}{m}, \\
+    \dot{p}_R &= \frac{p_\Theta^2}{m R^3} + \frac{p_\Phi^2}{m R^3 \sin^2 \Theta} - \frac{\partial U}{\partial R}, \\
+    \dot{\Phi} &= \frac{p_\Phi}{m R^2 \sin^2 \Theta}, \\
+    \dot{p}_\Phi &= -\frac{\partial U}{\partial \Phi}, \\
+    \dot{\Theta} &= \frac{p_\Theta}{m R^2}, \\
+    \dot{p}_\Theta &= \frac{p_\Phi^2 \cos \Theta}{m R^2 \sin^3 \Theta} - \frac{\partial U}{\partial \Theta}, \\
+    \dot{\varphi}_1 &= \frac{\displaystyle p_1^{\varphi}}{I_1 \sin^2 \vartheta_1}, \\
+    \dot{p}_1^{\varphi} &= -\frac{\partial U}{\partial \varphi_1}, \\
+    \dot{\vartheta}_1 &= \frac{p_1^\vartheta}{I_1}, \\ 
+    \dot{p}_1^{\theta} &= \frac{\displaystyle \lb p_1^\varphi \rb^2 \cos \theta_1}{I_1 \sin^3 \theta_1} - \frac{\partial U}{\partial \theta_1}.
+\end{align*}
+%
+The \texttt{hawaii.h} header files provides definition of the struct \texttt{MoleculeSystem} that is used to evaluate the right-hand side of the dynamical equations. The \texttt{trajectory.h} header provides struct \texttt{Trajectory} that provides interface with \texttt{CVode} library that performs the integration of dynamical equations (see Section~\ref{subsec:cvode}).
+Next, we provide implementations for functions that calculate potential energy \texttt{pes} and its derivatives with respect to coordinates \texttt{dpes}. Each user program that instantiates the \texttt{MoleculeSystem} is expected to implement these functions. To implement these functions \texttt{hawaii} provides functions to transform angles between different reference frames (see Section~\ref{subsec:angle-transformation}).      
+
 
 \subsection{Propagating trajectory for H$_2-$Ar while requantizing the angular momentum of H$_2$}
 \label{subsec:example-req-trajectory}
 
+
+\subsection{Processing correlation function for CO$_2-$Ar}
+\label{subsec:example-processing}
+
+\section{Parallel examples}
+\label{sec:parallel-examples}
+
 \subsection{Calculating the zeroth and second spectral moments of CO$_2-$Ar as phase-space averages using rejection-based sampler}
 \label{subsec:example-spmoments-co2-ar}
+
+This example demonstrates how to use interface with \texttt{hep} to calculate spectral moments. First, the zeroth moment over unbound states is calculated as follows:
+\begin{gather}
+    M_0 = \frac{(2 \pi)^4 N_L^2}{3 (Q/V) h} \frac{1}{4 \pi \epsilon_0} \frac{1}{2 \pi c} \int\limits_{\Omega: H > 0} \mu^2 \exp \lb -\frac{H}{kT} \rb \diff{\mf{q}} \diff{\mf{p}}. \notag
+\end{gather}
+%
+The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the partition can be calculated using \texttt{analytic\_full\_partition\_function\_by\_V}.    
+
 
 \subsection{Calculating a single correlation function for CO$_2-$Ar}
 \label{subsec:example-correlation-co2-ar}
 
 \subsection{Calculating a spectral function using $p_r/\mu$-representation for CO$_2-$Ar}
 \label{subsec:example-prmu-co2-ar}
-h
-\subsection{Processing correlation function for CO$_2-$Ar}
-\label{subsec:example-processing}
+
+\subsection{Calculating an array of correlation functions for CO$_2-$Ar}
+\label{subsec:example-correlation-array-co2-ar}
+
 
 \section{Changelog}
 \label{sec:changelog}
@@ -788,27 +1067,39 @@ h
     \item [19.01.2025] Added checks for NaN values of dipole in \texttt{correlation\_eval} to avoid the corruption of the correlation function estimate. At least one corrupted value of correlation function for CO$_2-$Ar  has occurred during the calculation of 10.000.000 trajectories. {\color{red} The reason for the occurence of the NaN is unknown. Should investigate when initial condition leading to NaN values is found.} Could this NaN be the consequence of overflow in \texttt{generate\_normal}?
     \item [19.01.2025] Implemented \texttt{calculate\_spectral\_function\_using\_prmu\_representation\_and\_save} function and tested that it produces correct result for CO$_2-$Ar at 300 K.
     \item [20.01.2025] Enable \texttt{switch-enum} option for compiler to invoke warning in the switch-cases where one of the cases of the enum is not explicitly handled even though default case is present. 
-    \item [20.01.2025] caught a possible (but really rare) overflow error in the implementation of Box-Mueller algorithm for sampling normally distributed variable: \texttt{generate\_normal}. 
+    \item [20.01.2025] Caught a possible (but really rare) overflow error in the implementation of Box-Mueller algorithm for sampling normally distributed variable: \texttt{generate\_normal}. 
+    \item [20.01.2025] Estimate M$_0$ based on the spectral function obtained during each iteration of the pr-mu calculation
+    \item [20.01.2025] Estimate M$_2$ using rejection sampling and using \texttt{hep}. Works for CO$_2-$Ar
+    \item [22.01.2025] Trying out calculating correlation function for CO$-$Ar. {\color{red} Why is the error in M$_2$ is 13\% for 20.000.000 points?} 
+    \item [25.01.2025] jacobian is working for CH$_4$-CO$_2$. \texttt{hawaii} is extended with function to compute numerical jacobian; analytical and numerical jacobians are in close agreement.
+    \item [25.01.2025] fixed a bug in \texttt{extract\_q\_and\_write\_into\_ms} where coordinates for second monomer actually were overwriting the coordinates for the first monomer 
+    \item [26.01.2025] adapted dipole function for CH$_4-$CO$_2$
+    \item [26.01.2025] \texttt{examples/mpi\_phase\_space\_integration\_ch4\_co2} produces M$_0$ and M$_2$ spectral moments at 300 K which are consistent with previous estimations: M$_0$ =  $8.29 \cdot 10^{-4}$, M$_2$ = $5.37$. 
+    \item [26.01.2025] differentiate between debug/release build in Makefile: apply separate compilation flags
+    \item [27.01.2025] \texttt{examples/correlation\_ch4\_co2} produces what seems to be a correct spectrum, the spectral moments are in agreement with their phase-space counterparts.
+    \item [27.01.2025] bug fix: desymmetrization procedure didn't propagate temperature to the output structure
+    \item [31.01.2025] Implementing \texttt{calculate\_correlation\_array\_and\_save} that employs individual trajectory reweighting to produce results at satellite temperatures: testing on CO$_2-$Ar in \texttt{examples/correlation\_array\_co2\_ar}
+    \item [01.02.2025] During the correlation and pr-mu calculations for CO$_2-$Ar on cluster, the file with temporary result is not written (at least for several iterations at the end of which the file is supposed to be written). Turns out that if stream is flushed using \texttt{fflush} and filesystem caches for a given file descriptor are forced to be committed to disk using \texttt{syncfs} the problem is resolved.
+    \item [01.02.2025] \texttt{calculate\_correlation\_array\_and\_save} produces spectral profiles for CO$_2-$Ar (unbound states) that are in close agreement with the results obtained in 2021. Ensemble of approximately 8 million trajectories was used. {\color{red} Need to check for bound states as well.}
 \end{enumerate}
 
 \section{Todo's}
 
 \begin{itemize}
-    \item During the prmu-calculation for CO2-Ar on cluster, the file with temporary result is not written. Could it be the fprintf buffer not flushing?  
-    \item Maybe we need a check that processes in the communicator get different seeds each?
+    \item \texttt{mpi\_calculate\_M0}/\texttt{mpi\_calculate\_M2}: the temporary result is not accumulated over communicator, it is printed only for values accumulated only for zeroth process.
+    \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow.}
     \item How to organize and store the calculated results (cfs and sfs) for examples?
     \item Arena Allocator for storing some temporary strings and small arrays. At the moment, there are waaaay too many mallocs/frees. 
-    \item Calculating second moment using \texttt{hep}-functionality and using rejection sampling
-    \item Allow to calculate an array of correlation functions 
     \item Saving the contributions of free and metastable states in correlation function separately. How can we pass in the information about the desired filenames? How to organize the storage for these contributions? 
     \item The information about the number of turning points could be saved into gsl\_histogram, and then partially displayed in the output file and saved to file system
     \item We are using MPI\_Allreduce mechanism for broadcasting. This should be changed to direct MPI\_Send / MPI\_Recv calls.
     \item Can the \texttt{hawaii.h} file be used without constructing the MoleculeSystem? I moved code for processing correlation function there, but it can't be used without creating stubs for PES/dPES functions. Should \texttt{hawaii} create stubs when certain macro is in place? 
+    \item Maybe we need a check that processes in the communicator get different seeds each?
     \item In case when correlation function is calculated for bound states, we can separate the contributions for bound-bound and bound-free transitions (Fakhardji trick)
     \item In case when correlation function is calculated for bound states, we should use the Zimmermann trick (use any point of trajectory as a 'starting point' of the correlation function). This should be the default approach for this correlation. 
-    \item Adapt transforming angles between for CH4-containing systems
+    \item Adapt transforming angles between frames of reference for linear molecule-linear molecule
     \item How to organize Makefiles for use in different environments (several clusters)? If we push the changes to remote git repo on the remote machine, the local changes get overriden, thus removing the changes made to local Makefile. Annoying... 
-    \item I would like to make a graphical shell in which it will be possible to set parameters for calculation (for example, in the form of a list with available options for each option). The program is given paths to files (or drag-and-dropped) with potential and dipole functions and it assembles an executable file. Here I make an assumption that it is better to have the potential to be statically compiled with the rest of the code rather than dynamically loading it from library. It would probably be nice to be able to run the trajectory program from graphical shell locally and display the calculation result. If the correlation function is calculated, then there is no need to add its processing within the same "stage". Let the correlation function be calculated separately, then the result should be loaded and converted into a spectrum. In the case of calculating the spectral function in the pr-mu representation, smoothing is also required, it is also carried out in a separate "stage". This would enable us to have a starting point for a graphical shell that can demonstrate some of the features of the library without overcomplicating from the very beginning. Later on, we could think about establishing TCP connection between shell and the main program running remotely enabling the user to setup the calculation with the desired parameters and monitor the calculation. 
+    \item I would like to make a graphical shell in which it will be possible to set parameters for calculation (for example, in the form of a list with available options for each parameter). The program is given paths to files (or drag-and-dropped) with potential and dipole functions and it assembles an executable file. Here I make an assumption that it is better to have the potential to be statically compiled with the rest of the code rather than dynamically loading it from library. It would probably be nice to be able to run the trajectory program from graphical shell locally and display the calculation result. If the correlation function is calculated, then there is no need to add its processing within the same "stage". Let the correlation function be calculated separately, then the result should be loaded and converted into a spectrum. In the case of calculating the spectral function in the pr-mu representation, smoothing is also required, it is also carried out in a separate "stage". This would enable us to have a starting point for a graphical shell that can demonstrate some of the features of the library without overcomplicating from the very beginning. Later on, we could think about establishing TCP connection between shell and the main program running remotely enabling the user to setup the calculation with the desired parameters and monitor the calculation. 
 \end{itemize}
 
 

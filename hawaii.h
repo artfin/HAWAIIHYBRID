@@ -330,6 +330,11 @@ void free_spectrum(Spectrum sp);
 // ----------------------------------------------------------
 // String manipulation
 // ----------------------------------------------------------
+/* 
+ * This struct represents a resizable buffer designed to build strings 
+ * dynamically. It stores characters in a contiguous block of memory, 
+ * allowing for manipulation of strings.
+ */
 typedef struct {
     char *items;
     size_t count;
