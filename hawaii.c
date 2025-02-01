@@ -1909,8 +1909,9 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             }
             
             ca_total.nstar[st] += ca_iter.nstar[st];
-            ca_total.ntraj += ca_iter.ntraj; 
         }
+
+        ca_total.ntraj += ca_iter.ntraj; 
 
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
             memset(ca.data[st],      0, params->MaxTrajectoryLength * sizeof(double));
@@ -1922,12 +1923,13 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         ca.ntraj = 0;
         ca_iter.ntraj = 0;
         
-
+        PRINT0("\n"); 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary results\n", iter+1, params->niterations, ca_total.ntraj);
        
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) { 
             double M0_crln_est =  ca_total.data[st][0] / ca_total.nstar[st] * ZeroCoeff;
-            PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0[st], (M0_crln_est - prelim_M0[st])/prelim_M0[st]*100.0);
+            PRINT0("T = %.2f: NSTAR = %.2f, M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", 
+                    params->satellite_temperatures[st], ca_total.nstar[st], M0_crln_est, prelim_M0[st], (M0_crln_est - prelim_M0[st])/prelim_M0[st]*100.0);
         }
 
         // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
@@ -2441,6 +2443,11 @@ void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
     }
     
     fflush(fp);
+    
+    if (syncfs(fd) < 0) {
+        printf("ERROR: could not commit filesystem cache to disk\n");
+        exit(1);
+    }
 }
             
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 

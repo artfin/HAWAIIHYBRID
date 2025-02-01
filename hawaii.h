@@ -24,6 +24,7 @@
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
+int syncfs(int);
 #endif
 #include <math.h>
 #include <complex.h>
