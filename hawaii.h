@@ -139,7 +139,6 @@ typedef struct {
     size_t initialM0_npoints;
     size_t initialM2_npoints;
     double partial_partition_function_ratio;
-    double* partial_partition_function_ratios;
    
     /* requantization */ 
     size_t torque_cache_len;
@@ -164,6 +163,7 @@ typedef struct {
     double R0; // initial distance, a.u. 
 
     /* correlation function array ONLY */
+    double* partial_partition_function_ratios;
     double *satellite_temperatures;
     size_t num_satellite_temperatures;
     const char **cf_filenames;

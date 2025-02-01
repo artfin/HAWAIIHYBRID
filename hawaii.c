@@ -2441,9 +2441,13 @@ void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
     for (size_t i = 0; i < cf.len; ++i) {
         fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i] / cf.ntraj * ALU*ALU*ALU);
     }
-    
+   
+    // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
+    // and kernel may delay the committing its buffer to the filesystem for some reason 
     fflush(fp);
-    
+   
+    // so to force the kernel to commit the buffered data to the filesystem we have to 
+    // use 'syncfs' or 'sync' 
     if (syncfs(fd) < 0) {
         printf("ERROR: could not commit filesystem cache to disk\n");
         exit(1);
@@ -2480,6 +2484,11 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     }
 
     fflush(fp);
+    
+    if (syncfs(fd) < 0) {
+        printf("ERROR: could not commit filesystem cache to disk\n");
+        exit(1);
+    }
 }
 
 
