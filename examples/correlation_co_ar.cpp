@@ -282,10 +282,10 @@ int main(int argc, char *argv[])
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
     params.partial_partition_function_ratio = 2.68854e+05;
-    params.initialM0_npoints                = 10000000;
-    params.initialM2_npoints                = 10000000;
-    params.pesmin                           = -195.6337098547 / HTOCM;
-    params.cf_filename                      = "./CF-F-300.0.txt";
+    params.initialM0_npoints                = 1000000;
+    params.initialM2_npoints                = 1000000;
+    params.pesmin                           = -105.0 / HTOCM;
+    params.cf_filename                      = "./CF-CO-Ar-F-300.0.txt";
 
     double Temperature = 300.0;
     
