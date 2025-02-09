@@ -24,9 +24,6 @@ WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
 #undef da_insert
 
 // @TODO: document individual functions and copy the docstrings to pdf
-//
-// @TODO: OpenMP parallelization of 'eval_with_linear_window_size' function
-//
 // @TODO: test different weight functions 
 //
 // we use C++ compiler for this translation unit and it has some peculiar problem
@@ -299,7 +296,16 @@ double *loess_apply_smoothing(SmoothingConfig *config)
     double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
     memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
 
+    bool should_exit = false;
+
+    #pragma omp parallel
+    {
+        printf("INFO: loess_apply_smoothing is run using %d threads\n", omp_get_num_threads());
+    }
+
+    #pragma omp parallel for schedule(dynamic, 50)
     for (size_t i = 0; i < GRID_NPOINTS; ++i) {
+        if (should_exit) continue;
         double x = GRID_XMIN + GRID_XSTEP * i;
       
         size_t window_size = config->ws_min; 
@@ -311,14 +317,14 @@ double *loess_apply_smoothing(SmoothingConfig *config)
 
         if (window_size < 1) {
             printf("ERROR: at iteration %zu the window size does not contain any points. Exiting...\n", i);
-            return smoothed;
+            should_exit = true; 
         } 
 
         smoothed[i] = loess_estimate(x, window_size, config->degree);
 
         if (i % 100 == 0) {
-            printf("INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
-                    i, x, smoothed[i], window_size, window_size * XRAW_STEP); 
+            printf("(%d) INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
+                    omp_get_thread_num(), i, x, smoothed[i], window_size, window_size * XRAW_STEP); 
         }
     } 
 

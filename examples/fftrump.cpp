@@ -126,7 +126,7 @@ bool process_cfs_for_CH4_CO2(double T)
             .ws_min = 30,
             .ws_step = 0.66, 
             .ws_delay = 100,
-            // .ws_cap = 3500,
+            .ws_cap = 0,
         }; 
         
         loess_init(sf.nu, sf.data, sf.len);

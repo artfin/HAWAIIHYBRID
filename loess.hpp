@@ -7,6 +7,7 @@
 
 #include <Eigen/Dense>
 
+#include <omp.h>
 #include <float.h>
 
 /*

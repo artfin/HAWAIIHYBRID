@@ -6,11 +6,10 @@ CXX    := g++
 MPICC  := mpicc
 MPICXX := mpic++
 
-# @TODO: add FLAGS_EIGEN that are applied to files that use Eigen library. Eigen enormously benefits from some particular flags, so we have to use them 
-
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native
+FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O3 
 FLAGS := $(FLAGS_RELEASE)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
@@ -70,10 +69,10 @@ build/mtwist.o: mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
 
 build/angles_handler.o: angles_handler.cpp | build
-	$(CXX) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ 
 
 build/loess.o: loess.cpp | build
-	$(CXX) $(FLAGS) $(INC) -c -MD $< -o $@
+	$(CXX) $(FLAGS_EIGEN) -fopenmp $(INC) -c -MD $< -o $@ 
 
 ###########################################################
 ###################### CO2-Ar #############################
@@ -165,7 +164,7 @@ examples/prmu_calculation_co2_ar.exe: examples/prmu_calculation_co2_ar.cpp build
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
 examples/fftrump.exe: examples/fftrump.cpp $(OBJ) build/loess.o 
-	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
+	$(CXX) $(FLAGS) $(INC) -fopenmp -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
 
 examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
