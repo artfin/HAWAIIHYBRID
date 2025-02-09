@@ -76,38 +76,21 @@ typedef enum {
     WEIGHT_BISQUARE,
 } WEIGHT_FUNC;
 
+typedef struct {
+    size_t degree;   // degree of local polynomial [2-3]
+    size_t ws_min;   // minimum window size 
+    double ws_step;  // window size step
+    size_t ws_delay; // optional: the index at which the window is starting to increase
+    size_t ws_cap;   // optional: cap on window size 
+} SmoothingConfig;
+
 extern WEIGHT_FUNC loess_weight;
 
-void init_loess(double *x, double *y, size_t len);
-double estimate(double x, size_t ws, size_t degree);
-double *eval_with_linear_window_size(size_t degree, double xmin, double xmax, size_t npoints, size_t wsmin, double wsstep, size_t wsdelay, double xraw_step);
-
-/*
-struct LOESS
-{
-public:
-    typedef std::function<double(double)> weight_func;
-
-    LOESS(double *x, double *y, size_t len);
-    
-    double estimate(double x, size_t ws, size_t degree);
-    std::vector<double> eval_with_linear_window_size(double degree, double xmin, double xmax, size_t npoints, size_t wsmin, double wsstep, size_t wsdelay, double xraw_step);
-private:
-    std::tuple<double, double> normalize(std::vector<double> & a);
-    std::vector<size_t> make_window(std::vector<double> const& distances, size_t window_size);
-
-    void select_by_indices(std::vector<double> const& v, std::vector<size_t> const& indices, std::vector<double> & result);
-    void select_by_indices(std::vector<double> const& v, std::vector<size_t> const& indices, Eigen::Ref<Eigen::VectorXd> result);
-
-    std::vector<double> calculate_weights(std::vector<double> const& distances, std::vector<size_t> const& window, weight_func f);
-    static double tricubic(double x);
-
-    std::vector<double> m_xx;
-    std::vector<double> m_yy;
-
-    double m_minxx, m_maxxx;
-    double m_minyy, m_maxyy;
-};
-*/
+void loess_init(double *x, double *y, size_t len);
+double loess_estimate(double x, size_t window_size, size_t degree);
+double *loess_create_grid(double xmin, double xmax, size_t npoints);
+double *loess_apply_smoothing(SmoothingConfig *config);
+// double *apply_smoothing(size_t degree, double xmin, double xmax, size_t npoints, size_t wsmin, double wsstep, size_t wsdelay);
+void loess_free();
 
 #endif // LOESS_H_

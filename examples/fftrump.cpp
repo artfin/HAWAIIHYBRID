@@ -108,6 +108,7 @@ bool process_cfs_for_CH4_CO2(double T)
 
     Spectrum spraw = compute_alpha(desymmetrize_sch(sf));
     spraw.len = 25000;
+    printf("INFO: cutting the raw spectrum at %.3e cm-1\n", spraw.nu[spraw.len - 1]);
 
     sb_reset(&filename); 
     sb_append_cstring(&filename, "MT_CH4_CO2/free-final/SPD3-CH4-CO2-F-");
@@ -117,38 +118,28 @@ bool process_cfs_for_CH4_CO2(double T)
         printf("ERROR: could not write into the file '%s'!\n", filename.items);
     }
 
-    /*
-    LOESS loess(sf.nu, sf.data, sf.len);
-    double dnu = sf.nu[1] - sf.nu[0];
-
-    size_t degree = 2; 
-    double numin = 0.0;
-    double numax = 100.0; // 1000.0
-    size_t npoints = 1001; // 10001
-    size_t wsmin = 30;
-    double wsstep = 0.66;
-    size_t wsdelay = 100; 
-    std::vector<double> sfsmvals = loess.eval_with_linear_window_size(degree, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
-    */
-   
-    size_t degree = 2; 
-    double numin = 0.0;
-    double numax = 50.0;
-    size_t npoints = 501;
-    size_t wsmin = 30;
-    double wsstep = 0.66;
-    size_t wsdelay = 100; 
-    
-    init_loess(sf.nu, sf.data, sf.len);
-    loess_weight = WEIGHT_BISQUARE; 
-    double dnu = sf.nu[1] - sf.nu[0];
-
-    double *sfsmvals = eval_with_linear_window_size(degree, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
-
-    free(sf.nu);
-    sf.nu = linspace(numin, numax, npoints);
-    memcpy(sf.data, sfsmvals, npoints * sizeof(double)); 
-    sf.len = npoints;
+    {
+        // sadly, capping the window size is not beneficial in this case. 
+        // high-frequency noise is still present at ws_cap = 3500 
+        SmoothingConfig config = {
+            .degree = 3, 
+            .ws_min = 30,
+            .ws_step = 0.66, 
+            .ws_delay = 100,
+            // .ws_cap = 3500,
+        }; 
+        
+        loess_init(sf.nu, sf.data, sf.len);
+        loess_weight = WEIGHT_TRICUBE; 
+        
+        free(sf.nu);
+        free(sf.data); 
+        
+        size_t npoints = 10001;    
+        sf.nu = loess_create_grid(0.0, 1000.0, npoints); assert(sf.nu != NULL);
+        sf.data = loess_apply_smoothing(&config); assert(sf.data != NULL); 
+        sf.len = npoints;
+    }
 
     Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
     
@@ -160,13 +151,12 @@ bool process_cfs_for_CH4_CO2(double T)
         printf("ERROR: could not write into the file '%s'!\n", filename.items);
     }
 
-    sb_reset(&filename); 
-    sb_reset(&sb);
-
     free_cfnc(cf);
-    // free_sfnc(sf);
-    // free_spectrum(spd3);
+    free_sfnc(sf);
+    free_spectrum(spraw);
+    free_spectrum(spd3);
         
+    loess_free();
     sb_free(&sb);
 
     return true;

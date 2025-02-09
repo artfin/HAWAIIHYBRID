@@ -10,17 +10,19 @@ static double maxx = FLT_MIN;
 static double miny = FLT_MAX; 
 static double maxy = FLT_MIN;
 
+static double XRAW_STEP = 0;
+
+static double GRID_XMIN = FLT_MAX;
+static double GRID_XMAX = FLT_MIN;
+static size_t GRID_NPOINTS = 0;
+static double GRID_XSTEP = 0;
+
 bool loess_debug = false;
 WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
 
 #undef da_append
 #undef da_insert
 
-// @TODO: introduce more mechanisms of fiddling with 'eval_with_linear_window_size'
-// at least we should cap the window size at some value
-//
-// @TODO: test loess with valgrind, we definitely leak some memory in 'evaluate'
-//
 // @TODO: document individual functions and copy the docstrings to pdf
 //
 // @TODO: OpenMP parallelization of 'eval_with_linear_window_size' function
@@ -57,11 +59,16 @@ WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
     } while(0)
 
 
-void init_loess(double *x, double *y, size_t ilen) 
+void loess_init(double *x, double *y, size_t ilen) 
 {
     xp = (double*) malloc(ilen * sizeof(double));
     yp = (double*) malloc(ilen * sizeof(double));
     len = ilen;
+
+    if (len < 2) {
+        printf("ERROR: expected length of arrays to be at least 2\n");
+        exit(1);
+    }
 
     for (size_t i = 0; i < len; ++i) {
         if (x[i] > maxx) maxx = x[i];
@@ -74,7 +81,15 @@ void init_loess(double *x, double *y, size_t ilen)
         xp[i] = (x[i] - minx) / (maxx - minx);
         yp[i] = (y[i] - miny) / (maxy - miny);
     }
+    
+    XRAW_STEP = x[1] - x[0];
 } 
+
+void loess_free()
+{
+    free(xp);
+    free(yp);
+}
 
 Window make_window(double* distances, size_t window_size) 
 {
@@ -132,7 +147,7 @@ inline double bisquare(double x) {
     return (1.0 - x * x) * (1.0 - x * x);  
 }
 
-double estimate(double x, size_t window_size, size_t degree)
+double loess_estimate(double x, size_t window_size, size_t degree)
 {
     double nx = (x - minx) / (maxx - minx);
     
@@ -233,40 +248,79 @@ double estimate(double x, size_t window_size, size_t degree)
     if (loess_debug) { 
         printf("DEBUG: estimate: x = %.5e, y = %.5e, window_size = %zu, degree = %zu\n", x, y, window_size, degree); 
     }
+    
+    free(distances);
+    free(window.items);
 
     return y;
 }
 
-double *eval_with_linear_window_size(size_t degree, double xmin, double xmax, size_t npoints, size_t wsmin, double wsstep, size_t wsdelay, double xraw_step)
+double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoints) 
 {
-    double *smoothed = (double*) malloc(npoints * sizeof(double));
-    memset(smoothed, 0.0, npoints * sizeof(double));
-
-    double xstep = 0;
-    if (npoints > 1) {
-        xstep = (xmax - xmin) / (npoints - 1);
+    if (grid_xmin < minx) {
+        printf("ERROR: the starting point of the grid (%.5e) is less than the minimum xvalue in the raw data (%.5e). Adjust the grid bounds to be within the data range.\n", 
+                grid_xmin, minx);
+        return NULL;
     }
 
-    size_t window_size = wsmin;
+    if (grid_xmax > maxx) {
+        printf("ERROR: the ending point of the grid (%.5e) is greater than the maximum xvalue in the raw data (%.5e). Adjust the grid bounds to be within the data range.\n",
+                grid_xmax, maxx);
+        return NULL;
+    }
 
-    for (size_t i = 0; i < npoints; ++i) {
-        double x = xmin + xstep * i;
-       
-        if (i > wsdelay) window_size = (size_t)(wsmin + wsstep*i);
+    if (grid_xmin > grid_xmax) {
+        printf("ERROR: invalid grid range: the starting point (%.5e) is greater than the ending point (%.5e). The grid must be defined such that grid_xmin < grid_xmax.\n",
+                grid_xmin, grid_xmax);
+        return NULL;
+    }
+
+    if (grid_npoints < 1) {
+        printf("ERROR: invalid number of grid points: %zu. The grid must contain > 1 points\n", grid_npoints);
+        return NULL;
+    }
+    
+    GRID_XMIN = grid_xmin;
+    GRID_XMAX = grid_xmax;
+    GRID_NPOINTS = grid_npoints; 
+
+    GRID_XSTEP = (GRID_XMAX - GRID_XMIN) / (GRID_NPOINTS - 1);
+
+    return linspace(GRID_XMIN, GRID_XMAX, GRID_NPOINTS);
+}
+
+double *loess_apply_smoothing(SmoothingConfig *config) 
+{
+    if (GRID_NPOINTS <= 0) {
+        printf("ERROR: the grid is not initialized. Ensure 'loess_create_grid' is called to define the grid before applying the smoothing algorithm\n");
+        return NULL;
+    }
+
+    double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
+    memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
+
+    for (size_t i = 0; i < GRID_NPOINTS; ++i) {
+        double x = GRID_XMIN + GRID_XSTEP * i;
+      
+        size_t window_size = config->ws_min; 
+        if (i > config->ws_delay) window_size = (size_t)(config->ws_min + config->ws_step*i);
+
+        if (config->ws_cap > 0) {
+            if (window_size > config->ws_cap) window_size = config->ws_cap; 
+        }
 
         if (window_size < 1) {
             printf("ERROR: at iteration %zu the window size does not contain any points. Exiting...\n", i);
             return smoothed;
         } 
 
-        smoothed[i] = estimate(x, window_size, degree);
+        smoothed[i] = loess_estimate(x, window_size, config->degree);
 
         if (i % 100 == 0) {
             printf("INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
-                    i, x, smoothed[i], window_size, window_size * xraw_step); 
+                    i, x, smoothed[i], window_size, window_size * XRAW_STEP); 
         }
     } 
 
     return smoothed;
 }
-
