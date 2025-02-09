@@ -121,10 +121,12 @@ bool process_cfs_for_CH4_CO2(double T)
     {
         // sadly, capping the window size is not beneficial in this case. 
         // high-frequency noise is still present at ws_cap = 3500 
-        SmoothingConfig config = {
+        // 
+        // ws_step = 1.0 produces good-looking result at 200 K
+        Smoothing_Config config = {
             .degree = 3, 
             .ws_min = 30,
-            .ws_step = 0.66, 
+            .ws_step = 1.0, // 0.66 
             .ws_delay = 100,
             .ws_cap = 0,
         }; 
@@ -359,7 +361,7 @@ int main()
 {
     {
         size_t ntemps = 1;
-        double Temps[ntemps] = {300.0}; // , 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0};
+        double Temps[ntemps] = {200.0}; // , 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0};
 
         for (size_t i = 0; i < ntemps; ++i) {
             double T = Temps[i];

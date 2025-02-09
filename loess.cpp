@@ -190,8 +190,7 @@ double loess_estimate(double x, size_t window_size, size_t degree)
     if (loess_debug) printf("\n");
 
    
-    // @naming
-    Eigen::MatrixXd xm = Eigen::MatrixXd::Zero(window.count, degree+1);
+    Eigen::MatrixXd X = Eigen::MatrixXd::Zero(window.count, degree+1);
 
     if (loess_debug) printf("DEBUG: xm:\n");
 
@@ -199,33 +198,36 @@ double loess_estimate(double x, size_t window_size, size_t degree)
         double xv = xp[window.items[i]];
 
         for (size_t j = 0; j < degree+1; ++j) {
-            xm(i, j) = pow(xv, j);
-            if (loess_debug) printf("%.4e ", xm(i, j));
+            X(i, j) = pow(xv, j);
+            if (loess_debug) printf("%.4e ", X(i, j));
         }
         if (loess_debug) printf("\n");
     }
 
-    Eigen::MatrixXd xmt_wm = xm.transpose() * weights;
+    Eigen::MatrixXd XtW = X.transpose() * weights;
     
     if (loess_debug) {
         printf("DEBUG: xmt_wm:\n");
         for (size_t i = 0; i < degree+1; ++i) {
             for (size_t j = 0; j < window.count; ++j) {
-                printf("%.4e ", xmt_wm(i, j));
+                printf("%.4e ", XtW(i, j));
             }
             printf("\n");
         }
     }
     
-    Eigen::VectorXd yv = Eigen::VectorXd::Zero(window.count, 1);
+    Eigen::VectorXd Y = Eigen::VectorXd::Zero(window.count, 1);
     for (size_t i = 0; i < window.count; ++i) {
-        yv(i) = yp[window.items[i]];
+        Y(i) = yp[window.items[i]];
     }
- 
+
+    //
+    // beta = (X^T W X)^(-1) X^T W Y 
+    // 
     // note: this is hard to reproduce in GSL so I refused the idea to move this code completely to C
     // and, more importantly, Eigen is more optimised so it does not make much sense to switching back
     // to GSL/BLAS  
-    Eigen::VectorXd beta = (xmt_wm * xm).completeOrthogonalDecomposition().pseudoInverse() * xmt_wm * yv;
+    Eigen::VectorXd beta = (XtW * X).completeOrthogonalDecomposition().pseudoInverse() * XtW * Y;
     if (loess_debug) {
         printf("DEBUG: beta: ");
         for (size_t i = 0; i < degree+1; ++i) {
@@ -286,7 +288,7 @@ double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoint
     return linspace(GRID_XMIN, GRID_XMAX, GRID_NPOINTS);
 }
 
-double *loess_apply_smoothing(SmoothingConfig *config) 
+double *loess_apply_smoothing(Smoothing_Config *config) 
 {
     if (GRID_NPOINTS <= 0) {
         printf("ERROR: the grid is not initialized. Ensure 'loess_create_grid' is called to define the grid before applying the smoothing algorithm\n");
