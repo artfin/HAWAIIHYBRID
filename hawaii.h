@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <regex.h>
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -188,7 +189,8 @@ typedef struct {
     size_t len;      // # of samples in *t, *data
     size_t capacity; // capacity *t, *data
     double ntraj;    // # of trajectories used for averaging
-    double Temperature;        
+    double Temperature;
+    bool normalized; // flag that indicates whether the *data samples are normalized by # of trajectories 
 } CFnc;
 
 /*
@@ -352,12 +354,13 @@ void sb_free(String_Builder *sb);
 // ----------------------------------------------------------
 // Processing the results   
 // ----------------------------------------------------------
-void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params);
+int save_correlation_function(FILE *fp, CFnc cf);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
+int average_correlation_functions(CFnc *cf1, CFnc *cf2, CFnc *average);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 

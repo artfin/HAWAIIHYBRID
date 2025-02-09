@@ -1678,8 +1678,10 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         if (ms->intermolecular_qp[IR] > params->Rcut) break;
     }
 
+    // @correctness: check that after moving the factor ALU^3 here, the produced correlation functions
+    // are correct for both single-correlation function and correlation-array calculations 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-        crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]);
+        crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
     } 
 
     *tps = tr.turning_points;
@@ -1967,11 +1969,12 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                     .data = ca_total.data[st],
                     .len = ca_total.len,
                     .ntraj = ca_total.nstar[st],
-                    .Temperature = params->satellite_temperatures[st], 
+                    .Temperature = params->satellite_temperatures[st],
+                    .normalized = false, 
                 }; 
 
                 PRINT0("Writing to '%s'\n", params->cf_filenames[st]); 
-                save_correlation_function(fps[st], cf, params);
+                save_correlation_function(fps[st], cf);
             }
         }
     }
@@ -2033,6 +2036,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         .len         = params->MaxTrajectoryLength,
         .ntraj       = 0,
         .Temperature = Temperature,
+        .normalized  = false,
     }; 
     memset(total_crln.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
@@ -2146,7 +2150,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
 
         if (_wrank == 0) {
-            save_correlation_function(fp, total_crln, params);
+            save_correlation_function(fp, total_crln);
         }
     }
  
@@ -2161,6 +2165,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         total_crln.data[i] /= total_crln.ntraj;
     }
+    total_crln.normalized = true;
 
     return total_crln; 
 }
@@ -2416,7 +2421,7 @@ int assert_float_is_equal_to(double estimate, double true_value, double abs_tole
         return 1; 
     }
 
-    UNREACHABLE("");
+    UNREACHABLE("assert_float_is_equal_to");
 }
 
 
@@ -2436,46 +2441,58 @@ double* linspace(double start, double end, size_t n) {
     return v;
 }
 
-void save_correlation_function(FILE *fp, CFnc cf, CalcParams *params)
+int save_correlation_function(FILE *fp, CFnc cf)
 /*
- * Here we assume that values of the correlation function come in unnormalized by the number of trajectories
+ * Here we assume that values of the correlation function are UNnormalized by the number of trajectories
  * (which is set in clrn.ntraj)
  */ 
 {
     assert(cf.ntraj > 0);
 
+
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
         printf("ERROR: could not truncate file: %s\n", strerror(errno));
-        exit(1);
+        return -1; 
     }
 
     // resets the file position indicator
     rewind(fp);
 
-    fprintf(fp, "# HAWAII HYBRID v0.1\n");
-    fprintf(fp, "# TEMPERATURE: %.2f\n", cf.Temperature);
-    fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
-    fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", cf.ntraj); 
-    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", cf.len);
-    fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
-    fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+    size_t nchars = 0;
+
+    nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", cf.Temperature);
+    // fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
+    nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", cf.ntraj); 
+    nchars += fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", cf.len);
+    //fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
+    //fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
 
     for (size_t i = 0; i < cf.len; ++i) {
-        fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i] / cf.ntraj * ALU*ALU*ALU);
+        if (cf.normalized) {
+            nchars += fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i]);
+        } else {
+            nchars += fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i] / cf.ntraj);
+        }
     }
    
     // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
     // and kernel may delay the committing its buffer to the filesystem for some reason 
-    fflush(fp);
+    if (fflush(fp) != 0) {
+        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+        return -1;
+    }
    
     // so to force the kernel to commit the buffered data to the filesystem we have to 
     // use 'syncfs' or 'sync' 
     if (syncfs(fd) < 0) {
         printf("ERROR: could not commit filesystem cache to disk\n");
-        exit(1);
+        return -1; 
     }
+
+    return nchars;
 }
             
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 
@@ -2611,7 +2628,7 @@ void sb_append_format(String_Builder *sb, const char *format, ...)
 void sb_free(String_Builder *sb)
 /*
  * This function releases the memory held by the internal buffer of the String_Builder and resets the fields.
- */ 
+ */
 {
     free(sb->items);
     sb->items = NULL;
@@ -2622,13 +2639,20 @@ void sb_free(String_Builder *sb)
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf) 
 {
     bool result = true;
+    bool sb_should_be_freed = false;
 
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
         printf("Error: could not open the file '%s': %s\n", filename, strerror(errno));
         return_defer(false); 
     }
-  
+ 
+    if (sb == NULL) {
+        sb = (String_Builder*) malloc(sizeof(String_Builder));
+        memset(sb, 0, sizeof(String_Builder));
+        sb_should_be_freed = true;
+    }
+
     char* line = NULL;
     size_t n;
 
@@ -2647,7 +2671,75 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         header_lines++;
     }
    
-    printf("# of lines in header: %zu\n", header_lines);
+    printf("  # of lines in header: %zu\n", header_lines);
+    
+    regex_t regex = {0};
+    int ret;
+    bool regalloc = false;
+    {
+        const char *pattern = "# AVERAGE OVER ([0-9]+\\.[0-9]+) TRAJECTORIES";
+        regalloc = true;
+        if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
+            printf("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+            return_defer(false); 
+        }
+        
+        regmatch_t matches[2];
+        ret = regexec(&regex, sb->items, 2, matches, 0);
+        if (ret == 0) {
+           // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+           int start = matches[1].rm_so; // Start position of the match
+           int end = matches[1].rm_eo;   // End position of the match
+           int len = end - start;
+
+           char matched_string[len + 1];
+           strncpy(matched_string, sb->items + start, len);
+           matched_string[len] = '\0';
+
+           cf->ntraj = strtod(matched_string, NULL);
+           printf("INFO: Captured number of trajectories: %lf\n", cf->ntraj);
+        } else if (ret == REG_NOMATCH) {
+            printf("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
+        } else {
+            char error[256];
+            regerror(ret, &regex, error, sizeof(error));
+            printf("ERROR: regex match failed: %s\n", error);
+            return_defer(false); 
+        }
+
+        // free all the stroage in a regex_t structure before using it for another expression
+        regfree(&regex);
+    }
+    {
+        const char *pattern = "# TEMPERATURE: ([0-9]+\\.[0-9]+)";
+        if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
+            printf("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+            return_defer(false); 
+        }
+        
+        regmatch_t matches[2];
+        ret = regexec(&regex, sb->items, 2, matches, 0);
+        if (ret == 0) {
+           // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+           int start = matches[1].rm_so; // Start position of the match
+           int end = matches[1].rm_eo;   // End position of the match
+           int len = end - start;
+
+           char matched_string[len + 1];
+           strncpy(matched_string, sb->items + start, len);
+           matched_string[len] = '\0';
+
+           cf->Temperature = strtod(matched_string, NULL);
+           printf("INFO: Captured temperature: %lf\n", cf->Temperature);
+        } else if (ret == REG_NOMATCH) {
+            printf("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
+        } else {
+            char error[256];
+            regerror(ret, &regex, error, sizeof(error));
+            printf("ERROR: regex match failed: %s\n", error);
+            return_defer(false); 
+        }
+    }
 
     // rewind the file pointer by one line because we read forward while reading header 
     long pos = ftell(fp);
@@ -2692,7 +2784,63 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
 defer:
     if (fp) fclose(fp);
+    if (sb_should_be_freed) sb_free(sb);
+    if (regalloc) regfree(&regex);
     return result;
+}
+
+int average_correlation_functions(CFnc *cf1, CFnc *cf2, CFnc *average)
+{
+    if (cf1->ntraj <= 0) {
+        printf("ERROR: # of trajectories for correlation function 'cf1' is invalid: %lf\n", cf1->ntraj);
+        return -1; 
+    } 
+
+    if (cf2->ntraj <= 0) {
+        printf("ERROR: # of trajectories for correlatin function 'cf2' is invalid: %lf\n", cf2->ntraj);
+        return -1; 
+    }
+
+    if (cf1->len != cf2->len) {
+        printf("ERROR: expected correlation function 'cf1' and 'cf2' to be of equal length, however cf1.len = %zu and cf2.len = %zu\n", cf1->len, cf2->len);
+        return -1;
+    }
+
+    if (fabs(cf1->Temperature - cf2->Temperature) > 1e-10) {
+        printf("ERROR: it does not make much sense to average correlation functions with mismatching temperatures...\n");
+        printf("Got cf1.Temperature = %.2e and cf2.Temperature = %.2e\n", cf1->Temperature, cf2->Temperature);
+        return -1;
+    }
+
+    assert(cf1->len > 1);
+    double dt1 = cf1->t[1] - cf1->t[0];
+    double dt2 = cf2->t[1] - cf2->t[0];
+    if (fabs(dt1 - dt2) > 1e-10) {
+        printf("ERROR: expected the time step for correlation functions 'cf1' and 'cf2' to coincide, however timestep(1) = %.3e and timestep(2) = %.3e\n",
+                dt1, dt2);
+        return -1;
+    }
+
+    if (average->len != cf1->len) {
+        average->t        = (double*) realloc(average->t, cf1->len * sizeof(double));
+        average->data     = (double*) realloc(average->data, cf1->len * sizeof(double));
+        average->len      = cf1->len;
+        average->capacity = cf1->len;
+    }
+        
+    memcpy(average->t, cf1->t, cf1->len * sizeof(double));
+    average->ntraj = cf1->ntraj + cf2->ntraj;
+    average->Temperature = cf1->Temperature;
+
+    for (size_t i = 0; i< average->len; i++) {
+        average->data[i] = (cf1->ntraj*cf1->data[i] + cf2->ntraj*cf2->data[i]) / average->ntraj;
+    }
+
+    // to indicate to 'save_correlation_function' that correlation function data are already
+    // normalized by the appropriate number of trajectories
+    average->normalized = true;
+
+    return 0;
 }
 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf) 
@@ -3244,6 +3392,7 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
         .nu   = malloc(cf.len * sizeof(double)),
         .data = malloc(cf.len * sizeof(double)),
         .len  = cf.len,
+        .Temperature = cf.Temperature, 
     };
 
     for (size_t i = 0; i < cf.len; ++i) {
