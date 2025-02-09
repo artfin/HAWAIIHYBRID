@@ -6,6 +6,8 @@ CXX    := g++
 MPICC  := mpicc
 MPICXX := mpic++
 
+# @TODO: add FLAGS_EIGEN that are applied to files that use Eigen library. Eigen enormously benefits from some particular flags, so we have to use them 
+
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native
@@ -31,7 +33,8 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/correlation_array_ch4_co2.exe           \
 			examples/prmu_calculation_co2_ar.exe             \
 			examples/fftrump.exe                             \
-			examples/test_sb.exe
+			examples/test_sb.exe                             \
+			examples/test_loess.exe
 
 all: $(EXAMPLES) 
 
@@ -173,10 +176,11 @@ examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/traject
 examples/correlation_array_ch4_co2.exe: examples/correlation_array_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2)
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
-
 examples/test_sb.exe: examples/test_sb.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o
 	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS)
 
+examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
+	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
 build:
 	mkdir -p $@

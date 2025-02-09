@@ -1,11 +1,8 @@
 #include "hawaii.h"
 #include "loess.hpp"
 
-#include <regex.h>
-
 double pes(double *q) { UNUSED(q); return 0; }
 void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
-
 
 bool write_averaged_cfs_for_CH4_CO2(double T)
 {
@@ -120,20 +117,37 @@ bool process_cfs_for_CH4_CO2(double T)
         printf("ERROR: could not write into the file '%s'!\n", filename.items);
     }
 
+    /*
     LOESS loess(sf.nu, sf.data, sf.len);
     double dnu = sf.nu[1] - sf.nu[0];
 
+    size_t degree = 2; 
     double numin = 0.0;
-    double numax = 1000.0;
-    size_t npoints = 10001;
+    double numax = 100.0; // 1000.0
+    size_t npoints = 1001; // 10001
     size_t wsmin = 30;
     double wsstep = 0.66;
     size_t wsdelay = 100; 
-    std::vector<double> sfsmvals = loess.eval_linear_ws(2, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
+    std::vector<double> sfsmvals = loess.eval_with_linear_window_size(degree, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
+    */
+   
+    size_t degree = 2; 
+    double numin = 0.0;
+    double numax = 50.0;
+    size_t npoints = 501;
+    size_t wsmin = 30;
+    double wsstep = 0.66;
+    size_t wsdelay = 100; 
+    
+    init_loess(sf.nu, sf.data, sf.len);
+    loess_weight = WEIGHT_BISQUARE; 
+    double dnu = sf.nu[1] - sf.nu[0];
+
+    double *sfsmvals = eval_with_linear_window_size(degree, numin, numax, npoints, wsmin, wsstep, wsdelay, dnu); 
 
     free(sf.nu);
     sf.nu = linspace(numin, numax, npoints);
-    memcpy(sf.data, sfsmvals.data(), npoints * sizeof(double)); 
+    memcpy(sf.data, sfsmvals, npoints * sizeof(double)); 
     sf.len = npoints;
 
     Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
@@ -158,6 +172,7 @@ bool process_cfs_for_CH4_CO2(double T)
     return true;
 }
 
+/*
 void process_cf_for_CO_Ar()
 {
     String_Builder sb{};
@@ -232,8 +247,9 @@ void process_cf_for_CO_Ar()
         
     sb_free(&sb);
 }
+*/
 
-
+/*
 void process_correlation_function() 
 {
     double Temperature = 270.0;
@@ -313,6 +329,7 @@ void process_correlation_function()
     free_spectrum(spd3);
     sb_free(&sb);
 }
+*/
 
 void process_spectral_function()
 {
@@ -352,7 +369,7 @@ int main()
 {
     {
         size_t ntemps = 1;
-        double Temps[ntemps] = {290.0}; // , 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0};
+        double Temps[ntemps] = {300.0}; // , 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0};
 
         for (size_t i = 0; i < ntemps; ++i) {
             double T = Temps[i];

@@ -2426,18 +2426,44 @@ int assert_float_is_equal_to(double estimate, double true_value, double abs_tole
 
 
 double* linspace(double start, double end, size_t n) {
-    double step = (end - start)/(n - 1);
+    if (n == 0) return NULL;
 
+    double step;
     if (n == 1) {
         assert(start == end);
-        step = end - start;
+        step = 0; 
+    } else {
+        step = (end - start)/(n - 1);
     }
     
-    double *v = (double*) malloc(n * sizeof(double)); 
+    double *v = (double*) malloc(n * sizeof(double));
+    assert(v != NULL);
+
     for (size_t i = 0; i < n; ++i) {
         v[i] = start + step * i;
     }
 
+    return v;
+}
+
+size_t* linspace_size_t(size_t start, size_t end, size_t n) {
+    if (n == 0) return NULL;
+
+    size_t step;
+    if (n == 1) {
+        assert(start == end);
+        step = 0; 
+    } else {
+        step = (end - start)/(n - 1);
+    }
+
+    size_t *v = (size_t*) malloc(n * sizeof(size_t));
+    assert(v != NULL);
+
+    for (size_t i = 0; i < n; ++i) {
+        v[i] = start + step * i;
+    }
+    
     return v;
 }
 

@@ -16,6 +16,7 @@
 #include <gsl/gsl_histogram.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_vector.h>
+#include <gsl/gsl_linalg.h>
 #include <gsl/gsl_multifit_nlinear.h>
 
 #include <gsl/gsl_fft_real.h>
@@ -35,12 +36,12 @@ int syncfs(int);
 #endif 
 #include "mtwist.h"
 /*
+ * We are using the following functions from mtwist:
  * double mt_drand(void)
  *   Return a pseudorandom double in [0,1) with 32 bits of randomness
  *
  * uint32_t mt_lrand(void);
  *   Generate 32-bit random value 
- *
  */
 
 #include <assert.h>
@@ -67,6 +68,33 @@ int syncfs(int);
 #define UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 
 #define return_defer(value) do { result = (value); goto defer; } while(0)
+
+#define DA_INIT_CAP 256
+#define da_append(da, item)                                                          \
+    do {                                                                             \
+        if ((da)->count >= (da)->capacity) {                                         \
+            (da)->capacity = (da)->capacity == 0 ? DA_INIT_CAP : (da)->capacity*2;   \
+            (da)->items = realloc((da)->items, (da)->capacity*sizeof(*(da)->items)); \
+            assert((da)->items != NULL && "ASSERT: not enough memory\n");            \
+        }                                                                            \
+                                                                                     \
+        (da)->items[(da)->count++] = (item);                                         \
+    } while (0)
+
+#define da_insert(da, i, item) \
+    do {                                 \
+        if ((i < 0) || ((i) > (da)->count)) { \
+            assert(0 && "ASSERT: index out of bounds\n"); \
+        } \
+        if ((da)->count >= (da)->capacity) { \
+            (da)->capacity = (da)->capacity == 0 ? DA_INIT_CAP : (da)->capacity*2; \
+            (da)->items = realloc((da)->items, (da)->capacity*sizeof(*(da)->items)); \
+            assert((da)->items != NULL && "ASSERT: not enough memory\n"); \
+        } \
+        memmove((da)->items + (i) + 1, (da)->items + (i), ((da)->count - (i))*sizeof(*(da)->items)); \
+        (da)->items[(i)] = (item); \
+        (da)->count++; \
+    } while(0)
 
 #ifdef USE_MPI
 #define INIT_WRANK                          \
@@ -318,6 +346,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
+size_t* linspace_size_t(size_t start, size_t end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
 
 double integrate_composite_simpson(double *x, double *y, size_t len); 
