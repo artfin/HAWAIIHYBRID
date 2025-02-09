@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
 
     INIT_WRANK;
     INIT_WSIZE;
-
-    int seeds[] = {50377445, 37183603, 13442809, 79487979, 22867865, 65728383, 35191887, 86692103, 71931368, 49143611, 47120112, 20335931, 94038811, 67455850, 84879044, 64511517, 23926327, 18913047, 38811051, 40524201, 23443742, 69569457, 73376892, 37590224, 63813629, 24265718, 72679138, 67977324, 10974897, 87328344, 21116964, 30240032, 77558402, 77890020, 99138094, 44532637, 43714282, 96995088, 38135587, 18821238, 72311571, 58108907, 15028065, 93134752, 90678150, 24939378, 13871796, 11189243, 12183134, 42314286, 58177735, 22031114, 38428528, 54438739, 31300835, 11735683, 64433370, 60589114, 99641636, 76404246, 63249860, 53885845, 11459935, 10866339, 28665977, 85378357, 20730314, 54747850, 35369175, 80381443, 75108215, 27845484, 88480851, 88869525, 97779085, 87433123, 47820043, 30924110, 19541830, 13611664, 91726323, 40436189, 76529728, 61510199, 55802727, 51413505, 80876909, 56875599, 33484555, 95684681, 82409850, 17629235, 21195855, 31645930, 35336321, 24600932, 92287561, 98020917, 24661211, 71793140};
+    
+    int seeds[] = {34524213, 20352886, 34249627, 14446993, 65856844, 53218983, 91452731, 43166694, 49914920, 31614602, 44212106, 25700068, 96021096, 41595547, 15145361, 62858278, 75686948, 53370524, 60801159, 93036634, 43643350, 33430677, 51191362, 77677374, 44637994, 96225431, 96728247, 26547561, 42091549, 83904190, 32853682, 56714475, 81442185, 29800713, 83391389, 43932158, 12623570, 17745005, 74524621, 66262234, 80812897, 10189375, 16531916, 36957792, 71300019, 56307328, 16252366, 82968870, 99110762, 23132988, 69426597, 37741864, 82809021, 98537769, 92938416, 85932695, 51181738, 31200502, 78750371, 28980280, 75360893, 27244884, 32760885, 80625563, 57361102, 27955980, 32744304, 30885032, 61644289, 57661732, 32720338, 37280444, 89902840, 28700790, 69382092, 28159346, 47042328, 71604793, 75675316, 56526843, 18983850, 43732077, 25705325, 23544410, 31358496, 15786650, 22945185, 34406691, 34119962, 16242964, 28112522, 97309216, 97766249, 33025954, 11191676, 69854703, 10436926, 33965628, 94552710, 71524683};
     assert(_wsize <= (int) (sizeof(seeds)/sizeof(int)) && "ASSERT: more seeds should be added\n");
 
     double MU = m_CH4 * m_CO2 / (m_CH4 + m_CO2); 
@@ -104,47 +104,42 @@ int main(int argc, char *argv[])
     params.initialM2_npoints                = 20000000;
     params.pesmin                           = -342.934 / HTOCM;
    
-    params.num_satellite_temperatures = 11;
+    params.num_satellite_temperatures = 6;
     params.satellite_temperatures = (double*) malloc(params.num_satellite_temperatures * sizeof(double));
-    params.satellite_temperatures[0]  = 300.0;
-    params.satellite_temperatures[1]  = 290.0;
-    params.satellite_temperatures[2]  = 280.0;
-    params.satellite_temperatures[3]  = 270.0;
-    params.satellite_temperatures[4]  = 260.0;
-    params.satellite_temperatures[5]  = 250.0;
-    params.satellite_temperatures[6]  = 240.0;
-    params.satellite_temperatures[7]  = 230.0;
-    params.satellite_temperatures[8]  = 220.0;
-    params.satellite_temperatures[9]  = 210.0;
-    params.satellite_temperatures[10] = 200.0;
+    params.satellite_temperatures[0]  = 200.0;
+    params.satellite_temperatures[1]  = 190.0;
+    params.satellite_temperatures[2]  = 180.0;
+    params.satellite_temperatures[3]  = 170.0;
+    params.satellite_temperatures[4]  = 160.0;
+    params.satellite_temperatures[5]  = 150.0;
     
     params.partial_partition_function_ratios = (double*) malloc(params.num_satellite_temperatures * sizeof(double)); 
-    params.partial_partition_function_ratios[0]  = 2.69423e+05; // 300 K
-    params.partial_partition_function_ratios[1]  = 2.69477e+05; // 290 K
-    params.partial_partition_function_ratios[2]  = 2.69618e+05; // 280 K
-    params.partial_partition_function_ratios[3]  = 2.69842e+05; // 270 K
-    params.partial_partition_function_ratios[4]  = 2.69944e+05; // 260 K
-    params.partial_partition_function_ratios[5]  = 2.70007e+05; // 250 K
-    params.partial_partition_function_ratios[6]  = 2.70329e+05; // 240 K
-    params.partial_partition_function_ratios[7]  = 2.70396e+05; // 230 K
-    params.partial_partition_function_ratios[8]  = 2.70735e+05; // 220 K
-    params.partial_partition_function_ratios[9]  = 2.70820e+05; // 210 K
-    params.partial_partition_function_ratios[10] = 2.71273e+05; // 200 K
+    //params.partial_partition_function_ratios[0]  = 2.69423e+05; // 300 K
+    //params.partial_partition_function_ratios[1]  = 2.69477e+05; // 290 K
+    //params.partial_partition_function_ratios[2]  = 2.69618e+05; // 280 K
+    //params.partial_partition_function_ratios[3]  = 2.69842e+05; // 270 K
+    //params.partial_partition_function_ratios[4]  = 2.69944e+05; // 260 K
+    //params.partial_partition_function_ratios[5]  = 2.70007e+05; // 250 K
+    //params.partial_partition_function_ratios[6]  = 2.70329e+05; // 240 K
+    //params.partial_partition_function_ratios[7]  = 2.70396e+05; // 230 K
+    //params.partial_partition_function_ratios[8]  = 2.70735e+05; // 220 K
+    //params.partial_partition_function_ratios[9]  = 2.70820e+05; // 210 K
+    params.partial_partition_function_ratios[0] = 2.71273e+05; // 200 K
+    params.partial_partition_function_ratios[1] = 2.71470e+05; // 190 K
+    params.partial_partition_function_ratios[2] = 2.71938e+05; // 180 K
+    params.partial_partition_function_ratios[3] = 2.72278e+05; // 170 K
+    params.partial_partition_function_ratios[4] = 2.72837e+05; // 160 K
+    params.partial_partition_function_ratios[5] = 2.73606e+05; // 150 K
     
     params.cf_filenames = (const char **) malloc(params.num_satellite_temperatures * sizeof(char *));
-    params.cf_filenames[0]  = "./CF-CH4-CO2-F-300.0.txt";
-    params.cf_filenames[1]  = "./CF-CH4-CO2-F-290.0.txt";
-    params.cf_filenames[2]  = "./CF-CH4-CO2-F-280.0.txt";
-    params.cf_filenames[3]  = "./CF-CH4-CO2-F-270.0.txt";
-    params.cf_filenames[4]  = "./CF-CH4-CO2-F-260.0.txt";
-    params.cf_filenames[5]  = "./CF-CH4-CO2-F-250.0.txt";
-    params.cf_filenames[6]  = "./CF-CH4-CO2-F-240.0.txt";
-    params.cf_filenames[7]  = "./CF-CH4-CO2-F-230.0.txt";
-    params.cf_filenames[8]  = "./CF-CH4-CO2-F-220.0.txt";
-    params.cf_filenames[9]  = "./CF-CH4-CO2-F-210.0.txt";
-    params.cf_filenames[10] = "./CF-CH4-CO2-F-200.0.txt";
+    params.cf_filenames[0]  = "./CF-CH4-CO2-F-200.0.txt";
+    params.cf_filenames[1]  = "./CF-CH4-CO2-F-190.0.txt";
+    params.cf_filenames[2]  = "./CF-CH4-CO2-F-180.0.txt";
+    params.cf_filenames[3]  = "./CF-CH4-CO2-F-170.0.txt";
+    params.cf_filenames[4]  = "./CF-CH4-CO2-F-160.0.txt";
+    params.cf_filenames[5]  = "./CF-CH4-CO2-F-150.0.txt";
 
-    double base_temperature = 300.0;
+    double base_temperature = 200.0;
     CFncArray ca = calculate_correlation_array_and_save(&ms, &params, base_temperature);
 
     free(params.cf_filenames);
