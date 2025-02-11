@@ -1571,7 +1571,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         prev_value = curr_value;
         curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
 
-        if (curr_value > 1e100) {
+        if (abs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
             printf("The initial phase-point for broken trajectory in the forward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
@@ -1644,7 +1644,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         prev_value = curr_value;
         curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
         
-        if (curr_value > 1e100) {
+        if (abs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
             printf("The initial phase-point for broken trajectory in the backward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
