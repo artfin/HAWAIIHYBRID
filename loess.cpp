@@ -65,7 +65,12 @@ int omp_get_num_threads() { return 1; }
 int omp_get_thread_num() { return 1; }
 #endif // _OPENMP
 
-void loess_init(double *x, double *y, size_t ilen) 
+void loess_init(double *x, double *y, size_t ilen)
+/*
+ * This function prepares the input data for LOESS by storing the predictor 'x' and response 'y' values,
+ * and setting up the necessary values for subsequent LOESS calculations. The function assumes that
+ * the input arrays `x` and `y` are of equal length and contain valid numerical data. 
+ */
 {
     xp = (double*) malloc(ilen * sizeof(double));
     yp = (double*) malloc(ilen * sizeof(double));
@@ -287,7 +292,7 @@ double loess_estimate(double x, size_t window_size, size_t degree)
             beta = (XtW * X).ldlt().solve(XtW * Y); 
             break;
         }
-        case LS_QR: {
+        case LS_QR_NO_PIVOTING: {
             // Option 3: QR decomposition // 11.51m
             beta = (XtW * X).householderQr().solve(XtW * Y);
             break;

@@ -71,15 +71,27 @@ typedef struct {
 
 extern bool loess_debug;
 
+/*
+ * This enum defines the types of weight functions available for assigning weights to data points. 
+ * The choice of weight function determines how influence is assigned to observations based on their 
+ * proximity to the central point at which smoothing is performed. 
+ */
 typedef enum {
-    WEIGHT_TRICUBE,
-    WEIGHT_BISQUARE,
+    WEIGHT_TRICUBE, // defined as $(1 - |x|^3)^3$ for $|x| < 1$ 
+    WEIGHT_BISQUARE, // defined as $(1 - |x|^2)^2$ for $|x| < 1$ 
 } WEIGHT_FUNC;
 
+/*
+ * Enumeration of numerical methods for solving linear least squares problem:
+ *   (X^T W X) beta = X^T W Y 
+ */ 
 typedef enum {
+    // Uses complete orthogonal decomposition to compute the pseudo-inverse of the matrix (X^T W X) 
     LS_COMPLETE_ORTHOGONAL_DECOMPOSITION,
+    // fastest out of variants of QR decompositions, but maybe unstable if the matrix is not rull rank 
+    LS_QR_NO_PIVOTING,
+    // is usually the fastest. However, if the matrix is even mildly ill-conditioned, this is not a good method. It loses roughly twice as many digits of accuracy using the normal equation, compared to the more stable methods mentioned above. 
     LS_CHOLESKY_SOLVER,
-    LS_QR, 
 } LS_METHOD; 
 
 typedef struct {
@@ -87,7 +99,7 @@ typedef struct {
     size_t ws_min;   // minimum window size 
     double ws_step;  // window size step
     size_t ws_delay; // optional: the index at which the window is starting to increase
-    size_t ws_cap;   // optional: cap on window size 
+    size_t ws_cap;   // optional: cap on window size [not found useful in most cases] 
 } Smoothing_Config;
 
 extern WEIGHT_FUNC loess_weight;
@@ -96,7 +108,6 @@ void loess_init(double *x, double *y, size_t len);
 double loess_estimate(double x, size_t window_size, size_t degree);
 double *loess_create_grid(double xmin, double xmax, size_t npoints);
 double *loess_apply_smoothing(Smoothing_Config *config);
-// double *apply_smoothing(size_t degree, double xmin, double xmax, size_t npoints, size_t wsmin, double wsstep, size_t wsdelay);
 void loess_free();
 
 #endif // LOESS_H_
