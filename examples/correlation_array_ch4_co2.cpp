@@ -114,6 +114,16 @@ int main(int argc, char *argv[])
     params.satellite_temperatures[5]  = 150.0;
     
     params.partial_partition_function_ratios = (double*) malloc(params.num_satellite_temperatures * sizeof(double)); 
+    //params.partial_partition_function_ratios[0]  =  2.68736e+05; // 400 K
+    //params.partial_partition_function_ratios[1]  =  2.68695e+05; // 390 K
+    //params.partial_partition_function_ratios[2]  =  2.68634e+05; // 380 K
+    //params.partial_partition_function_ratios[3]  =  2.68936e+05; // 370 K
+    //params.partial_partition_function_ratios[4]  =  2.68990e+05; // 360 K
+    //params.partial_partition_function_ratios[5]  =  2.69024e+05; // 350 K
+    //params.partial_partition_function_ratios[6]  =  2.69049e+05; // 340 K
+    //params.partial_partition_function_ratios[7]  =  2.69026e+05; // 330 K
+    //params.partial_partition_function_ratios[8]  =  2.69329e+05; // 320 K
+    //params.partial_partition_function_ratios[9]  =  2.69332e+05; // 310 K
     //params.partial_partition_function_ratios[0]  = 2.69423e+05; // 300 K
     //params.partial_partition_function_ratios[1]  = 2.69477e+05; // 290 K
     //params.partial_partition_function_ratios[2]  = 2.69618e+05; // 280 K
@@ -130,7 +140,13 @@ int main(int argc, char *argv[])
     params.partial_partition_function_ratios[3] = 2.72278e+05; // 170 K
     params.partial_partition_function_ratios[4] = 2.72837e+05; // 160 K
     params.partial_partition_function_ratios[5] = 2.73606e+05; // 150 K
-    
+    params.partial_partition_function_ratios[6] = 2.74259e+05; // 140 K
+    params.partial_partition_function_ratios[7] = 2.75124e+05; // 130 K
+    params.partial_partition_function_ratios[8] = 2.76100e+05; // 120 K
+    params.partial_partition_function_ratios[9] = 2.77692e+05; // 110 K
+    params.partial_partition_function_ratios[10] = 2.79370e+05; // 100 K
+                                                            
+
     params.cf_filenames = (const char **) malloc(params.num_satellite_temperatures * sizeof(char *));
     params.cf_filenames[0]  = "./CF-CH4-CO2-F-200.0.txt";
     params.cf_filenames[1]  = "./CF-CH4-CO2-F-190.0.txt";
