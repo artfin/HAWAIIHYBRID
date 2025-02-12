@@ -76,6 +76,12 @@ typedef enum {
     WEIGHT_BISQUARE,
 } WEIGHT_FUNC;
 
+typedef enum {
+    LS_COMPLETE_ORTHOGONAL_DECOMPOSITION,
+    LS_CHOLESKY_SOLVER,
+    LS_QR, 
+} LS_METHOD; 
+
 typedef struct {
     size_t degree;   // degree of local polynomial [recommended: 2-3]
     size_t ws_min;   // minimum window size 

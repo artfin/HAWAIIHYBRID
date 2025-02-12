@@ -19,10 +19,12 @@ static double GRID_XSTEP = 0;
 
 bool loess_debug = false;
 WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
+LS_METHOD ls_method = LS_COMPLETE_ORTHOGONAL_DECOMPOSITION;
 
 #undef da_append
 #undef da_insert
 
+// @TODO: check if 'thread_local' is needed anywhere
 // @TODO: document individual functions and copy the docstrings to pdf
 // @TODO: test different weight functions 
 //
@@ -55,6 +57,13 @@ WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
         (da)->count++;                                                                               \
     } while(0)
 
+#define da_last(da) (da)->items[(da)->count - 1]
+
+
+#ifndef _OPENMP
+int omp_get_num_threads() { return 1; }
+int omp_get_thread_num() { return 1; }
+#endif // _OPENMP
 
 void loess_init(double *x, double *y, size_t ilen) 
 {
@@ -115,12 +124,43 @@ Window make_window(double* distances, size_t window_size)
         };
     }
 
+
+    size_t ind_lower = min_idx;
+    size_t ind_upper = (min_idx == len - 1) ? min_idx : min_idx + 1;
+    for (size_t window_count = 0; window_count < window_size; window_count++) {
+        if (ind_lower == 0) {
+            ind_upper++;
+        } else if (ind_upper == len - 1) {
+            ind_lower--;
+        } else if (distances[ind_lower - 1] < distances[ind_upper + 1]) {
+            ind_lower--;
+        } else {
+            ind_upper++;
+        }
+    }
+    
+    Window window{
+        .items    = (size_t*) malloc(window_size * sizeof(double)),
+        .count    = window_size,
+        .capacity = window_size,
+    };
+
+    for (size_t i = 0; i < window_size; ++i) {
+        window.items[i] = ind_lower + i; 
+    }
+
+    // @note:
+    // this seems to be an extremely dynamic way of accumulating the window
+    // maybe we can rewrite this thing to avoid considering elements one-by-one 
+    // and thus getting rid of constant appending/inserting?
+    /* 
     Window window{};
     da_append(&window, min_idx);
-    
+  
     while (window.count < window_size) {
         size_t ind_lower = window.items[0]; // current lower boundary of the window
-        size_t ind_upper = window.items[window.count - 1]; // current upper boundary of the window
+        size_t ind_upper = da_last(&window); // current upper boundary of the window
+        printf("ind_lower: %zu, ind_upper: %zu\n", ind_lower, ind_upper);
 
         if (ind_lower == 0) {
             da_append(&window, ind_upper + 1);
@@ -132,7 +172,8 @@ Window make_window(double* distances, size_t window_size)
             da_append(&window, ind_upper + 1);
         }
     }
-    
+    */    
+        
     return window;
 }
 
@@ -152,7 +193,9 @@ double loess_estimate(double x, size_t window_size, size_t degree)
     for (size_t i = 0; i < len; ++i) {
         distances[i] = fabs(xp[i] - nx);
     }
-    
+
+    // @note: 
+    // the indices of the window are expected to be in the increasing order    
     Window window = make_window(distances, window_size);
     if (loess_debug) {
         printf("DEBUG: window: ");
@@ -161,7 +204,6 @@ double loess_estimate(double x, size_t window_size, size_t degree)
         }
         printf("\n");
     }
-
 
     double max_distance = FLT_MIN;
     for (size_t i = 0; i < window.count; ++i) {
@@ -189,7 +231,9 @@ double loess_estimate(double x, size_t window_size, size_t degree)
 
     if (loess_debug) printf("\n");
 
-   
+    // the weighted linear regression problem is formulated as
+    // (X^T W X) beta = X^T W y
+    
     Eigen::MatrixXd X = Eigen::MatrixXd::Zero(window.count, degree+1);
 
     if (loess_debug) printf("DEBUG: xm:\n");
@@ -221,13 +265,35 @@ double loess_estimate(double x, size_t window_size, size_t degree)
         Y(i) = yp[window.items[i]];
     }
 
+    // discussion of approaches to solve linear squares systems in Eigen:
+    // https://eigen.tuxfamily.org/dox/group__LeastSquares.html 
     //
     // beta = (X^T W X)^(-1) X^T W Y 
     // 
-    // note: this is hard to reproduce in GSL so I refused the idea to move this code completely to C
+    // @note: this is hard to reproduce in GSL so I refused the idea to move this code completely to C
     // and, more importantly, Eigen is more optimised so it does not make much sense to switching back
     // to GSL/BLAS  
-    Eigen::VectorXd beta = (XtW * X).completeOrthogonalDecomposition().pseudoInverse() * XtW * Y;
+    Eigen::VectorXd beta;
+    switch (ls_method) {
+        case LS_COMPLETE_ORTHOGONAL_DECOMPOSITION: {
+            // Option 1: Complete orthogonal decomposition 
+            // @timing: CH4-CO2, 300K, 11.40m -> 10.30m 
+            beta = (XtW * X).completeOrthogonalDecomposition().pseudoInverse() * XtW * Y;
+            break; 
+        }
+        case LS_CHOLESKY_SOLVER: {
+            // Option 2: normal equations
+            // this thing produces more or less the same result with approximately the same speed
+            beta = (XtW * X).ldlt().solve(XtW * Y); 
+            break;
+        }
+        case LS_QR: {
+            // Option 3: QR decomposition // 11.51m
+            beta = (XtW * X).householderQr().solve(XtW * Y);
+            break;
+        } 
+    } 
+
     if (loess_debug) {
         printf("DEBUG: beta: ");
         for (size_t i = 0; i < degree+1; ++i) {
@@ -250,7 +316,7 @@ double loess_estimate(double x, size_t window_size, size_t degree)
     
     free(distances);
     free(window.items);
-
+    
     return y;
 }
 
