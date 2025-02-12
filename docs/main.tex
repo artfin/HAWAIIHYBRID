@@ -2,9 +2,13 @@
 
 \usepackage{amsmath}
 \usepackage{graphicx} % Required for inserting images
-\usepackage{xcolor}
+\usepackage[dvipsnames]{xcolor}
 \usepackage{hyperref}
 \usepackage{xfrac}
+\usepackage{booktabs}
+\usepackage{rotating}
+
+\usepackage{amssymb}
 
 % longtable environment can be broken down by page break
 \usepackage{longtable} 
@@ -46,6 +50,74 @@
 \item Calculate static phase-space averages using rejection sampling and adaptive Monte Carlo algorithms to estimate zeroth and second spectral moments.
 \item Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
 \end{enumerate}
+
+\section{Examples}
+\label{sec:serial-examples}
+
+\begin{table}[!ht]
+  \centering
+  \begin{tabular}{ccccc}
+    \toprule
+              & \rotatebox{70}{trajectory} & \rotatebox{70}{phase-space moments} & \rotatebox{70}{single correlation function} & \rotatebox{70}{array of correlation functions} \\
+    \midrule
+    CO$_2-$Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
+    H$_2-$Ar & {\color{red}$\times$} &  {\color{red}$\times$}  &  {\color{red}$\times$} &  {\color{red}$\times$}  \\  
+    CH$_4-$CO$_2$ & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Propagating trajectory for CO$_2-$Ar}
+\label{subsec:example-trajectory}
+
+As an initial illustration of the use of \libname package, we give a sample program called \texttt{trajectory\_co2\_ar.cpp} to propagate a trajectory of collisional dynamics of CO$_2-$Ar system. The problem consists of solving the following Hamilton dynamical equations:
+
+\begin{align*}
+    \dot{R} &= \frac{p_R}{m}, \\
+    \dot{p}_R &= \frac{p_\Theta^2}{m R^3} + \frac{p_\Phi^2}{m R^3 \sin^2 \Theta} - \frac{\partial U}{\partial R}, \\
+    \dot{\Phi} &= \frac{p_\Phi}{m R^2 \sin^2 \Theta}, \\
+    \dot{p}_\Phi &= -\frac{\partial U}{\partial \Phi}, \\
+    \dot{\Theta} &= \frac{p_\Theta}{m R^2}, \\
+    \dot{p}_\Theta &= \frac{p_\Phi^2 \cos \Theta}{m R^2 \sin^3 \Theta} - \frac{\partial U}{\partial \Theta}, \\
+    \dot{\varphi}_1 &= \frac{\displaystyle p_1^{\varphi}}{I_1 \sin^2 \vartheta_1}, \\
+    \dot{p}_1^{\varphi} &= -\frac{\partial U}{\partial \varphi_1}, \\
+    \dot{\vartheta}_1 &= \frac{p_1^\vartheta}{I_1}, \\ 
+    \dot{p}_1^{\theta} &= \frac{\displaystyle \lb p_1^\varphi \rb^2 \cos \theta_1}{I_1 \sin^3 \theta_1} - \frac{\partial U}{\partial \theta_1}.
+\end{align*}
+%
+The \texttt{hawaii.h} header files provides definition of the struct \texttt{MoleculeSystem} that is used to evaluate the right-hand side of the dynamical equations. The \texttt{trajectory.h} header provides struct \texttt{Trajectory} that provides interface with \texttt{CVode} library that performs the integration of dynamical equations (see Section~\ref{subsec:cvode}).
+Next, we provide implementations for functions that calculate potential energy \texttt{pes} and its derivatives with respect to coordinates \texttt{dpes}. Each user program that instantiates the \texttt{MoleculeSystem} is expected to implement these functions. To implement these functions \texttt{hawaii} provides functions to transform angles between different reference frames (see Section~\ref{subsec:angle-transformation}).      
+
+
+\subsection{Propagating trajectory for H$_2-$Ar while requantizing the angular momentum of H$_2$}
+\label{subsec:example-req-trajectory}
+
+
+\subsection{Processing correlation function for CO$_2-$Ar}
+\label{subsec:example-processing}
+
+
+\subsection{Calculating the zeroth and second spectral moments of CO$_2-$Ar as phase-space averages using rejection-based sampler}
+\label{subsec:example-spmoments-co2-ar}
+
+This example demonstrates how to use interface with \texttt{hep} to calculate spectral moments. 
+First, the zeroth moment over unbound states is calculated as follows:
+\begin{gather}
+    M_0 = \frac{(2 \pi)^4 N_L^2}{3 (Q/V) h} \frac{1}{4 \pi \epsilon_0} \frac{1}{2 \pi c} \int\limits_{\Omega: H > 0} \mu^2 \exp \lb -\frac{H}{kT} \rb \diff{\mf{q}} \diff{\mf{p}}. \notag
+\end{gather}
+%
+The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the partition can be calculated using \texttt{analytic\_full\_partition\_function\_by\_V}.    
+
+
+\subsection{Calculating a single correlation function for CO$_2-$Ar}
+\label{subsec:example-correlation-co2-ar}
+
+\subsection{Calculating a spectral function using $p_r/\mu$-representation for CO$_2-$Ar}
+\label{subsec:example-prmu-co2-ar}
+
+\subsection{Calculating an array of correlation functions for CO$_2-$Ar}
+\label{subsec:example-correlation-array-co2-ar}
+
 
 \section{\libname code organization}
 \label{sec:code-organization}
@@ -130,7 +202,8 @@
            & \texttt{size\_t len} -- number of samples in \texttt{*t} and \texttt{*data} \\
            & \texttt{size\_t capacity} -- capacity of \texttt{*t} and \texttt{*data} \\
            & \texttt{size\_t ntraj} -- number of trajectories used for averaging \\
-           & \texttt{double Temperature} 
+           & \texttt{double Temperature} \\
+           & \texttt{bool normalized} -- flag that indicates whether the *data samples are normalized by \# of trajectories 
 \end{longtable}
 
 \noindent
@@ -144,14 +217,6 @@
            & \texttt{double Temperature}
 \end{longtable}
 
-\noindent
-\recttext{\texttt{struct Spectrum}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{double *nu} \\
-           & \texttt{double *data} \\
-           & \texttt{size\_t len} -- number of samples in \texttt{*nu} and \texttt{*data} \\
-           & \texttt{size\_t capacity} -- capacity of \texttt{*nu} and \texttt{*data} \\
-\end{longtable}
 
 \noindent
 \recttext{\texttt{struct CFncArray}} \vspace*{-0.25em}
@@ -262,7 +327,7 @@ Function \recttext{\texttt{p\_generator}} \vspace*{-0.25em}
     Call & \texttt{void p\_generator(*ms, T)} \\
     Arguments & \texttt{MoleculeSystem* ms} \\
               & \texttt{double T} \\
-    Description & Samples momenta $p$ from distribution $\rho \sim e^{-K/kT}$ at given temperature. Calls to \texttt{p\_generator\_linear\_molecule} and \texttt{p\_generator\_rotor} to sample momenta for monomers.
+    Description & Samples momenta $p$ from distribution $\rho \sim e^{-K/kT}$ at given temperature. Switches between \texttt{p\_generator\_linear\_molecule} and \texttt{p\_generator\_rotor} to sample momenta for monomers.
 \end{longtable} 
 
 \noindent
@@ -591,6 +656,24 @@ Function \recttext{\texttt{idct}} \vspace*{-0.25em}
     Description &
 \end{longtable}
 
+
+\noindent
+\recttext{\texttt{struct Spectrum}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{double *nu} \\
+           & \texttt{double *data} \\
+           & \texttt{size\_t len} -- number of samples in \texttt{*nu} and \texttt{*data} \\
+           & \texttt{size\_t capacity} -- capacity of \texttt{*nu} and \texttt{*data} \\
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{compute\_alpha}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{Spectrum compute\_alpha(sf);} \\
+    Arguments & \texttt{SFnc sf} \\
+    Description & \\
+\end{longtable}
+
 \noindent
 Function \recttext{\texttt{dct\_numeric\_sf}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
@@ -608,12 +691,160 @@ Function \recttext{\texttt{desymmetrize\_sch}} \vspace*{-0.25em}
     Description &
 \end{longtable}
 
+
+\subsection{\texttt{LOESS}: locally weighted polynomial regression}
+\label{subsec:loess}
+
+LOESS blends the simplicity of linear least squares regression
+with the adaptability of nonlinear regression. It achieves this by fitting simple
+model to localized subset of the data, gradually constructing a function that captures 
+the deterministic pattern of the variation in the data -- effectively filtering out 
+the random component that follows some probability distribution.
+
+\textbf{Degree of local polynomials}. The local polynomials fitted to each subset of the data are typically of either first
+or second degree. Employing a zero-degree polynomial reduces LOESS to a weighted moving 
+average. While higher-degree polynomials could theoretically be used, they are not aligned 
+with the spirit of LOESS. Such polynomials are prone to overfitting within each subset and 
+thus often lead to numerical instability. 
+
+\textbf{Weight function}. The weight function, gives the most weight to the data points nearest the point of estimation and the least weight to the data points that are furthest away.
+The use of the weights is based on the idea that points near each other are more likely to be related to each other in a simple way than points that are further apart.
+The traditional weight function used for LOESS is the tricube weight function:
+$w(x) = (1 - |x|^3)^3$ for $|x| < 1$ and 0 otherwise.
+The main criteria for the weight function are the following (Cleveland, 1979):
+\begin{itemize}
+ \item $w(x) > 0$ for $|x| < 1$ since negative weights do not make sense
+ \item $w(-x) = w(x)$: there is no reason to treat points to the left of $x$ differently from those to the right 
+ \item $w(x)$ is a nonincreasing function for $x \geqslant 0$: it seems unreasonable to allow a point that is closer to x to have less weight than the one that is further
+   away 
+  \item $w(x) = 0$ for $|x| \geqslant 1$
+\end{itemize}
+%
+In addition it seems desirable that $w(x)$ decrease smoothly to 0 as $x$ goes from 0
+to 1. Such a weight function is more likely to produce a smoothed result. The tricube has been chosen since it enhances a $\chi^2$-distributional approximation of an estimate of the error variance. So it should provide an adequate smooth in 
+many situations.
+The weight for a specific point in any localized subset of data is obtained by 
+evaluating the weight function at the distance between that point and the point 
+of estimation, after scaling the distance so that the maximum absolute distance 
+over all of the points in the subset of data is exactly one. 
+
+Let us consider the case of local second-degree polynomials:
+\begin{gather}
+    \hat{y} = \beta_0 + \beta_1 x + \beta_2 x^2 \notag
+\end{gather}
+%
+In this model, $\beta_0$, $\beta_1$, $\beta_2$ are coefficients needed to be estimated using the data pairs $(x_i, y_i)$ within a specified window. The predicted value $\hat{y}$ is derived from the this local polynomial model. 
+
+The matrix $X$ is built using the $x$-values within the window. Each row of $X$ corresponds to a separate $x$-value, while the columns represent the constant term ($\beta_0$), the linear term ($\beta_1$), and the quadratic term ($\beta_2$).
+\begin{gather}
+    X = \begin{bmatrix}
+        1 & x_1 & x_1^2 \\
+        1 & x_2 & x_2^2 \\
+        \dots & \dots & \dots \\
+        1 & x_n & x_n^2 
+    \end{bmatrix} \notag
+\end{gather}
+%
+In weighted regression, each observation is assigned a weight $w_i$. These weights are organized into a digonal weight matrix $W$, defined as:
+\begin{gather}
+    W = \begin{bmatrix}
+        w_1 & 0 & 0 & \dots \\
+        0 & w_2 & 0 & \dots \\
+        \dots & \dots & \dots & \dots \\
+        0 & 0 & 0 & w_n
+    \end{bmatrix} \notag
+\end{gather}
+%
+The normal equations for weighted regression problem are expressed as:
+\begin{gather}
+    (X^T W X) \beta = X^T W y \notag
+\end{gather}
+%
+To solve these equations we explore the following methods:
+\begin{itemize}
+    \item complete orthogonal decomposition of $X^T W X$ to compute its pseudo-inverse
+    \item QR decomposition of $X^T W X$ (no pivoting) to compute its pseudo-inverse
+    \item robust Cholesky decomposition-based solver
+\end{itemize}
+%
+For smoothing CH$_4-$CO$_2$ spectra we hit windows consisting 10,000 points in the tail. \par
+
+
 \noindent
-Function \recttext{\texttt{compute\_alpha}} \vspace*{-0.25em}
+\recttext{enum \texttt{WEIGHT\_FUNC}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{Spectrum compute\_alpha(sf);} \\
-    Arguments & \texttt{SFnc sf} \\
-    Description & \\
+    Values & \texttt{WEIGHT\_TRICUBE} -- defined as $(1 - |x|^3)^3$ for $|x| < 1$ \\
+           & \texttt{WEIGHT\_BISQUARE} -- defined as $(1 - |x|^2)^2$ for $|x| < 1$ \\
+    Description & Enumeration defines the types of weight functions available for assigning weights to data points. The choice of weight function determines how influence is assigned to observations based on their proximity to the central point at which smoothing is performed. 
+\end{longtable}
+
+\noindent
+\recttext{enum \texttt{LS\_METHOD}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Values & \texttt{LS\_COMPLETE\_ORTHOGONAL\_DECOMPOSITION} --     uses complete orthogonal decomposition to compute the pseudo-inverse of the matrix $(X^T W X)$ \\  
+           & \texttt{LS\_QR\_NO\_PIVOTING} -- fastest out of variants of QR decompositions, but maybe unstable if the matrix is not rull rank \\
+           & \texttt{LS\_CHOLESKY\_SOLVER} -- is usually the fastest. However, if the matrix is even mildly ill-conditioned, this is not a good method. It loses roughly twice as many digits of accuracy using the normal equation, compared to the more stable methods mentioned above. \\
+    Description & Enumeration of numerical methods for solving linear least squares problem: $(X^T W X) beta = X^T W Y$ 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{loess\_init}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void loess\_init(*x, *y, len);} \\
+    Arguments & \texttt{double *x} \\
+              & \texttt{double *y} \\
+              & \texttt{size\_t len} \\
+    Description &  This function prepares the input data for LOESS by storing the predictor 'x' and response 'y' values, and setting up the necessary values for subsequent LOESS calculations. The function assumes that the input arrays `x` and `y` are of equal length and contain valid numerical data. 
+\end{longtable}
+
+
+
+
+\noindent
+\recttext{\texttt{struct Smoothing\_Config}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{size\_t degree} -- degree of local polynomial [recommended: 2-3] \\
+           & \texttt{size\_t ws\_min} -- minimum window size \\
+           & \texttt{size\_t ws\_step} -- window size step \\
+           & \texttt{size\_t ws\_delay} -- optional: the index at which the window is starting to increase \\
+           & \texttt{size\_t ws\_cap} -- optional: cap on window size \\
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{loess\_estimate}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double loess\_estimate(x, window\_size, degree);} \\
+    Arguments & \texttt{double x} \\
+              & \texttt{size\_t window\_size} \\
+              & \texttt{size\_t degree} \\
+    Description & This function computes a local polynomial fit of provided degree within a specified window around the predictor value 'x' and uses it to estimate the response value 'y'. 
+\end{longtable}
+
+
+\noindent
+Function \recttext{\texttt{loess\_create\_grid}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double *loess\_create\_grid(xmin, xmax, npoints);} \\
+    Arguments & \texttt{double xmin} \\
+              & \texttt{double xmax} \\
+              & \texttt{size\_t npoints} \\
+    Description &  Generates a uniformly spaced grid of predictor values within a specified range. This function creates a grid of equally spaced 'grid\_npoints' points between `grid\_xmin` and `grid\_xmax` (inclusive). The function checks the validity of the provided grid bounds with respect to  the range of the previously provided input data for smoothing. \\
+\end{longtable}
+
+
+\noindent
+Function \recttext{\texttt{loess\_apply\_smoothing}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double* loess\_apply\_smoothing(*config);} \\
+    Arguments & \texttt{Smoothing\_Config *config} \\
+    Description & This function performs LOESS smoothing on the input data  by fitting local polynomials to subsets of the data and combining the results to produce a smoothed curve. The behavior of the smoothing process is controlled by the \texttt{Smoothing\_Config} struct, which specifies parameters such as the polynomial degree, window size, and parameters of window extension \\
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{loess\_free}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void loess\_free();} \\
+    Description & Releases the memory allocated for  smoothing. \\
 \end{longtable}
 
 \subsection{Interfacing with \texttt{CVode} library}
@@ -779,7 +1010,7 @@ Function \recttext{\texttt{linear\_molecule\_atom\_lab\_to\_mol}} \vspace*{-0.25
     Call & \texttt{void linear\_molecule\_atom\_lab\_to\_mol(*qlab, *qmol);} \\
     Arguments & \texttt{double *qlab} \\
               & \texttt{double *qmol} \\
-    Description &
+    Description & {\color{red} Put here a description from dissertation}
 \end{longtable}
 
 \noindent
@@ -789,7 +1020,7 @@ Function \recttext{\texttt{linear\_molecule\_atom\_Jacobi\_mol\_by\_lab}} \vspac
     Arguments & \texttt{Eigen::Ref<Eigen::MatrixXd> jac} \\
               & \texttt{double *qlab} \\
               & \texttt{double *qmol} \\
-    Description &
+    Description & {\color{red} Put here a description from dissertation}
 \end{longtable}
 
 \noindent
@@ -798,7 +1029,7 @@ Function \recttext{\texttt{CH4\_linear\_molecule\_lab\_to\_kal}} \vspace*{-0.25e
     Call & \texttt{void CH4\_linear\_molecule\_lab\_to\_kal(*qlab, *qkal);} \\
     Arguments & \texttt{double *qlab} \\
               & \texttt{double *qkal} \\
-    Description &
+    Description & {\color{red} Put here a description from dissertation}
 \end{longtable}
 
 \noindent
@@ -808,7 +1039,7 @@ Function \recttext{\texttt{CH4\_linear\_molecule\_Jacobi\_kal\_by\_lab}} \vspace
     Arguments & \texttt{Eigen::Ref<Eigen::MatrixXd> jac} \\
               & \texttt{double *qlab} \\
               & \texttt{double *qkal} \\
-    Description &
+    Description & {\color{red} Put here a description from dissertation}
 \end{longtable}
 
 \subsection{Utility structs \& functions}
@@ -992,60 +1223,6 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
 \end{enumerate}
 
 
-\section{Serial examples}
-\label{sec:serial-examples}
-
-\subsection{Propagating trajectory for CO$_2-$Ar}
-\label{subsec:example-trajectory}
-
-As an initial illustration of the use of \libname package, we give a sample program called \texttt{trajectory\_co2\_ar.cpp} to propagate a trajectory of collision between CO$_2$ and Ar. The problem consists of solving the following Hamilton dynamical equations:
-
-\begin{align*}
-    \dot{R} &= \frac{p_R}{m}, \\
-    \dot{p}_R &= \frac{p_\Theta^2}{m R^3} + \frac{p_\Phi^2}{m R^3 \sin^2 \Theta} - \frac{\partial U}{\partial R}, \\
-    \dot{\Phi} &= \frac{p_\Phi}{m R^2 \sin^2 \Theta}, \\
-    \dot{p}_\Phi &= -\frac{\partial U}{\partial \Phi}, \\
-    \dot{\Theta} &= \frac{p_\Theta}{m R^2}, \\
-    \dot{p}_\Theta &= \frac{p_\Phi^2 \cos \Theta}{m R^2 \sin^3 \Theta} - \frac{\partial U}{\partial \Theta}, \\
-    \dot{\varphi}_1 &= \frac{\displaystyle p_1^{\varphi}}{I_1 \sin^2 \vartheta_1}, \\
-    \dot{p}_1^{\varphi} &= -\frac{\partial U}{\partial \varphi_1}, \\
-    \dot{\vartheta}_1 &= \frac{p_1^\vartheta}{I_1}, \\ 
-    \dot{p}_1^{\theta} &= \frac{\displaystyle \lb p_1^\varphi \rb^2 \cos \theta_1}{I_1 \sin^3 \theta_1} - \frac{\partial U}{\partial \theta_1}.
-\end{align*}
-%
-The \texttt{hawaii.h} header files provides definition of the struct \texttt{MoleculeSystem} that is used to evaluate the right-hand side of the dynamical equations. The \texttt{trajectory.h} header provides struct \texttt{Trajectory} that provides interface with \texttt{CVode} library that performs the integration of dynamical equations (see Section~\ref{subsec:cvode}).
-Next, we provide implementations for functions that calculate potential energy \texttt{pes} and its derivatives with respect to coordinates \texttt{dpes}. Each user program that instantiates the \texttt{MoleculeSystem} is expected to implement these functions. To implement these functions \texttt{hawaii} provides functions to transform angles between different reference frames (see Section~\ref{subsec:angle-transformation}).      
-
-
-\subsection{Propagating trajectory for H$_2-$Ar while requantizing the angular momentum of H$_2$}
-\label{subsec:example-req-trajectory}
-
-
-\subsection{Processing correlation function for CO$_2-$Ar}
-\label{subsec:example-processing}
-
-\section{Parallel examples}
-\label{sec:parallel-examples}
-
-\subsection{Calculating the zeroth and second spectral moments of CO$_2-$Ar as phase-space averages using rejection-based sampler}
-\label{subsec:example-spmoments-co2-ar}
-
-This example demonstrates how to use interface with \texttt{hep} to calculate spectral moments. First, the zeroth moment over unbound states is calculated as follows:
-\begin{gather}
-    M_0 = \frac{(2 \pi)^4 N_L^2}{3 (Q/V) h} \frac{1}{4 \pi \epsilon_0} \frac{1}{2 \pi c} \int\limits_{\Omega: H > 0} \mu^2 \exp \lb -\frac{H}{kT} \rb \diff{\mf{q}} \diff{\mf{p}}. \notag
-\end{gather}
-%
-The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the partition can be calculated using \texttt{analytic\_full\_partition\_function\_by\_V}.    
-
-
-\subsection{Calculating a single correlation function for CO$_2-$Ar}
-\label{subsec:example-correlation-co2-ar}
-
-\subsection{Calculating a spectral function using $p_r/\mu$-representation for CO$_2-$Ar}
-\label{subsec:example-prmu-co2-ar}
-
-\subsection{Calculating an array of correlation functions for CO$_2-$Ar}
-\label{subsec:example-correlation-array-co2-ar}
 
 
 \section{Changelog}
@@ -1070,7 +1247,7 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
     \item [20.01.2025] Caught a possible (but really rare) overflow error in the implementation of Box-Mueller algorithm for sampling normally distributed variable: \texttt{generate\_normal}. 
     \item [20.01.2025] Estimate M$_0$ based on the spectral function obtained during each iteration of the pr-mu calculation
     \item [20.01.2025] Estimate M$_2$ using rejection sampling and using \texttt{hep}. Works for CO$_2-$Ar
-    \item [22.01.2025] Trying out calculating correlation function for CO$-$Ar. {\color{red} Why is the error in M$_2$ is 13\% for 20.000.000 points?} 
+    \item [22.01.2025] Trying out calculating correlation function for CO$-$Ar. Why is the error in M$_2$ is 13\% for 20.000.000 points? M$_0$ = $1.847 \cdot 10^{-4}$, M$_2$ = $4.148$. There was error in passing the arguments to dipole function (fixed). The correlation function "breaks" at some point during the calculation. Extremely large values (1e194) occur at approximately the same time intervals in the correlation function rendering it useless. Maybe it happens because of the PES, not because of IDS?  
     \item [25.01.2025] jacobian is working for CH$_4$-CO$_2$. \texttt{hawaii} is extended with function to compute numerical jacobian; analytical and numerical jacobians are in close agreement.
     \item [25.01.2025] fixed a bug in \texttt{extract\_q\_and\_write\_into\_ms} where coordinates for second monomer actually were overwriting the coordinates for the first monomer 
     \item [26.01.2025] adapted dipole function for CH$_4-$CO$_2$
@@ -1081,14 +1258,25 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
     \item [31.01.2025] Implementing \texttt{calculate\_correlation\_array\_and\_save} that employs individual trajectory reweighting to produce results at satellite temperatures: testing on CO$_2-$Ar in \texttt{examples/correlation\_array\_co2\_ar}
     \item [01.02.2025] During the correlation and pr-mu calculations for CO$_2-$Ar on cluster, the file with temporary result is not written (at least for several iterations at the end of which the file is supposed to be written). Turns out that if stream is flushed using \texttt{fflush} and filesystem caches for a given file descriptor are forced to be committed to disk using \texttt{syncfs} the problem is resolved.
     \item [01.02.2025] \texttt{calculate\_correlation\_array\_and\_save} produces spectral profiles for CO$_2-$Ar (unbound states) that are in close agreement with the results obtained in 2021. Ensemble of approximately 8 million trajectories was used. {\color{red} Need to check for bound states as well.}
+    \item [06.02.2025] CO-Ar 300K: $\text{M}_0 = 1.850 \cdot 10^{-4}$, $\text{M}_2 = 1.884$. 
+    \item [08.02.2025] the factor by ALU$^3$ is moved from \texttt{save\_correlation\_function} to \texttt{correlation\_eval}. {\color{red} correctness: check that after moving the factor ALU$^3$ here, the produced correlation functions are correct for both single-correlation function and correlation-array calculations}
+    \item [09.02.2025] added \texttt{normalized} flag to CFnc, changed reading/saving correlation function from/to file ({\color{red} not documented})
+    \item [09.02.2025] added parsing Temperature and ntraj from header of the file using regex and added averaging of correlation functions
+    \item [09.02.2025] rewrite of LOESS code to better understand what's going on there
+    \item [09.02.2025] loess: added OpenMP parallelization of the main loop
+    \item [11.02.2025] loess: refactored creating window \& added stubs for running outside OpenMP environment
+    \item [12.02.2025] added checking for energy conservation inside trajectory. {\color{red} maybe need to check this info in \texttt{correlation\_eval} and discard the outlying trajectories?}
+    \item [12.02.2025] implemented \texttt{average\_correlation\_functions} using vararg
 \end{enumerate}
 
 \section{Todo's}
 
 \begin{itemize}
     \item \texttt{mpi\_calculate\_M0}/\texttt{mpi\_calculate\_M2}: the temporary result is not accumulated over communicator, it is printed only for values accumulated only for zeroth process.
-    \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow.}
-    \item How to organize and store the calculated results (cfs and sfs) for examples?
+    \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow. Honestly, calculating zeroth moments for 10+ temperatures is also no joke. It should be possible to cache these values as well.}
+    \item add an option to parallelize [OpenMP] smoothing of correlation function 
+    \item How to organize and store the calculated results for examples? The results include CFs, SFs, spectra, spectral moments and partial partition functions.
+    \item We should store the results of individual iterations of \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. Maybe use SQL database for this?
     \item Arena Allocator for storing some temporary strings and small arrays. At the moment, there are waaaay too many mallocs/frees. 
     \item Saving the contributions of free and metastable states in correlation function separately. How can we pass in the information about the desired filenames? How to organize the storage for these contributions? 
     \item The information about the number of turning points could be saved into gsl\_histogram, and then partially displayed in the output file and saved to file system
@@ -1101,6 +1289,15 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
     \item How to organize Makefiles for use in different environments (several clusters)? If we push the changes to remote git repo on the remote machine, the local changes get overriden, thus removing the changes made to local Makefile. Annoying... 
     \item I would like to make a graphical shell in which it will be possible to set parameters for calculation (for example, in the form of a list with available options for each parameter). The program is given paths to files (or drag-and-dropped) with potential and dipole functions and it assembles an executable file. Here I make an assumption that it is better to have the potential to be statically compiled with the rest of the code rather than dynamically loading it from library. It would probably be nice to be able to run the trajectory program from graphical shell locally and display the calculation result. If the correlation function is calculated, then there is no need to add its processing within the same "stage". Let the correlation function be calculated separately, then the result should be loaded and converted into a spectrum. In the case of calculating the spectral function in the pr-mu representation, smoothing is also required, it is also carried out in a separate "stage". This would enable us to have a starting point for a graphical shell that can demonstrate some of the features of the library without overcomplicating from the very beginning. Later on, we could think about establishing TCP connection between shell and the main program running remotely enabling the user to setup the calculation with the desired parameters and monitor the calculation. 
 \end{itemize}
+
+\section{Notes}
+
+Usage of GNU profiler (gprof):
+\begin{enumerate}
+    \item Compile the program with the \texttt{-pg} flag: \texttt{g++ -pg -o test test.cpp}
+    \item Run the program: \texttt{./test}
+    \item Generate the profiling report: \texttt{gprof test gmon.out > analysis.txt}
+\end{enumerate}
 
 
 \end{document}
