@@ -270,12 +270,6 @@ int main()
             fprintf(stderr, "CVODE ERROR: status = %d\n", status);
             exit(1);
         }
-      
-        // 21.12.2024 NOTE: 
-        // We copy the "N_Vector y" from "Trajectory" into "MoleculeSystem" on each call of rhs.
-        // However after "rhs" has been called, CVode makes a step on dynamic variables. So we have 
-        // to update the phase-point in MoleculeSystem after "make_step" function has returned. 
-        put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
         
         double E = Hamiltonian(&ms);
 
@@ -285,10 +279,6 @@ int main()
         printf("%10.1lf \t %12.10lf \t %12.15lf %12.12lf\n", t, ms.intermolecular_qp[IR], E-E0, dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]);
 
         if (ms.intermolecular_qp[IR] > 30.0) break;
-
-        //if (assert_float_is_equal_to(E-E0, 0.0, 1e-8) > 0) {
-        //    exit(1); 
-        //}
     }
 
     free_trajectory(&traj);

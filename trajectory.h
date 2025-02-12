@@ -15,11 +15,12 @@
 #include <cvode/cvode_direct.h>
 #include <sundials/sundials_types.h>
 
-extern int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
 
 typedef struct
 {
@@ -30,7 +31,14 @@ typedef struct
     realtype reltol; 
     SUNMatrix A;
     SUNLinearSolver LS;
-    void * cvode_mem;
+    void *cvode_mem;
+    //  
+    MoleculeSystem* ms;
+    N_Vector ic; 
+    // -- energy conservation 
+    bool check_energy;
+    double E0;
+    double E_last;
 } Trajectory;
 
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 

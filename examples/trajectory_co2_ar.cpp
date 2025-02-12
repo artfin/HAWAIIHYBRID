@@ -112,7 +112,7 @@ void test_jac()
 
     double qlab[5] = {0.1, 0.2, 5.0, 0.3, 0.4};
 
-    size_t order = 4;
+    size_t order = 6;
     size_t ninput_coordinates = 5;
     size_t noutput_coordinates = 5;
     gsl_matrix* numerical_jac = compute_numerical_jac(linear_molecule_atom_lab_to_mol, qlab, ninput_coordinates, noutput_coordinates, order);
@@ -172,16 +172,16 @@ int main()
 
     Array qp = create_array(ms.QP_SIZE);
     double data[] = {
-        1.748408280024098e-01,
-        8.000086892719947e+00,
-        2.043243374007463e-01,
-        1.292311668112794e+01,
-        2.966821669009366e+01,
-       -9.786729452372973e-01,
-        1.462013919064840e+00,
-        1.199991310728005e+01,
-        1.700437238862704e+00,
-        3.160851788770303e+01,
+        1.748408280024098e-01, // PHI
+        8.000086892719947e+00, // PPHI
+        2.043243374007463e-01, // THETA
+        1.292311668112794e+01, // PTHETA
+        9.066821669009366e+00, // R
+       -0.186729452372973e-01, // PR
+        1.462013919064840e+00, // PHI1
+        0.199991310728005e+01, // PPHI1
+        1.700437238862704e+00, // THETA1
+        0.160851788770303e+01, // PTHETA1
     }; 
     
     init_array(&qp, data, ms.QP_SIZE);
@@ -212,20 +212,10 @@ int main()
             exit(1);
         }
       
-        // 21.12.2024 NOTE: 
-        // We copy the "N_Vector y" from "Trajectory" into "MoleculeSystem" on each call of rhs.
-        // However after "rhs" has been called, CVode makes a step on dynamic variables. So we have 
-        // to update the phase-point in MoleculeSystem after "make_step" function has returned. 
-        put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
-        
         double E = Hamiltonian(&ms);
         printf("%10.1lf \t %12.10lf \t %12.15lf\n", t, ms.intermolecular_qp[IR], E-E0);
 
         if (ms.intermolecular_qp[IR] > 40.0) break;
-
-        //if (assert_float_is_equal_to(E-E0, 0.0, 1e-8) > 0) {
-        //    exit(1); 
-        //}
     }
 
     free_trajectory(&traj);

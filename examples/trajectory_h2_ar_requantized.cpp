@@ -89,8 +89,6 @@ int main()
             fprintf(stderr, "CVODE ERROR: status = %d\n", status);
             exit(1);
         }
-        
-        put_qp_into_ms(&ms, (Array){.data = N_VGetArrayPointer(traj.y), .n = ms.QP_SIZE});
     
         double E = Hamiltonian(&ms);
         double j = j_monomer(ms.m1);

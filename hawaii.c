@@ -1554,7 +1554,6 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             break;
         }
 
-        put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
         extract_q_and_write_into_ms(ms);
         (*dipole)(ms->intermediate_q, dipt);
         
@@ -1571,7 +1570,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         prev_value = curr_value;
         curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
 
-        if (abs(curr_value) > 1e100) {
+        if (fabs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
             printf("The initial phase-point for broken trajectory in the forward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
@@ -1627,7 +1626,6 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             break;
         }
 
-        put_qp_into_ms(ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = ms->QP_SIZE});
         extract_q_and_write_into_ms(ms);
         (*dipole)(ms->intermediate_q, dipt);
         
@@ -1644,7 +1642,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         prev_value = curr_value;
         curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
         
-        if (abs(curr_value) > 1e100) {
+        if (fabs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
             printf("The initial phase-point for broken trajectory in the backward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
@@ -2319,10 +2317,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
                     break;
                 }
 
-                put_qp_into_ms(ms, (Array){
-                    .data = N_VGetArrayPointer(traj.y),
-                    .n    = ms->QP_SIZE,
-                });
                 extract_q_and_write_into_ms(ms);
                 (*dipole)(ms->intermediate_q, dipt);
 
