@@ -389,7 +389,8 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
-int average_correlation_functions(CFnc *cf1, CFnc *cf2, CFnc *average);
+#define average_correlation_functions(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
+int average_correlation_functions__impl(CFnc *average, int arg_count,  ...);
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
 

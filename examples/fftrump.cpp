@@ -8,27 +8,39 @@ bool write_averaged_cfs_for_CH4_CO2(double T)
 {
     CFnc cf1{};
     CFnc cf2{};
+    CFnc cf3{};
     CFnc average{};
     
     String_Builder filename = {};
     bool result = true;
 
-    {
-        sb_append_cstring(&filename, "MT_CH4_CO2/p1/CF-CH4-CO2-F-");
-        sb_append_format(&filename, "%.1f", T);
-        sb_append_cstring(&filename, ".txt");
-        if (!read_correlation_function(filename.items, NULL, &cf1)) {
-            printf("ERROR: could not read the file '%s'!\n", filename.items);
-            return_defer(false); 
-        }
+    //{
+    //    sb_append_cstring(&filename, "MT_CH4_CO2/p1/CF-CH4-CO2-F-");
+    //    sb_append_format(&filename, "%.1f", T);
+    //    sb_append_cstring(&filename, ".txt");
+    //    if (!read_correlation_function(filename.items, NULL, &cf1)) {
+    //        printf("ERROR: could not read the file '%s'!\n", filename.items);
+    //        return_defer(false); 
+    //    }
 
-        sb_reset(&filename); 
-    }
+    //    sb_reset(&filename); 
+    //}
+    //{ 
+    //    sb_append_cstring(&filename, "MT_CH4_CO2/p2/CF-CH4-CO2-F-");
+    //    sb_append_format(&filename, "%.1f", T);
+    //    sb_append_cstring(&filename, ".txt");
+    //    if (!read_correlation_function(filename.items, NULL, &cf2)) {
+    //        printf("ERROR: could not read the file '%s'!\n", filename.items);
+    //        return_defer(false); 
+    //    }
+    //    
+    //    sb_reset(&filename); 
+    //}
     { 
-        sb_append_cstring(&filename, "MT_CH4_CO2/p2/CF-CH4-CO2-F-");
+        sb_append_cstring(&filename, "MT_CH4_CO2/p3/CF-CH4-CO2-F-");
         sb_append_format(&filename, "%.1f", T);
         sb_append_cstring(&filename, ".txt");
-        if (!read_correlation_function(filename.items, NULL, &cf2)) {
+        if (!read_correlation_function(filename.items, NULL, &cf3)) {
             printf("ERROR: could not read the file '%s'!\n", filename.items);
             return_defer(false); 
         }
@@ -36,7 +48,8 @@ bool write_averaged_cfs_for_CH4_CO2(double T)
         sb_reset(&filename); 
     }
 
-    if (average_correlation_functions(&cf1, &cf2, &average) < 0) {
+    if (average_correlation_functions(&average, cf3) < 0) {
+        printf("ERROR: could not average functions\n");
         return_defer(false);
     }
     
@@ -126,14 +139,15 @@ bool process_cfs_for_CH4_CO2(double T)
         Smoothing_Config config = {
             .degree = 3, 
             .ws_min = 30,
-            .ws_step = 1.0, // 0.66 
-            .ws_delay = 100,
+            .ws_step = 1.0, 
+            .ws_delay = 100, 
             .ws_cap = 0,
         }; 
         
         loess_init(sf.nu, sf.data, sf.len);
         loess_weight = WEIGHT_TRICUBE; 
-        
+        //loess_debug = true;
+
         free(sf.nu);
         free(sf.data); 
         
@@ -146,7 +160,7 @@ bool process_cfs_for_CH4_CO2(double T)
     Spectrum spd3 = compute_alpha(desymmetrize_sch(sf)); 
     
     sb_reset(&filename); 
-    sb_append_cstring(&filename, "MT_CH4_CO2/free-final/SPD3-CH4-CO2-F-");
+    sb_append_cstring(&filename, "MT_CH4_CO2/free-final/test-SPD3-CH4-CO2-F-");
     sb_append_format(&filename, "%.1f", T);
     sb_append_cstring(&filename, ".txt");
     if (!writetxt(filename.items, spd3.nu, spd3.data, spd3.len, sb.items)) {
@@ -164,7 +178,6 @@ bool process_cfs_for_CH4_CO2(double T)
     return true;
 }
 
-/*
 void process_cf_for_CO_Ar()
 {
     String_Builder sb{};
@@ -191,9 +204,13 @@ void process_cf_for_CO_Ar()
 
     size_t EXT_RANGE_MIN = 8192; 
     WingParams wp = fit_baseline(&cf, EXT_RANGE_MIN);
+
     
     SFnc sf = dct_numeric_sf(cf, &wp);
     sf.Temperature = 300;
+    sf.ntraj = 1;   
+    FILE *fp = fopen("sf.txt", "w"); 
+    save_spectral_function(fp, sf, NULL);
 
     double M0 = compute_M0_from_sf(sf);
     double M2 = compute_M2_from_sf(sf);
@@ -202,14 +219,15 @@ void process_cf_for_CO_Ar()
     printf("M2 from raw SF: %.6e\n", M2);
     printf("-------------------------------------\n");
 
-    Spectrum spraw = compute_alpha(desymmetrize_sch(sf));
+    //Spectrum spraw = compute_alpha(desymmetrize_sch(sf));
+    Spectrum spraw = compute_alpha(sf);
     spraw.len = 20000;
 
-    filename = "CO-Ar/SPD3-CO-Ar-F-300-raw.txt";
+    filename = "CO-Ar/SP-CO-Ar-F-300-raw.txt";
     if (!writetxt(filename, spraw.nu, spraw.data, spraw.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
-
+    /*
     LOESS loess(sf.nu, sf.data, sf.len);
     double dnu = sf.nu[1] - sf.nu[0];
 
@@ -232,14 +250,13 @@ void process_cf_for_CO_Ar()
     if (!writetxt(filename, spd3.nu, spd3.data, spd3.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
-
     free_cfnc(cf);
     free_sfnc(sf);
     free_spectrum(spd3);
         
     sb_free(&sb);
+    */
 }
-*/
 
 /*
 void process_correlation_function() 
@@ -321,7 +338,6 @@ void process_correlation_function()
     free_spectrum(spd3);
     sb_free(&sb);
 }
-*/
 
 void process_spectral_function()
 {
@@ -356,12 +372,13 @@ void process_spectral_function()
     free_spectrum(spd3);
     sb_free(&sb);
 }
+*/
 
 int main()
 {
     {
         size_t ntemps = 1;
-        double Temps[ntemps] = {200.0}; // , 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0};
+        double Temps[ntemps] = {190.0};
 
         for (size_t i = 0; i < ntemps; ++i) {
             double T = Temps[i];
@@ -371,7 +388,6 @@ int main()
             }
         }
     }
-    
     // process_cf_for_CO_Ar();
 
     //process_correlation_function();

@@ -2771,6 +2771,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
     cf->data = (double*) malloc(INIT_CAPACITY * sizeof(double));
     cf->len = 0;
     cf->capacity = INIT_CAPACITY;
+    cf->normalized = true;
 
     size_t lineno = header_lines + 1;
     double vt, vc;
@@ -2809,56 +2810,82 @@ defer:
     return result;
 }
 
-int average_correlation_functions(CFnc *cf1, CFnc *cf2, CFnc *average)
+int average_correlation_functions__impl(CFnc *average, int arg_count,  ...)
 {
-    if (cf1->ntraj <= 0) {
-        printf("ERROR: # of trajectories for correlation function 'cf1' is invalid: %lf\n", cf1->ntraj);
-        return -1; 
-    } 
+    va_list args;
+    va_start(args, arg_count);
 
-    if (cf2->ntraj <= 0) {
-        printf("ERROR: # of trajectories for correlatin function 'cf2' is invalid: %lf\n", cf2->ntraj);
-        return -1; 
-    }
+    printf("INFO: averaging %d correlation functions...\n", arg_count);
 
-    if (cf1->len != cf2->len) {
-        printf("ERROR: expected correlation function 'cf1' and 'cf2' to be of equal length, however cf1.len = %zu and cf2.len = %zu\n", cf1->len, cf2->len);
-        return -1;
-    }
-
-    if (fabs(cf1->Temperature - cf2->Temperature) > 1e-10) {
-        printf("ERROR: it does not make much sense to average correlation functions with mismatching temperatures...\n");
-        printf("Got cf1.Temperature = %.2e and cf2.Temperature = %.2e\n", cf1->Temperature, cf2->Temperature);
-        return -1;
-    }
-
-    assert(cf1->len > 1);
-    double dt1 = cf1->t[1] - cf1->t[0];
-    double dt2 = cf2->t[1] - cf2->t[0];
-    if (fabs(dt1 - dt2) > 1e-10) {
-        printf("ERROR: expected the time step for correlation functions 'cf1' and 'cf2' to coincide, however timestep(1) = %.3e and timestep(2) = %.3e\n",
-                dt1, dt2);
-        return -1;
-    }
-
-    if (average->len != cf1->len) {
-        average->t        = (double*) realloc(average->t, cf1->len * sizeof(double));
-        average->data     = (double*) realloc(average->data, cf1->len * sizeof(double));
-        average->len      = cf1->len;
-        average->capacity = cf1->len;
-    }
+    for (int i = 0; i < arg_count; ++i) {
+        CFnc cf = va_arg(args, CFnc);
         
-    memcpy(average->t, cf1->t, cf1->len * sizeof(double));
-    average->ntraj = cf1->ntraj + cf2->ntraj;
-    average->Temperature = cf1->Temperature;
+        if (cf.ntraj <= 0) {
+            printf("ERROR: # of trajectories for correlation function is invalid: %lf\n", cf.ntraj);
+            return -1; 
+        } 
+    
+        if (i == 0) {
+            assert(cf.len > 1);
+            assert((cf.t[1] - cf.t[0]) > 0.0);
+            assert(cf.normalized == true); // @todo: this case can be handled separately
 
-    for (size_t i = 0; i< average->len; i++) {
-        average->data[i] = (cf1->ntraj*cf1->data[i] + cf2->ntraj*cf2->data[i]) / average->ntraj;
+            if (average->len < cf.len) {
+                average->t        = (double*) realloc(average->t, cf.len * sizeof(double));
+                average->data     = (double*) realloc(average->data, cf.len * sizeof(double));
+                average->len      = cf.len;
+                average->capacity = cf.len;
+            }
+
+            memset(average->t,    0.0, average->len * sizeof(double));
+            memset(average->data, 0.0, average->len * sizeof(double));
+
+            memcpy(average->t, cf.t, cf.len * sizeof(double));
+            for (size_t i = 0; i < cf.len; ++i) {
+                average->data[i] += cf.ntraj * cf.data[i]; 
+            }
+
+            average->ntraj = cf.ntraj;
+            average->len = cf.len;
+            average->Temperature = cf.Temperature;
+        } else {
+            if (cf.len != average->len) {
+                printf("ERROR: expected correlation functions to be of equal length, however cf.len = %zu and expected len = %zu\n", cf.len, average->len);
+                return -1;
+            }
+        
+            if (fabs(cf.Temperature - average->Temperature) > 1e-10) {
+                printf("ERROR: it does not make much sense to average correlation functions with mismatching temperatures...\n");
+                printf("Got cf.Temperature = %.2e and expected Temperature = %.2e\n", cf.Temperature, average->Temperature);
+                return -1;
+            }
+            
+            assert(cf.len > 1); 
+            double curr_dt = cf.t[1] - cf.t[0]; 
+            double average_dt = average->t[1] - average->t[0];
+            if (fabs(average_dt - curr_dt) > 1e-12) {
+                printf("ERROR: expected the time step for correlation functions to coincide, however timestep(1) = %.3e and expected timestep = %.3e\n",
+                        curr_dt, average_dt);
+                return -1;
+            }
+    
+            for (size_t i = 0; i < cf.len; ++i) {
+                average->data[i] += cf.ntraj * cf.data[i];
+            }
+
+            average->ntraj += cf.ntraj;
+        }
     }
 
+    for (size_t i = 0; i < average->len; ++i) {
+        average->data[i] /= average->ntraj;
+    }
+    
     // to indicate to 'save_correlation_function' that correlation function data are already
     // normalized by the appropriate number of trajectories
     average->normalized = true;
+
+    va_end(args);
 
     return 0;
 }
