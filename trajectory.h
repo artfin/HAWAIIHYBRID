@@ -36,7 +36,7 @@ typedef struct
     MoleculeSystem* ms;
     N_Vector ic; 
     // -- energy conservation 
-    bool check_energy;
+    bool check_energy_conservation;
     double E0;
     double E_last;
 } Trajectory;

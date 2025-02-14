@@ -24,9 +24,7 @@ Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
     memcpy(N_VGetArrayPointer(traj.y), qp.data, ms->QP_SIZE * sizeof(double));
     free_array(&qp);
 
-    // just in case save the energy at the point stored in 'MoleculeSystem'    
-    traj.check_energy = true;
-    traj.E0 = Hamiltonian(ms);
+    traj.check_energy_conservation = true;
 
     traj.ic = make_vector(ms->QP_SIZE);
     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
@@ -94,7 +92,7 @@ int make_step(Trajectory *traj, double tout, double *t)
     // need to update the phase-point in MoleculeSystem once CVode function completes  
     put_qp_into_ms(traj->ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = traj->ms->QP_SIZE});
   
-    if (traj->check_energy) {
+    if (traj->check_energy_conservation) {
         traj->E_last = Hamiltonian(traj->ms);
 
         double abserr = fabs(traj->E_last - traj->E0);
