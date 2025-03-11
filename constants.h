@@ -35,6 +35,7 @@
 #define m_N  (14.003074004460 * RAMTOAMU)
 #define m_O  (15.994914619598 * RAMTOAMU)
 #define m_Ar (39.9623831237 * RAMTOAMU)
+#define m_He (4.00260325413 * RAMTOAMU)
 
 #define m_H2 (2.0 * m_H)
 #define m_CO (m_C + m_O)

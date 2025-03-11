@@ -120,7 +120,7 @@ double integrand_pf(hep::mc_point<double> const& x)
     put_qp_into_ms(gms, (Array) {.data = qp, .n = gms->QP_SIZE});
     
     double R = qp[IR];
-    if (R < gparams->sampler_Rmin || R > gparams->sampler_Rmax) {
+    if ((R < gparams->sampler_Rmin) || (R > gparams->sampler_Rmax)) {
         return 0.0;
     }
     

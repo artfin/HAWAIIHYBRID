@@ -8,8 +8,8 @@ MPICXX := mpic++
 
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
-FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native
-FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O3 
+FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
+FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
 FLAGS := $(FLAGS_RELEASE)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
@@ -22,9 +22,11 @@ LIB_SUNDIALS := /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/mpi_phase_space_integration_co2_ar.exe  \
 			examples/mpi_phase_space_integration_ch4_co2.exe \
+			examples/phase_space_integration_he_ar.exe       \
 			examples/trajectory_co2_ar.exe 				     \
  			examples/trajectory_h2_ar_requantized.exe        \
 			examples/trajectory_ch4_co2.exe 		         \
+		    examples/correlation_he_ar.exe                   \
 			examples/correlation_co_ar.exe                   \
 			examples/correlation_co2_ar.exe                  \
 			examples/correlation_array_co2_ar.exe            \
@@ -72,7 +74,7 @@ build/angles_handler.o: angles_handler.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ 
 
 build/loess.o: loess.cpp | build
-	$(CXX) $(FLAGS_EIGEN) -fopenmp $(INC) -c -MD $< -o $@ 
+	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ -fopenmp  
 
 ###########################################################
 ###################### CO2-Ar #############################
@@ -104,26 +106,26 @@ build/potv_d.o: ./PES-IDS/potv_d.f03 | build
 ###########################################################
 ##################### CH4-CO2 #############################
 ###########################################################
-build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_pes_ch4_co2_dEdR.o: ./PES-IDS/ai_pes_ch4_co2_dEdR.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_pes_ch4_co2_dEdphi1.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi1.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_pes_ch4_co2_dEdtheta1.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta1.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_pes_ch4_co2_dEdphi2.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi2.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_pes_ch4_co2_dEdtheta2.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta2.c | build
-	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-
-build/ai_ids_ch4_co2.o: ./PES-IDS/ai_ids_ch4_co2.cpp | build
-	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_pes_ch4_co2_dEdR.o: ./PES-IDS/ai_pes_ch4_co2_dEdR.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_pes_ch4_co2_dEdphi1.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi1.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_pes_ch4_co2_dEdtheta1.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta1.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_pes_ch4_co2_dEdphi2.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi2.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_pes_ch4_co2_dEdtheta2.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta2.c | build
+# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+# 
+# build/ai_ids_ch4_co2.o: ./PES-IDS/ai_ids_ch4_co2.cpp | build
+# 	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 ###########################################################
 
 OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
@@ -138,6 +140,9 @@ CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_c
 
 examples/phase_space_integration_co2_ar.exe: examples/phase_space_integration_co2_ar.cpp build/hawaii.o $(OBJ) $(CO2_AR) 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
+
+examples/phase_space_integration_he_ar.exe: examples/phase_space_integration_he_ar.cpp build/hep_hawaii.o $(MPI_OBJ) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/mpi_phase_space_integration_co2_ar.exe: examples/mpi_phase_space_integration_co2_ar.cpp $(MPI_OBJ) build/hep_hawaii.o $(CO2_AR)  
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
@@ -163,8 +168,8 @@ examples/correlation_array_co2_ar.exe: examples/correlation_array_co2_ar.cpp bui
 examples/prmu_calculation_co2_ar.exe: examples/prmu_calculation_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
-examples/fftrump.exe: examples/fftrump.cpp $(OBJ) build/loess.o 
-	$(CXX) $(FLAGS) $(INC) -fopenmp -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
+examples/fftrump.exe: examples/fftrump.cpp build/loess.o $(OBJ) 
+	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) -fopenmp
 
 examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
@@ -179,7 +184,11 @@ examples/test_sb.exe: examples/test_sb.c build/hawaii.o build/mtwist.o build/arr
 	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS)
 
 examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
-	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
+	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
+
+examples/correlation_he_ar.exe: examples/correlation_he_ar.cpp build/trajectory.o $(MPI_OBJ) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
+
 
 build:
 	mkdir -p $@

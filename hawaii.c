@@ -617,7 +617,7 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
                 qp.data[i + 1] = c + step;
                 put_qp_into_ms(ms, qp);
                 r += 0.5 * Hamiltonian(ms);
-                
+
                 qp.data[i + 1] = c - step;
                 put_qp_into_ms(ms, qp);
                 r -= 0.5 * Hamiltonian(ms);
@@ -916,7 +916,7 @@ double Hamiltonian(MoleculeSystem *ms) {
     double V = pes(ms->intermediate_q);
     double K = kinetic_energy(ms); 
 
-    // printf("R = %.5f V = %.5f\n", ms->intermolecular_qp[IR], V * HTOCM);
+    //printf("R = %.5f V = %.5f\n", ms->intermolecular_qp[IR], V * HTOCM);
 
     return K + V; 
 }
@@ -2984,7 +2984,9 @@ bool writetxt(const char *filename, double *x, double *y, size_t len, const char
     }
 
     size_t nchars = 0;
-    nchars += fwrite(header, strlen(header), 1, fp);
+    if (header != NULL) {
+        nchars += fwrite(header, strlen(header), 1, fp);
+    }
 
     for (size_t i = 0; i < len; ++i) {
         nchars += fprintf(fp, "%.3f %.10e\n", x[i], y[i]);
@@ -3010,7 +3012,7 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     double pf_analytic = 0.0;
 
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
-        TODO("analytic_full_partition_function_by_V");  
+        pf_analytic = pow(2.0*M_PI*ms->mu*Temperature/HkT, 1.5);
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
         pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
@@ -3439,7 +3441,8 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
         .nu   = malloc(cf.len * sizeof(double)),
         .data = malloc(cf.len * sizeof(double)),
         .len  = cf.len,
-        .Temperature = cf.Temperature, 
+        .Temperature = cf.Temperature,
+        .ntraj = cf.ntraj, 
     };
 
     for (size_t i = 0; i < cf.len; ++i) {
