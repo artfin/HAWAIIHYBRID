@@ -8,6 +8,8 @@
 #define HEAR_IMPLEMENTATION
 #include "HeAr.h"
 
+#define Rmin 6.597835932201344e+00
+
 double pes(double *q) {
     return V_HeAr(q[2]);
 } 
