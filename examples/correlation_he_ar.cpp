@@ -162,22 +162,23 @@ int main(int argc, char *argv[])
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = BOUND;
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 40.0;
     params.niterations                      = 100;
-    params.total_trajectories               = 2000000;
+    params.total_trajectories               = 1000000;
     params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
-    params.partial_partition_function_ratio = 2.67619e+05;
-    params.initialM0_npoints                = 10000000;
-    params.initialM2_npoints                = 10000000;
+    // params.partial_partition_function_ratio = 2.67619e+05; // F, 300K
+    params.partial_partition_function_ratio = 4.87813e+02; // B, 50K
+    params.initialM0_npoints                = 1000000;
+    params.initialM2_npoints                = 1000;
     params.pesmin                            = V_HeAr(Rmin) / HTOCM;
-    params.cf_filename                      = "./CF-He-Ar-F-300.0.txt";
+    params.cf_filename                      = "./CF-He-Ar-B-50.0.txt";
 
-    double Temperature = 300.0;
+    double Temperature = 50.0;
     
     CFnc cf = calculate_correlation_and_save(&ms, &params, Temperature);
 
