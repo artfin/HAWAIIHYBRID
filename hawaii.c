@@ -1821,12 +1821,13 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
 
     // TODO: preliminary calculation of spectral moments should be done (INDEPENDENTLY?) for all satellite temperatures 
-    params->partial_partition_function_ratio = params->partial_partition_function_ratios[0];
 
     double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
     double *prelim_M0std = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
         mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &prelim_M0[st], &prelim_M0std[st]);
+
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
         PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0[st], prelim_M0std[st], prelim_M0[st] - prelim_M0std[st], prelim_M0[st] + prelim_M0std[st]);
         PRINT0("Error: %.3f%%\n\n", prelim_M0std[st]/prelim_M0[st] * 100.0);
@@ -1837,7 +1838,9 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
     double *prelim_M2std = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
-        mpi_calculate_M2(ms, params, base_temperature, &prelim_M2[st], &prelim_M2std[st]); 
+        params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
+        mpi_calculate_M2(ms, params, base_temperature, &prelim_M2[st], &prelim_M2std[st]);
+
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
         PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2[st], prelim_M2std[st], prelim_M2[st] - prelim_M2std[st], prelim_M2[st] + prelim_M2std[st]);
         PRINT0("Error: %.3f%%\n", prelim_M2std[st]/prelim_M2[st] * 100.0);
