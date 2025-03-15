@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     Trajectory traj = init_trajectory(&ms, tolerance);
     
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = BOUND;
     params.sampler_Rmin                     = 4.751;
     params.sampler_Rmax                     = 40.0;
     params.niterations                      = 100;
@@ -100,18 +100,18 @@ int main(int argc, char *argv[])
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
-    params.initialM0_npoints                = 100000;
-    params.initialM2_npoints                = 100000;
+    params.initialM0_npoints                = 200000;
+    params.initialM2_npoints                = 0;
     params.pesmin                           = -342.934 / HTOCM;
    
     params.num_satellite_temperatures = 6;
     params.satellite_temperatures = (double*) malloc(params.num_satellite_temperatures * sizeof(double));
-    params.satellite_temperatures[0]  = 200.0;
-    params.satellite_temperatures[1]  = 190.0;
-    params.satellite_temperatures[2]  = 180.0;
-    params.satellite_temperatures[3]  = 170.0;
-    params.satellite_temperatures[4]  = 160.0;
-    params.satellite_temperatures[5]  = 150.0;
+    params.satellite_temperatures[0]  = 300.0;
+    params.satellite_temperatures[1]  = 290.0;
+    params.satellite_temperatures[2]  = 280.0;
+    params.satellite_temperatures[3]  = 270.0;
+    params.satellite_temperatures[4]  = 260.0;
+    params.satellite_temperatures[5]  = 250.0;
     
     params.partial_partition_function_ratios = (double*) malloc(params.num_satellite_temperatures * sizeof(double)); 
     //params.partial_partition_function_ratios[0]  = 2.68736e+05; // F, 400 K
@@ -134,24 +134,24 @@ int main(int argc, char *argv[])
     //params.partial_partition_function_ratios[7]  = 2.70396e+05; // F, 230 K
     //params.partial_partition_function_ratios[8]  = 2.70735e+05; // F, 220 K
     //params.partial_partition_function_ratios[9]  = 2.70820e+05; // F, 210 K
-    params.partial_partition_function_ratios[0] = 2.71273e+05; // F, 200 K
-    params.partial_partition_function_ratios[1] = 2.71470e+05; // F, 190 K
-    params.partial_partition_function_ratios[2] = 2.71938e+05; // F, 180 K
-    params.partial_partition_function_ratios[3] = 2.72278e+05; // F, 170 K
-    params.partial_partition_function_ratios[4] = 2.72837e+05; // F, 160 K
-    params.partial_partition_function_ratios[5] = 2.73606e+05; // F, 150 K
+    //params.partial_partition_function_ratios[0] = 2.71273e+05; // F, 200 K
+    //params.partial_partition_function_ratios[1] = 2.71470e+05; // F, 190 K
+    //params.partial_partition_function_ratios[2] = 2.71938e+05; // F, 180 K
+    //params.partial_partition_function_ratios[3] = 2.72278e+05; // F, 170 K
+    //params.partial_partition_function_ratios[4] = 2.72837e+05; // F, 160 K
+    //params.partial_partition_function_ratios[5] = 2.73606e+05; // F, 150 K
     //params.partial_partition_function_ratios[6]  = 2.74259e+05; // F, 140 K
     //params.partial_partition_function_ratios[7]  = 2.75124e+05; // F, 130 K
     //params.partial_partition_function_ratios[8]  = 2.76100e+05; // F, 120 K
     //params.partial_partition_function_ratios[9]  = 2.77692e+05; // F, 110 K
     //params.partial_partition_function_ratios[10] = 2.79370e+05; // F, 100 K
                                                             
-    //params.partial_partition_function_ratios[0]  = 2.55338e+01; // B, 300 K 
-    //params.partial_partition_function_ratios[1]  = 2.94671e+01; // B, 290 K 
-    //params.partial_partition_function_ratios[2]  = 3.42073e+01; // B, 280 K 
-    //params.partial_partition_function_ratios[3]  = 3.99022e+01; // B, 270 K
-    //params.partial_partition_function_ratios[4]  = 4.68951e+01; // B, 260 K
-    //params.partial_partition_function_ratios[5]  = 5.53653e+01; // B, 250 K
+    params.partial_partition_function_ratios[0]  = 2.55338e+01; // B, 300 K 
+    params.partial_partition_function_ratios[1]  = 2.94671e+01; // B, 290 K 
+    params.partial_partition_function_ratios[2]  = 3.42073e+01; // B, 280 K 
+    params.partial_partition_function_ratios[3]  = 3.99022e+01; // B, 270 K
+    params.partial_partition_function_ratios[4]  = 4.68951e+01; // B, 260 K
+    params.partial_partition_function_ratios[5]  = 5.53653e+01; // B, 250 K
     //params.partial_partition_function_ratios[6]  = 6.60532e+01; // B, 240 K
     //params.partial_partition_function_ratios[7]  = 7.93175e+01; // B, 230 K
     //params.partial_partition_function_ratios[8]  = 9.60507e+01; // B, 220 K
@@ -169,14 +169,14 @@ int main(int argc, char *argv[])
     //params.partial_partition_function_ratios[20] = 3.63736e+03; // B, 100 K
     //
     params.cf_filenames = (const char **) malloc(params.num_satellite_temperatures * sizeof(char *));
-    params.cf_filenames[0]  = "./CF-CH4-CO2-F-200.0.txt";
-    params.cf_filenames[1]  = "./CF-CH4-CO2-F-190.0.txt";
-    params.cf_filenames[2]  = "./CF-CH4-CO2-F-180.0.txt";
-    params.cf_filenames[3]  = "./CF-CH4-CO2-F-170.0.txt";
-    params.cf_filenames[4]  = "./CF-CH4-CO2-F-160.0.txt";
-    params.cf_filenames[5]  = "./CF-CH4-CO2-F-150.0.txt";
+    params.cf_filenames[0]  = "./CF-CH4-CO2-B-300.0.txt";
+    params.cf_filenames[1]  = "./CF-CH4-CO2-B-290.0.txt";
+    params.cf_filenames[2]  = "./CF-CH4-CO2-B-280.0.txt";
+    params.cf_filenames[3]  = "./CF-CH4-CO2-B-270.0.txt";
+    params.cf_filenames[4]  = "./CF-CH4-CO2-B-260.0.txt";
+    params.cf_filenames[5]  = "./CF-CH4-CO2-B-250.0.txt";
 
-    double base_temperature = 200.0;
+    double base_temperature = 300.0;
     CFncArray ca = calculate_correlation_array_and_save(&ms, &params, base_temperature);
 
     free(params.cf_filenames);
