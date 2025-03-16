@@ -10,7 +10,7 @@ MPICXX := mpic++
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
-FLAGS := $(FLAGS_RELEASE)
+FLAGS := $(FLAGS_DEBUG)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
 INC_EIGEN    := -I/usr/local/include/eigen3
@@ -80,10 +80,10 @@ build/loess.o: loess.cpp | build
 ###################### CO2-Ar #############################
 ###########################################################
 build/ai_pes_co2_ar.o: ./PES-IDS/ai_pes_co2ar.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_ids_co2_ar.o: ./PES-IDS/ai_ids_co2ar.cpp | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
 ###########################################################
 
 ###########################################################
