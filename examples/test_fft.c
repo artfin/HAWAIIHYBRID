@@ -108,6 +108,11 @@ void test_dct_roundtrip()
     for (size_t i = 0; i < cf.len; ++i) {
         assert_float_is_equal_to(cf.data[i], cf_roundtrip.data[i], 1e-34);
     } 
+
+    sb_free(&sb);
+    free_cfnc(cf);
+    free_sfnc(sf);
+    free_cfnc(cf_roundtrip);
 }
 
 int main()
