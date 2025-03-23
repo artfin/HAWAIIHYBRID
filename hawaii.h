@@ -18,6 +18,7 @@
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_multifit_nlinear.h>
+#include <gsl/gsl_spline.h>
 
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_complex.h>
@@ -410,9 +411,42 @@ static inline bool is_power_of_two(size_t n) {
     return n && !(n & (n - 1));
 }
 
+static inline unsigned int round_to_next_power_of_two(unsigned int n)
+/*
+ * rounds up to the next highest power of 2 using a clever bit hack
+ * Taken from: 
+ *  https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+ * 
+ * works on 32-bit numbers
+ */ 
+{
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n++;
+
+    return n;
+}
+
+double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
+
+double *dct(double *v, size_t len);
 double *idct(double *v, size_t len);
+
 SFnc dct_numeric_sf(CFnc cf, WingParams *wp);
-SFnc desymmetrize_sch(SFnc sf); 
+CFnc dct_sf_to_cf(SFnc sf);
+SFnc idct_cf_to_sf(CFnc cf);
+
+CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
+
+SFnc desymmetrize_d2(SFnc sf); 
+SFnc desymmetrize_schofield(SFnc sf); 
+SFnc desymmetrize_egelstaff(SFnc sf);
+SFnc desymmetrize_frommhold(SFnc sf);
+
 Spectrum compute_alpha(SFnc sf); 
     
 #ifdef __cplusplus

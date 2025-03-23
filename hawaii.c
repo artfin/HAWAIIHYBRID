@@ -3346,6 +3346,61 @@ void connes_apodization(Array a, double sampling_time)
     } 
 }
 
+double *dct(double *v, size_t len)
+/*
+ * Implementation of Fast Discrete Cosine Transform using specific trick of Makhoul (2N + half-sample shift) and FFT -- so-called DCT-II.
+ * See original paper:
+ * http://eelinux.ee.usm.maine.edu/courses/ele486/docs/makhoul.fastDCT.pdf 
+ *
+ * [a, b, c, d] becomes [a, b, c, d, d, c, b, a]. Take the FFT of that to get [A, B, C, D, 0, D*, C*, B*], then throw away everything but [A, B, C, D] 
+ * and make a half-sample shift to get the DCT.
+
+ * Analogous Python code: 
+ * import numpy as np
+ * import scipy as sp
+ *
+ * N = 4
+ * v = np.array([1.0, 2.0, 3.0, 4.0])
+ * f = sp.fft.dct(v)
+ *
+ * v_mkh = np.zeros(2*N)
+ * v_mkh[:N] = v
+ * v_mkh[N:] = v[::-1]
+ *
+ * f_mkh = np.fft.fft(v_mkh)[:N]
+
+ * ce = np.array([np.exp(-1j * np.pi * k / (2.0 * N)) for k in range(N)])
+ * f_mkh = (f_mkh * ce).real
+ * print(np.allclose(f_mkh, f))
+ */
+{
+    assert(is_power_of_two(len) && "Length of the input array should be a power of 2");
+
+    double *hcx = malloc(2*len * sizeof(double));
+    memcpy(hcx, v, len*sizeof(double));
+    for (size_t i = 0; i < len; ++i) {
+        hcx[len + i] = v[len - 1 - i];
+    }
+
+    // performs in-place radix-2 FFT
+    // the output is a half-complex sequence (hcx) 
+    // See for details: https://www.gnu.org/software/gsl/doc/html/fft.html#c.gsl_fft_halfcomplex_radix2_unpack 
+    gsl_fft_real_radix2_transform(&hcx[0], 1, 2*len);
+    
+    double *v_dct = malloc(len * sizeof(double));
+
+    v_dct[0] = hcx[0];
+
+    for (size_t i = 1; i < len; ++i) {
+        double complex cx = (hcx[i] + I*hcx[2*len - i]) * cexp(-I * M_PI * i / (2.0 * len));
+        v_dct[i] = creal(cx); 
+    }
+   
+    free(hcx);
+
+    return v_dct; 
+}
+
 #define REAL(z, i) ((z)[2*(i)])
 #define IMAG(z, i) ((z)[2*(i) + 1])
 
@@ -3411,6 +3466,7 @@ double *idct(double *v, size_t len)
     gsl_fft_complex_radix2_backward(packed_v_mkh, 1, 2*len);
     
     double *f = (double*) malloc(len * sizeof(double));
+    assert(f != NULL);
     memset(f, 0, len*sizeof(double));
 
     for (size_t k = 0; k < len; ++k) {
@@ -3422,12 +3478,26 @@ double *idct(double *v, size_t len)
     return f;
 }
 
+double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len) 
+{
+    *padded_len = round_to_next_power_of_two(len);
+
+    double *padded = (double*) malloc(*padded_len * sizeof(double));
+    assert(padded != NULL);
+
+    memset(padded, 0, *padded_len * sizeof(double));
+    memcpy(padded, v, len * sizeof(double));
+
+    return padded;
+}
+
+
 SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
 {
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
-    double *cfnum = malloc(cf.len * sizeof(double));
+    double *cfnum = (double*) malloc(cf.len * sizeof(double));
     for (size_t i = 0; i < cf.len; ++i) {
         cfnum[i] = cf.data[i] - wingmodel(wp, cf.t[i]);    
     }
@@ -3441,8 +3511,8 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
     double tmax = cf.len * dt;
 
     SFnc sfnum = {
-        .nu   = malloc(cf.len * sizeof(double)),
-        .data = malloc(cf.len * sizeof(double)),
+        .nu   = (double*) malloc(cf.len * sizeof(double)),
+        .data = (double*) malloc(cf.len * sizeof(double)),
         .len  = cf.len,
         .Temperature = cf.Temperature,
         .ntraj = cf.ntraj, 
@@ -3458,7 +3528,116 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
     return sfnum; 
 }
 
-SFnc desymmetrize_sch(SFnc sf) 
+CFnc dct_sf_to_cf(SFnc sf)
+{
+    double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0;
+    double Yscale = (4.0 * M_PI * EPSILON0) / ADIPMOMU / ADIPMOMU * LightSpeed_cm / M_PI * 2.0;
+
+    CFnc cf = {
+        .t           = NULL, 
+        .data        = NULL, 
+        .len         = sf.len,
+        .Temperature = sf.Temperature,
+        .ntraj       = sf.ntraj,
+    };
+
+    double numax, nustep;
+    
+    assert(sf.len > 1); 
+    if (is_power_of_two(sf.len)) {
+        nustep = sf.nu[1] - sf.nu[0];
+        numax  = nustep * (sf.len - 1);
+        
+        cf.data = dct(sf.data, sf.len);
+    } else {
+        size_t padded_len;
+        double *padded = pad_to_power_of_two(sf.data, sf.len, &padded_len); 
+        
+        nustep = sf.nu[1] - sf.nu[0];
+        numax = nustep * (padded_len - 1);
+        printf("INFO: dct_sf_to_cf: padding SF to the length = %zu with numax = %.5e\n", padded_len, numax);
+
+        cf.data = dct(padded, padded_len);
+        cf.len = padded_len;
+        free(padded);
+    }
+ 
+    cf.t = (double*) malloc(cf.len * sizeof(double)); 
+
+    for (size_t i = 0; i < cf.len; ++i) {
+        cf.t[i]    = i / numax * Xscale;
+        cf.data[i] = cf.data[i] * Yscale;
+    }
+    
+    return cf; 
+}
+
+SFnc idct_cf_to_sf(CFnc cf)
+{
+    double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0;
+    double Yscale = ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0) / LightSpeed_cm * M_PI / 2.0;
+
+    SFnc sf = {
+        .nu   = NULL, 
+        .data = NULL, 
+        .len  = cf.len,
+        .Temperature = cf.Temperature,
+        .ntraj = cf.ntraj, 
+    };
+
+    double tstep, tmax;
+
+    assert(cf.len > 1);
+    if (is_power_of_two(cf.len)) {
+        tstep = cf.t[1] - cf.t[0];
+        tmax = tstep * (cf.len - 1);
+
+        sf.data = idct(cf.data, cf.len);
+    } else {
+        size_t padded_len;
+        double *padded = pad_to_power_of_two(cf.data, cf.len, &padded_len);  
+
+        tstep = cf.t[1] - cf.t[0];
+        tmax = tstep * (padded_len - 1);
+        
+        printf("INFO: idct_sf_to_cf: padding CF to the length = %zu with tmax = %.5e\n", padded_len, tmax); 
+        
+        sf.data = idct(padded, padded_len);
+        sf.len = padded_len;
+        free(padded);
+    }
+
+    sf.nu = (double*) malloc(sf.len * sizeof(double));
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        sf.nu[i]   = i / tmax * Xscale;
+        sf.data[i] = sf.data[i] * Yscale;
+    }
+
+    return sf;
+}
+
+
+SFnc desymmetrize_schofield(SFnc sf) 
+{
+    SFnc sfd = {
+        .nu   = (double*) malloc(sf.len * sizeof(double)),
+        .data = (double*) malloc(sf.len * sizeof(double)),
+        .len  = sf.len,
+        .Temperature = sf.Temperature,
+    };
+
+    memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
+        sfd.data[i] = sf.data[i] * exp(hnukt / 2.0);
+    }
+
+    return sfd;
+}
+
+SFnc desymmetrize_d2(SFnc sf) 
 {
     SFnc sfd = {
         .nu          = malloc(sf.len * sizeof(double)),
@@ -3471,10 +3650,70 @@ SFnc desymmetrize_sch(SFnc sf)
 
     for (size_t i = 0; i < sf.len; ++i) {
         double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
-        sfd.data[i] = sf.data[i] * exp(hnukt / 2.0);
+        sfd.data[i] = sf.data[i] * hnukt / (1.0 - exp(-hnukt));
     }
 
     return sfd;
+}
+    
+
+CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization) 
+{
+    assert(cf.Temperature > 0);
+
+    double cc = HBar / Boltzmann / cf.Temperature / ATU / sqrt(2.0);
+    printf("Egelstaff time constant: %.5e\n", cc);
+  
+    assert(cc < cf.t[cf.len - 1]);
+    
+    gsl_interp_accel *acc = gsl_interp_accel_alloc();
+    gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, cf.len);
+    gsl_spline_init(spline, cf.t, cf.data, cf.len);
+
+    double norm = frommhold_renormalization ? gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc) : 1.0;
+
+    // we don't know the length of the Egelstaff correlation function beforehand
+    // because of that we resort to reserving the `sz` elements as a close approximation to CF length
+    CFnc cf_egelstaff = {
+        .t    = malloc(cf.len * sizeof(double)),
+        .data = malloc(cf.len * sizeof(double)),
+        .capacity = cf.len,
+        .Temperature = cf.Temperature,
+    };
+  
+    size_t cursor = 0;
+
+    for (size_t i = 0; i < cf.len; ++i) {
+        double t_egelstaff = sqrt(cf.t[i]*cf.t[i] + cc*cc);
+
+        if (t_egelstaff <= cf.t[cf.len - 1]) {
+            cf_egelstaff.t[cursor]    = cf.t[i];
+            cf_egelstaff.data[cursor] = norm * gsl_spline_eval(spline, t_egelstaff, acc);
+            cursor++;
+        }
+    }
+
+    cf_egelstaff.len = cursor;
+
+    return cf_egelstaff; 
+}
+
+SFnc desymmetrize_frommhold(SFnc sf)
+{
+    CFnc cf     = dct_sf_to_cf(sf);
+    CFnc cf_egf = egelstaff_time_transform(cf, true);
+    SFnc sf_egf = idct_cf_to_sf(cf_egf);
+
+    return desymmetrize_schofield(sf_egf);
+}
+
+SFnc desymmetrize_egelstaff(SFnc sf)
+{
+    CFnc cf     = dct_sf_to_cf(sf);
+    CFnc cf_egf = egelstaff_time_transform(cf, false);
+    SFnc sf_egf = idct_cf_to_sf(cf_egf);
+
+    return desymmetrize_schofield(sf_egf);
 }
 
 Spectrum compute_alpha(SFnc sf) 
