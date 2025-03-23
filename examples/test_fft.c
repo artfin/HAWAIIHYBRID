@@ -112,9 +112,9 @@ void test_dct_roundtrip()
 
 int main()
 {
-    // test_fft_roundtrip();
-    // test_pad();
-    // test_dct_roundtrip();
+    test_fft_roundtrip();
+    test_pad();
+    test_dct_roundtrip();
 
 
     return 0;
