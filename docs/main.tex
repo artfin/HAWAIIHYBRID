@@ -23,13 +23,22 @@
   \end{tikzpicture}
 }
 
+\usepackage{biblatex}
+\addbibresource{biblio.bib}
+\DefineBibliographyStrings{english}{%
+  bibliography = {References},
+}
+
 \newcommand{\lb}{\left(}
 \newcommand{\rb}{\right)}
+\newcommand{\lsq}{\left[}
+\newcommand{\rsq}{\right]}
 \newcommand{\mf}{\mathbf}
 \newcommand*\diff{\mathop{}\!\mathrm{d}}
-
+\newcommand{\intty}{\int\limits_{-\infty}^{+\infty}}
 
 \newcommand{\libname}{\texttt{Hawaii Hybrid}\,}
+
 
 \title{Documentation for \libname v.0.1}
 \author{A. Finenko and D. Chistikov}
@@ -51,6 +60,34 @@
 \item Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
 \end{enumerate}
 
+
+To ensure clarity, we will outline the key objects and their corresponding units of measurement. In the context of this document, the correlation function of the dipole moment, $C(t)$, is defined as:
+\begin{gather}
+    C(t) = V \langle \mu(0) \mu(t) \rangle.
+\end{gather}
+%
+Note that this definition differs from others, such as the one in Ref. \cite{Chistikov2021}, as it does not include the 
+$1/(4 \pi \varepsilon_0)$ factor. Instead, this factor is incorporated into the definition of the spectral function. The correlation function values are produced by \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save} in units of (m$^3 \cdot$ atomic unit of dipole). The time is treated internally in atomic time units, and the produced \texttt{CFnc} object stores the time in the atomic time units. However, when the correlation function is to be processed in order to be converted into spectral function (by \texttt{fit\_baseline} function), time axis needs to be in seconds.
+
+The spectral function is defined as follows:
+\begin{gather}
+    G(\nu) = \frac{1}{2\pi} \frac{1}{4\pi \varepsilon_0} \intty C(t) e^{-2 \pi i c \nu t} \diff{t},
+\end{gather}
+%
+where $\nu$ is the wavenumber (cm$^{-1}$). The values of spectral function are $\text{J} \cdot \text{m}^6 \cdot \text{s} = \text{kg} \cdot \text{m}^8 \cdot \text{s}$. 
+
+The binary absorption coefficient is then related to the spectral function according to:
+\begin{gather}
+    \alpha(\nu) = \frac{\tau(\nu)}{\rho_1 \rho_2} = \frac{(2\pi)^4 N_L^2}{3 h} \nu \lsq 1 - \exp \lb -\frac{h c \nu}{k_\text{B} T} \rb \rsq G(\nu),
+\end{gather}
+%
+where the absorption coefficient is
+\begin{gather}
+    \tau(\nu) = L^{-1} \ln (I_0 / I),
+\end{gather}
+%
+and $\rho_1$ and $\rho_2$ are gas densities in mixture. We will express the binary absorption coefficient as per convention in cm$^{-1}$Amagat$^{-2}$.
+
 \section{Examples}
 \label{sec:serial-examples}
 
@@ -60,6 +97,7 @@
     \toprule
               & \rotatebox{70}{trajectory} & \rotatebox{70}{phase-space moments} & \rotatebox{70}{single correlation function} & \rotatebox{70}{array of correlation functions} \\
     \midrule
+    He-Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} &{\color{red}$\times$} \\  
     CO$_2-$Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
     H$_2-$Ar & {\color{red}$\times$} &  {\color{red}$\times$}  &  {\color{red}$\times$} &  {\color{red}$\times$}  \\  
     CH$_4-$CO$_2$ & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
@@ -92,11 +130,6 @@ Next, we provide implementations for functions that calculate potential energy \
 \subsection{Propagating trajectory for H$_2-$Ar while requantizing the angular momentum of H$_2$}
 \label{subsec:example-req-trajectory}
 
-
-\subsection{Processing correlation function for CO$_2-$Ar}
-\label{subsec:example-processing}
-
-
 \subsection{Calculating the zeroth and second spectral moments of CO$_2-$Ar as phase-space averages using rejection-based sampler}
 \label{subsec:example-spmoments-co2-ar}
 
@@ -118,11 +151,15 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
 \subsection{Calculating an array of correlation functions for CO$_2-$Ar}
 \label{subsec:example-correlation-array-co2-ar}
 
+\subsection{Processing correlation function for CO$_2-$Ar}
+\label{subsec:example-processing}
 
-\section{\libname code organization}
+
+\section{Complete list of function and code organization}
 \label{sec:code-organization}
 
-\subsection{Module \texttt{hawaii}}
+
+\subsection{Setting up a molecule pair}
 \label{subsec:module-hawaii}
 
 
@@ -135,24 +172,6 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
            & \texttt{ROTOR = 6} \\
            & \texttt{ROTOR\_REQUANTIZED\_ROTATION = 2*MODULO\_BASE + 6} \\
     Description & This enum is used to distinguish between systems of different types and store the size of the phase point: \texttt{size(phase\_point) = MonomerType \% MODULO\_BASE}, where \texttt{MODULO\_BASE} is \texttt{\#define}d to 100 by default. 
-\end{longtable} 
-
-\noindent
-\recttext{\texttt{enum PairState}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Values & \texttt{FREE\_AND\_METASTABLE} = 0 \\
-           & \texttt{BOUND} = 1 \\
-    Description & \\ 
-\end{longtable} 
-
-
-\noindent
-\recttext{\texttt{enum CalculationType}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Values & \texttt{PRMU} = 0 \\
-           & \texttt{CORRELATION\_SINGLE} = 1 \\
-           & \texttt{CORRELATION\_ARRAY} = 2 \\
-    Description & \\ 
 \end{longtable} 
 
 \noindent 
@@ -171,6 +190,15 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
     & \texttt{\#define IPTHETA 3} \\
     & \texttt{\#define IPSI 4} \\
     & \texttt{\#define IPPSI 5} \\
+\end{longtable} 
+
+
+\noindent
+\recttext{\texttt{enum PairState}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Values & \texttt{FREE\_AND\_METASTABLE} = 0 \\
+           & \texttt{BOUND} = 1 \\
+    Description & \\ 
 \end{longtable} 
 
 \noindent
@@ -193,81 +221,6 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
     & \texttt{\#define IPR 5} \\
     & Keep in mind that intermolecular coordinates and monomer's coordinates are not stored contiguously. The contiguous vector of coordinates can be assembled by calling \texttt{extract\_q\_and\_write\_into\_ms} function, which stores the coordinates in memory pointed at by \texttt{intermediate\_q}. These coordinates are passed to external functions that compute the values of intermolecular energy, its derivatives with respect to coordinates and induced dipole (see section~\ref{subsec:external-functions}).There is no guarantee that coordinates stored in \texttt{Monomer}'s and coordinates in memory at \texttt{intermediate\_q} are always in sync.  The function \texttt{extract\_q\_and\_write\_into\_ms} must be invoked if the contiguous vector of coordinates is desired at a certain point of the program execution. 
 \end{longtable} 
-
-\noindent
-\recttext{\texttt{struct CFnc}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{double *t} \\
-           & \texttt{double *data} \\
-           & \texttt{size\_t len} -- number of samples in \texttt{*t} and \texttt{*data} \\
-           & \texttt{size\_t capacity} -- capacity of \texttt{*t} and \texttt{*data} \\
-           & \texttt{size\_t ntraj} -- number of trajectories used for averaging \\
-           & \texttt{double Temperature} \\
-           & \texttt{bool normalized} -- flag that indicates whether the *data samples are normalized by \# of trajectories 
-\end{longtable}
-
-\noindent
-\recttext{\texttt{struct SFnc}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{double *nu} \\
-           & \texttt{double *data} \\
-           & \texttt{size\_t len} -- number of samples in \texttt{*nu} and \texttt{*data} \\
-           & \texttt{size\_t capacity} -- capacity of \texttt{*nu} and \texttt{*data} \\
-           & \texttt{size\_t ntraj}  -- number of trajectories used for averaging \\
-           & \texttt{double Temperature}
-\end{longtable}
-
-
-\noindent
-\recttext{\texttt{struct CFncArray}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{double *t} \\
-           & \texttt{double **data} \\
-           & \texttt{size\_t ntemp} \\
-           & \texttt{size\_t len} -- number of samples in \texttt{*t} and elements of \texttt{*data} \\
-           & \texttt{double* nstar} -- number of effective trajectories at each temperature \\
-           & \texttt{size\_t ntraj} - number of calculated trajectories at base temperature \\
-    Description & An array of correlation functions for a fixed \texttt{base temperature} (sampling temperature) and a \texttt{satellite temperature} (target temperature for re-weighting).
-\end{longtable}
-
-
-\noindent
-\recttext{\texttt{struct CalcParams}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{PairState ps} \\
-           & \texttt{/* sampling */} \\
-           & \texttt{double sampler\_Rmin // a.u.} \\ 
-           & \texttt{double sampler\_Rmax // a.u.} \\
-           & \texttt{double pesmin // Hartree} \\
-           & \texttt{/* initial spectral moments check */} \\ 
-           & \texttt{size\_t initialM0\_npoints} \\
-           & \texttt{size\_t initialM2\_npoints} \\
-           & \texttt{double partial\_partition\_function\_ratio} \\
-           & \texttt{/* requantization */} \\ 
-           & \texttt{size\_t torque\_cache\_len} \\
-           & \texttt{double torque\_bound} \\
-           & \texttt{/* trajectory */} \\
-           & \texttt{double sampling\_time} \\
-           & \texttt{size\_t MaxTrajectoryLength} \\
-           & \texttt{double cvode\_tolerance} \\
-           & \texttt{/* applicable to both correlation function AND spectral function calculations */} \\
-           & \texttt{size\_t niterations} \\
-           & \texttt{size\_t total\_trajectories} \\
-           & \texttt{/*correlation function calculation ONLY */} \\
-           & \texttt{const char *cf\_filename} \\
-           & \texttt{double Rcut // distance at which the trajectory is forcefully stopped, a.u.} \\
-           & \texttt{/* pr/mu calculation ONLY */} \\
-           & \texttt{const char *sf\_filename} \\
-           & \texttt{double ApproximateFrequencyMax // cm-1} \\
-           & \texttt{double R0 // initial distance, a.u.} \\
-           & \texttt{/*correlation function array ONLY */} \\
-           & \texttt{double* partial\_partition\_function\_ratios} \\
-           & \texttt{double *satellite\_temperatures} \\
-           & \texttt{size\_t num\_satellite\_temperatures} \\
-           & \texttt{const char **cf\_filenames} \\
-\end{longtable} 
-
-
 
 \noindent 
 Function \recttext{\texttt{init\_ms}} \vspace*{-0.25em}
@@ -312,6 +265,49 @@ Function \recttext{\texttt{Hamiltonian}} \vspace*{-0.25em}
     Description & Calls to \texttt{kinetic energy}, assembles a contiguous vector of coordinates via \texttt{extract\_q\_and\_write\_into\_ms} and passes it to external \texttt{pes}. 
 \end{longtable} 
 
+The potential energy and its derivatives are expected to be provided as functions with the following signatures:   
+
+\noindent
+Function \recttext{\texttt{pes}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double pes(*q);} \\
+    Arguments & \texttt{double *q} \\
+    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return energy in Hartree.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dpes}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void dpes(*q, *dpesdq);} \\
+    Arguments & \texttt{double *q} \\
+              & \texttt{double *dpesdq} \\
+    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return an array of derivatives of energy in units of Hartree/Bohr of length \texttt{Q\_SIZE}.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dipole}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void dpes(*q, *dpesdq);} \\
+    Arguments & \texttt{double *q} \\
+              & \texttt{double *dpesdq} \\
+    Description &
+\end{longtable}
+
+\texttt{pes} and \texttt{dpes} are defined as external functions in the header \texttt{hawaii.h}, so they have to be implemented in the user program, whereas the dipole function needs to be set through function pointer named \texttt{dipole}. 
+
+%\noindent
+%\recttext{\texttt{enum CalculationType}} \vspace*{-0.25em}
+%\begin{longtable}{lp{15cm}}
+%    Values & \texttt{PRMU} = 0 \\
+%           & \texttt{CORRELATION\_SINGLE} = 1 \\
+%           & \texttt{CORRELATION\_ARRAY} = 2 \\
+%    Description & \\ 
+%\end{longtable} 
+
+
+\subsection{Sampling the phase-space point}
+
+
 \noindent
 Function \recttext{\texttt{q\_generator}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
@@ -339,6 +335,86 @@ Function \recttext{\texttt{reject}} \vspace*{-0.25em}
               & \texttt{double pesmin} -- the minimum value of PES \\
     Description & Applies the rejection step to the phase-point that is stored in the \texttt{MoleculeSystem}. It presupposes that the provided phase-point is sampled from $\rho \sim e^{-K/kT}$ using \texttt{q\_generator} and \texttt{p\_generator} functions. The random variable $u \sim U[0, 1]$ is chosen, to determine whether the current phase-point is to be accepted with probability $\rho \sim \exp(-H/kT)$.     
 \end{longtable} 
+
+\subsection{Calculating a trajectory: interfacing with \texttt{CVode} library}
+\label{subsec:trajectory}
+
+\noindent
+\recttext{\texttt{struct Trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{size\_t DIM} \\
+           & \texttt{size\_t mxsteps} \\
+           & \texttt{N\_Vector y} \\
+           & \texttt{N\_Vector abstol} \\
+           & \texttt{N\_Vector reltol} \\
+           & \texttt{SUNMatrix A} \\
+           & \texttt{SUNLinearSolver LS} \\
+           & \texttt{void *cvode\_mem} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{init\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{Trajectory init\_trajectory(*ms, *transformed, reltol);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+              & \texttt{double reltol} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{free\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void free\_trajectory(*traj);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{reinit\_trajectory}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void reinit\_trajectory(*traj, t);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{double t} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{make\_step}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{int make\_step(*traj, tout, *t);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{double tout} \\
+              & \texttt{double *t} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{set\_initial\_condition}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void set\_initial\_condition(*traj, qp);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              & \texttt{Array qp} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{make\_vector}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{N\_Vector make\_vector(size);} \\
+    Arguments & \texttt{int size} \\
+    Description & 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{set\_tolerance}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void set\_tolerance(*traj, tolerance);} \\
+    Arguments & \texttt{Trajectory *traj} \\
+              * \texttt{double tolerance} \\
+    Description & 
+\end{longtable}
+
 
 \noindent
 Function \recttext{\texttt{rhs}} \vspace*{-0.25em}
@@ -370,6 +446,8 @@ Function \recttext{\texttt{compute\_numerical\_rhs}} \vspace*{-0.25em}
     Description &  Computes numerically the right-hand side of the Hamiltonian equations of motion. The order corresponds to the order of variables employed in MoleculeSystem struct. 
 \end{longtable}
 
+\subsection{Conducting angular momentum requantization}
+
 \noindent
 Function \recttext{\texttt{j\_monomer}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
@@ -400,13 +478,9 @@ Function \recttext{\texttt{torque\_monomer}} \vspace*{-0.25em}
     \end{gather}
 \end{longtable} 
 
-\noindent
-Function \recttext{\texttt{invert\_momenta}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void invert\_momenta(*ms);} \\
-    Arguments & \texttt{MoleculeSystem *ms} \\
-    Description & Inverts the momenta stored inside MoleculeSystem. 
-\end{longtable} 
+
+
+\subsection{Computing averages over phase-space}
 
 
 \noindent
@@ -415,7 +489,7 @@ Function \recttext{\texttt{analytic\_full\_partition\_function\_by\_V}} \vspace*
     Call & \texttt{double analytic\_full\_partition\_function\_by\_V(*ms, *params, Temperature)} \\
     Arguments & \texttt{MoleculeSystem *ms} \\ 
               & \texttt{double Temperature} \\
-    Description & Returns analytically calculated value for the ratio of the partition function for the totality of states to the volume. {\color{red} Currently, implemented only for linear molecule-atom and rotor-linear molecule.}
+    Description & Returns analytically calculated value for the ratio of the partition function for the totality of states to the volume. {\color{red} Currently, implemented only for atom-atom, linear molecule-atom and rotor-linear molecule.}
     \begin{gather}
         [\textrm{linear molecule - atom}]: Q = 4 \pi \times \lb 2 \pi \mu k T \rb^{3/2} \times (2 \pi I k T) \notag \\
         [\textrm{rotor - linear molecule}]: Q = 32 \pi^3 \times \lb 2 \pi \mu k T \rb^{3/2} \times (2 \pi k T)^{3/2} \sqrt{I_1^\textrm{rotor} I_2^\textrm{rotor} I_3^\textrm{rotor}} \times (2 \pi I^\textrm{lin}_1 k T) \notag 
@@ -434,14 +508,7 @@ Function \recttext{\texttt{calculate\_M0}} \vspace*{-0.25em}
     Description & By sampling from $\rho \sim e^{-K/kT}$  and rejecting some of the points using the \texttt{reject} function, \texttt{params.initialM0\_npoints} phase-points are produced to estimate $M_0$ and its error. The average over the sampled phase-points is multiplied by the \texttt{params.partial\_partition\_function\_ratio}, which is supposed to be a ratio of the partition function over the part of the phase space that is pertinent to the select pair state to the total partition function and multiplied by volume. {\color{blue} This ratio can be calculated using \texttt{mpi\_perform\_integration} function that invokes hep library.}
 \end{longtable} 
 
-\noindent
-Function \recttext{\texttt{compute\_dHdp}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}} 
-    Call & \texttt{void compute\_dHdp(*ms, *dHdp);} \\
-    Arguments & \texttt{MoleculeSystem *ms} \\
-              & \texttt{gsl\_matrix *dHdp} \\
-    Description & Calls to \texttt{rhsMonomer} to fill in derivatives of Hamiltonian with respect to momenta pertaining to monomers.
-\end{longtable}
+
 
 \noindent
 Function \recttext{\texttt{calculate\_M2}} \vspace*{-0.25em}
@@ -480,6 +547,155 @@ MPI Function \recttext{\texttt{mpi\_calculate\_M2}} \vspace*{-0.25em}
 \end{longtable} 
 
 \noindent
+Function \recttext{\texttt{compute\_dHdp}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}} 
+    Call & \texttt{void compute\_dHdp(*ms, *dHdp);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+              & \texttt{gsl\_matrix *dHdp} \\
+    Description & Calls to \texttt{rhsMonomer} to fill in derivatives of Hamiltonian with respect to momenta pertaining to monomers.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{transform\_variables}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void transform\_variables(x, *transformed, *Jac);} \\
+    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
+              & \texttt{double *transformed} \\
+              & \texttt{double *Jac} \\
+    Description & Transforms a point $x$ from $n$-dimensional hypercube $[0, 1]^n$ to a point in phase-space of the \texttt{MoleculeSystem} (which is passed in using global pointer). The following transformations are implemented
+    \begin{gather}
+        R \leftarrow 1/x, \notag \\
+        \theta \leftarrow \pi x, \notag \\
+        \phi \leftarrow 2 \pi x, \notag \\
+        p \leftarrow \tan(\pi (x - \sfrac{1}{2})). \notag
+    \end{gather}
+    %
+    The jacobian of the transformation is accumulated along the steps. {\color{red} Implemented for linear molecule-atom and rotor-linear molecule pairs.}  
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{integrand\_pf}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double integrand\_pf(x);} \\
+    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
+    Description & Based on the point in hypercube returns the value of the following integrand:
+    \begin{gather}
+        \textrm{jac} \cdot \exp \lb -\frac{E}{k T} \rb. \notag
+    \end{gather}
+    %
+    (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer.) 
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{integrand\_M0}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double integrand\_M0(x);} \\
+    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
+    Description & Based on the point in hypercube returns the value of the following integrand:
+    \begin{gather}
+        \textrm{jac} \cdot \mu^2 \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
+    \end{gather}
+    %
+    (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{integrand\_M2}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double integrand\_M2(x);} \\
+    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
+    Description & Based on the point in hypercube returns the value of the following integrand:
+    \begin{gather}
+        \textrm{jac} \cdot \Big[ \mu, H \Big] \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
+    \end{gather}
+    %
+    The derivative of dipole with respect to coordinates is computed using 2-point central finite-difference formula. (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{mpi\_perform\_integration}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double mpi\_perform\_integration(*ms, integrand, *params, Temperature, niterations, npoints, *m, *q);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+              & \texttt{Integrand integrand} -- \texttt{typedef double (*Integrand)(hep::mc\_point<double> const\&)}\\
+              & \texttt{CalcParams *params} \\
+              & \texttt{double Temperature} \\
+              & \texttt{size\_t niterations} \\
+              & \texttt{size\_t npoints} \\
+              & \texttt{double *m} \\
+              & \texttt{double *q} \\
+    Description & Evaluates the integral of requested \texttt{integrand} 
+\end{longtable}
+
+
+\subsection{Performing averaging over trajectory ensembles}
+
+
+\noindent
+\recttext{\texttt{struct CalcParams}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{PairState ps} \\
+           & \texttt{/* sampling */} \\
+           & \texttt{double sampler\_Rmin // a.u.} \\ 
+           & \texttt{double sampler\_Rmax // a.u.} \\
+           & \texttt{double pesmin // Hartree} \\
+           & \texttt{/* initial spectral moments check */} \\ 
+           & \texttt{size\_t initialM0\_npoints} \\
+           & \texttt{size\_t initialM2\_npoints} \\
+           & \texttt{double partial\_partition\_function\_ratio} \\
+           & \texttt{/* requantization */} \\ 
+           & \texttt{size\_t torque\_cache\_len} \\
+           & \texttt{double torque\_bound} \\
+           & \texttt{/* trajectory */} \\
+           & \texttt{double sampling\_time} \\
+           & \texttt{size\_t MaxTrajectoryLength} \\
+           & \texttt{double cvode\_tolerance} \\
+           & \texttt{/* applicable to both correlation function AND spectral function calculations */} \\
+           & \texttt{size\_t niterations} \\
+           & \texttt{size\_t total\_trajectories} \\
+           & \texttt{/*correlation function calculation ONLY */} \\
+           & \texttt{const char *cf\_filename} \\
+           & \texttt{double Rcut // distance at which the trajectory is forcefully stopped, a.u.} \\
+           & \texttt{/* pr/mu calculation ONLY */} \\
+           & \texttt{const char *sf\_filename} \\
+           & \texttt{double ApproximateFrequencyMax // cm-1} \\
+           & \texttt{double R0 // initial distance, a.u.} \\
+           & \texttt{/*correlation function array ONLY */} \\
+           & \texttt{double* partial\_partition\_function\_ratios} \\
+           & \texttt{double *satellite\_temperatures} \\
+           & \texttt{size\_t num\_satellite\_temperatures} \\
+           & \texttt{const char **cf\_filenames} \\
+\end{longtable} 
+
+
+\noindent
+\recttext{\texttt{struct CFnc}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{double *t} \\
+           & \texttt{double *data} \\
+           & \texttt{size\_t len} -- number of samples in \texttt{*t} and \texttt{*data} \\
+           & \texttt{size\_t capacity} -- capacity of \texttt{*t} and \texttt{*data} \\
+           & \texttt{size\_t ntraj} -- number of trajectories used for averaging \\
+           & \texttt{double Temperature} \\
+           & \texttt{bool normalized} -- flag that indicates whether the data samples are normalized by \# of trajectories 
+\end{longtable}
+
+\noindent
+\recttext{\texttt{struct CFncArray}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{double *t} \\
+           & \texttt{double **data} \\
+           & \texttt{size\_t ntemp} \\
+           & \texttt{size\_t len} -- number of samples in \texttt{*t} and elements of \texttt{*data} \\
+           & \texttt{double* nstar} -- number of effective trajectories at each temperature \\
+           & \texttt{size\_t ntraj} - number of calculated trajectories at base temperature \\
+    Description & An array of correlation functions for a fixed \texttt{base temperature} (sampling temperature) and a \texttt{satellite temperature} (target temperature for re-weighting).
+\end{longtable}
+
+
+\subsubsection{Calculating correlation functions}
+
+\noindent
 Function \recttext{\texttt{correlation\_eval}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{int correlation\_eval(*ms, *traj, *params, *crln, *tps);} \\
@@ -490,6 +706,8 @@ Function \recttext{\texttt{correlation\_eval}} \vspace*{-0.25em}
               & \texttt{int *tps} \\
     Description & Evaluates the mean between forward and backward correlation functions from the initial condition set in the \texttt{*ms}. It also tracks the number of turning points and returns it using the output parameter \texttt{*tps}.
 \end{longtable} 
+
+
 
 
 
@@ -505,16 +723,7 @@ MPI Function \recttext{\texttt{calculate\_correlation\_and\_save}} \vspace*{-0.2
     The communication between processes is realized using \texttt{MPI\_Allreduce} function.  
 \end{longtable} 
 
-\noindent
-MPI Function \recttext{\texttt{ calculate\_spectral\_function\_using\_prmu\_representation}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{SFnc calculate\_spectral\_function\_using\_prmu\_representation\_and\_save(*ms, *params, Temperature)} \\
-    Arguments & \texttt{MoleculeSystem *ms} \\ 
-              & \texttt{CalcParams *params} \\
-              & \texttt{double Temperature} \\
-    Description & First, we check that \texttt{params.ApproximateFrequencyMax} is less than Nyquist frequency of the signal that will be sampled with requested \texttt{params.sampling\_time}. Then, based on the calculated frequency step, a length of the frequency array is calculated. Since the frequency step depends on the \texttt{params.sampling\_time} and \texttt{params.MaxTrajectoryLength}, the maximum frequency of the calculated spectral function will be somewhat close to the requested \texttt{params.ApproximateFrequencyMax} (as close as possible using the frequency step). The estimates of the zeroth and second spectral moments are obtained using \texttt{params.initialM0\_npoints} and \texttt{params.initialM2\_npoints}, respectively. The accumulation of \texttt{params.total\_trajectories} is divided into \texttt{params.niterations}. For each trajectory the intermolecular distance is set to \texttt{params.R0}. The trajectory is cut at the same distance \texttt{params.R0}. 
-    Connes apodization is applied to time dependencies of Cartesian components of dipole throughout collisional trajectory before applying Fourier transform to them. The length of the dipole array which is equal to \texttt{params.MaxTrajectoryLength} needs to be a power of 2. The current estimate of the spectral function is saved to \texttt{params.sf\_filename} at the end of each iteration. The zeroth and second spectral moments are obtained from the current estimate of the spectral function and compared to the values obtained through static phase-space sampling.     
-\end{longtable} 
+
  
 \noindent
 MPI Function \recttext{\texttt{calculate\_correlation\_array\_and\_save}} \vspace*{-0.25em}
@@ -525,19 +734,6 @@ MPI Function \recttext{\texttt{calculate\_correlation\_array\_and\_save}} \vspac
               & \texttt{double base\_temperature} \\
     Description &  
 \end{longtable} 
-
-
-\noindent
-Function \recttext{\texttt{connes\_apodization}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void connes\_apodization(a, sampling\_time);} \\
-    Arguments & \texttt{Array a} \\
-              & \texttt{double sampling\_time} \\
-    Description & Multiplies the provided array by Connes apodization with time-normalization factor ($a$) set to \texttt{sampling\_time}: $A(t)= (1 - t^2/a^2)^2$. See \href{https://mathworld.wolfram.com/ConnesFunction.html}{link}.
-\end{longtable}
-
-\subsection{Processing results}
-\label{subsec:processing}
 
 \noindent
 Function \recttext{\texttt{save\_correlation\_function}} \vspace*{-0.25em}
@@ -550,6 +746,39 @@ Function \recttext{\texttt{save\_correlation\_function}} \vspace*{-0.25em}
 \end{longtable}
 
 \noindent
+Function \recttext{\texttt{invert\_momenta}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void invert\_momenta(*ms);} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\
+    Description & Inverts the momenta stored inside MoleculeSystem. 
+\end{longtable} 
+
+\subsubsection{Calculating spectral functions}
+
+\noindent
+\recttext{\texttt{struct SFnc}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Fields & \texttt{double *nu} \\
+           & \texttt{double *data} \\
+           & \texttt{size\_t len} -- number of samples in \texttt{*nu} and \texttt{*data} \\
+           & \texttt{size\_t capacity} -- capacity of \texttt{*nu} and \texttt{*data} \\
+           & \texttt{size\_t ntraj}  -- number of trajectories used for averaging \\
+           & \texttt{double Temperature}
+\end{longtable}
+
+\noindent
+MPI Function \recttext{\texttt{ calculate\_spectral\_function\_using\_prmu\_representation}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc calculate\_spectral\_function\_using\_prmu\_representation\_and\_save(*ms, *params, Temperature)} \\
+    Arguments & \texttt{MoleculeSystem *ms} \\ 
+              & \texttt{CalcParams *params} \\
+              & \texttt{double Temperature} \\
+    Description & First, we check that \texttt{params.ApproximateFrequencyMax} is less than Nyquist frequency of the signal that will be sampled with requested \texttt{params.sampling\_time}. Then, based on the calculated frequency step, a length of the frequency array is calculated. Since the frequency step depends on the \texttt{params.sampling\_time} and \texttt{params.MaxTrajectoryLength}, the maximum frequency of the calculated spectral function will be somewhat close to the requested \texttt{params.ApproximateFrequencyMax} (as close as possible using the frequency step). The estimates of the zeroth and second spectral moments are obtained using \texttt{params.initialM0\_npoints} and \texttt{params.initialM2\_npoints}, respectively. The accumulation of \texttt{params.total\_trajectories} is divided into \texttt{params.niterations}. For each trajectory the intermolecular distance is set to \texttt{params.R0}. The trajectory is cut at the same distance \texttt{params.R0}. 
+    Connes apodization is applied to time dependencies of Cartesian components of dipole throughout collisional trajectory before applying Fourier transform to them. The length of the dipole array which is equal to \texttt{params.MaxTrajectoryLength} needs to be a power of 2. The current estimate of the spectral function is saved to \texttt{params.sf\_filename} at the end of each iteration. The zeroth and second spectral moments are obtained from the current estimate of the spectral function and compared to the values obtained through static phase-space sampling.     
+\end{longtable} 
+
+
+\noindent
 Function \recttext{\texttt{save\_spectral\_function}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{void save\_spectral\_function(*fp, sf, *params);} \\
@@ -558,6 +787,21 @@ Function \recttext{\texttt{save\_spectral\_function}} \vspace*{-0.25em}
               & \texttt{CalcParams *params} \\
     Description & The spectral function values \texttt{sf.data} assumed to be unnormalized by the number of trajectories \texttt{sf.ntraj}. The file stream \texttt{fp} is truncated using \texttt{ftruncate} before writing into it.
 \end{longtable}
+
+
+\noindent
+Function \recttext{\texttt{connes\_apodization}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void connes\_apodization(a, sampling\_time);} \\
+    Arguments & \texttt{Array a} \\
+              & \texttt{double sampling\_time} \\
+    Description & Multiplies the provided array by Connes apodization with time-normalization factor ($a$) set to \texttt{sampling\_time}: $A(t)= (1 - t^2/a^2)^2$. See \href{https://mathworld.wolfram.com/ConnesFunction.html}{link}.
+\end{longtable}
+
+
+\subsection{Processing results}
+\label{subsec:processing}
+
 
 \noindent
 Function \recttext{\texttt{read\_correlation\_function}} \vspace*{-0.25em}
@@ -578,6 +822,19 @@ Function \recttext{\texttt{read\_spectral\_function}} \vspace*{-0.25em}
               & \texttt{SFnc *sf} \\
     Description & Reads the spectral function from the file \texttt{filename} expecting a header containing metainformation (the lines should begin with \texttt{'\#'}) and data presented in the two-column format. The header is read into \texttt{String\_Builder} without parsing. The numerical values are parsed using \texttt{fscanf} function and checked to be non-NaN. Returns \texttt{false} when either the file could no be correctly opened to a parser error was encountered.  
 \end{longtable}
+
+\noindent
+Function \recttext{\texttt{writetxt}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{bool writetxt(*filename, *x, *y, len, *header);} \\
+    Arguments & \texttt{const char *filename} \\
+              & \texttt{double *x} \\
+              & \texttt{double *y} \\
+              & \texttt{size\_t len} \\
+              & \texttt{const char *header} \\
+    Description & 
+\end{longtable}
+
 
 \noindent
 Function \recttext{\texttt{integrate\_composite\_simpson}} \vspace*{-0.25em}
@@ -638,6 +895,8 @@ Function \recttext{\texttt{wingmodel}} \vspace*{-0.25em}
     Description &
 \end{longtable}
 
+{\color{red} Graphical interface is needed to visualize this step...}
+
 \noindent
 Function \recttext{\texttt{fit\_baseline}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
@@ -648,14 +907,83 @@ Function \recttext{\texttt{fit\_baseline}} \vspace*{-0.25em}
 \end{longtable}
 
 \noindent
+Function \recttext{\texttt{dct}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double* dct(*v, len);} \\
+    Arguments & \texttt{double *v} \\
+              & \texttt{size\_t len} \\
+    Description &  Implements the Fast Discrete Cosine Transform using the trick of Makhoul (2N + half-sample shift) and FFT, also known as DCT-II. For details, see \href{https://ieeexplore.ieee.org/document/1163351}{original paper}. A new vector with result is allocated and returned. Note that the output vector is not scaled by any time/ frequency units, making the implementation unit-agnostic.
+\end{longtable}
+
+\noindent
 Function \recttext{\texttt{idct}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{double* idct(*v, len);} \\
     Arguments & \texttt{double *v} \\
               & \texttt{size\_t len} \\
+    Description & Implements the Inverse Fast Discrete Cosine Transform using the trick of Makhoul (2N + half-sample shift) and IFFT. For details, see \href{https://ieeexplore.ieee.org/document/1163351}{original paper}. A new vector with result is allocated and returned.
+    Note that the output vector is not scaled by any time/ frequency units, making the implementation unit-agnostic.
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dct\_sf\_to\_cf(SFnc sf)}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{CFnc dct\_sf\_to\_cf(cf);} \\
+    Arguments & \texttt{SFnc sf} \\
     Description &
 \end{longtable}
 
+\noindent
+Function \recttext{\texttt{dct\_cf\_to\_sf(CFnc cf)}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{CFnc dct\_cf\_to\_sf(cf);} \\
+    Arguments & \texttt{CFnc cf} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{dct\_numeric\_sf}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc dct\_numeric\_sf(cf, *wp);} \\
+    Arguments & \texttt{CFnc cf} \\
+              & \texttt{WingParams *wp} \\
+    Description &
+\end{longtable}
+
+
+
+
+\noindent
+Function \recttext{\texttt{desymmetrize\_d2}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc desymmetrize\_d2(sf);} \\
+    Arguments & \texttt{SFnc sf} \\
+    Description & {\color{red} needs at least visual check}
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{desymmetrize\_sch}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc desymmetrize\_sch(sf);} \\
+    Arguments & \texttt{SFnc sf} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{desymmetrize\_egf}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc desymmetrize\_egf(sf);} \\
+    Arguments & \texttt{SFnc sf} \\
+    Description &
+\end{longtable}
+
+\noindent
+Function \recttext{\texttt{desymmetrize\_frm}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{SFnc desymmetrize\_frm(sf);} \\
+    Arguments & \texttt{SFnc sf} \\
+    Description &
+\end{longtable}
 
 \noindent
 \recttext{\texttt{struct Spectrum}} \vspace*{-0.25em}
@@ -672,23 +1000,6 @@ Function \recttext{\texttt{compute\_alpha}} \vspace*{-0.25em}
     Call & \texttt{Spectrum compute\_alpha(sf);} \\
     Arguments & \texttt{SFnc sf} \\
     Description & \\
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{dct\_numeric\_sf}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{SFnc dct\_numeric\_sf(cf, *wp);} \\
-    Arguments & \texttt{CFnc cf} \\
-              & \texttt{WingParams *wp} \\
-    Description &
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{desymmetrize\_sch}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{SFnc desymmetrize\_sch(sf);} \\
-    Arguments & \texttt{SFnc sf} \\
-    Description &
 \end{longtable}
 
 
@@ -847,159 +1158,6 @@ Function \recttext{\texttt{loess\_free}} \vspace*{-0.25em}
     Description & Releases the memory allocated for  smoothing. \\
 \end{longtable}
 
-\subsection{Interfacing with \texttt{CVode} library}
-\label{subsec:cvode}
-
-\noindent
-\recttext{\texttt{struct Trajectory}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Fields & \texttt{size\_t DIM} \\
-           & \texttt{size\_t mxsteps} \\
-           & \texttt{N\_Vector y} \\
-           & \texttt{N\_Vector abstol} \\
-           & \texttt{N\_Vector reltol} \\
-           & \texttt{SUNMatrix A} \\
-           & \texttt{SUNLinearSolver LS} \\
-           & \texttt{void *cvode\_mem} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{init\_trajectory}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{Trajectory init\_trajectory(*ms, *transformed, reltol);} \\
-    Arguments & \texttt{MoleculeSystem *ms} \\
-              & \texttt{double reltol} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{free\_trajectory}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void free\_trajectory(*traj);} \\
-    Arguments & \texttt{Trajectory *traj} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{reinit\_trajectory}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void reinit\_trajectory(*traj, t);} \\
-    Arguments & \texttt{Trajectory *traj} \\
-              & \texttt{double t} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{make\_step}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{int make\_step(*traj, tout, *t);} \\
-    Arguments & \texttt{Trajectory *traj} \\
-              & \texttt{double tout} \\
-              & \texttt{double *t} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{set\_initial\_condition}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void set\_initial\_condition(*traj, qp);} \\
-    Arguments & \texttt{Trajectory *traj} \\
-              & \texttt{Array qp} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{make\_vector}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{N\_Vector make\_vector(size);} \\
-    Arguments & \texttt{int size} \\
-    Description & 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{set\_tolerance}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void set\_tolerance(*traj, tolerance);} \\
-    Arguments & \texttt{Trajectory *traj} \\
-              * \texttt{double tolerance} \\
-    Description & 
-\end{longtable}
-
-\subsection{Interfacing with hep}
-\label{subsec:hep}
-
-\noindent
-Function \recttext{\texttt{transform\_variables}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void transform\_variables(x, *transformed, *Jac);} \\
-    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
-              & \texttt{double *transformed} \\
-              & \texttt{double *Jac} \\
-    Description & Transforms a point $x$ from $n$-dimensional hypercube $[0, 1]^n$ to a point in phase-space of the \texttt{MoleculeSystem} (which is passed in using global pointer). The following transformations are implemented
-    \begin{gather}
-        R \leftarrow 1/x, \notag \\
-        \theta \leftarrow \pi x, \notag \\
-        \phi \leftarrow 2 \pi x, \notag \\
-        p \leftarrow \tan(\pi (x - \sfrac{1}{2})). \notag
-    \end{gather}
-    %
-    The jacobian of the transformation is accumulated along the steps. {\color{red} Implemented for linear molecule-atom and rotor-linear molecule pairs.}  
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{integrand\_pf}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{double integrand\_pf(x);} \\
-    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
-    Description & Based on the point in hypercube returns the value of the following integrand:
-    \begin{gather}
-        \textrm{jac} \cdot \exp \lb -\frac{E}{k T} \rb. \notag
-    \end{gather}
-    %
-    (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer.) 
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{integrand\_M0}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{double integrand\_M0(x);} \\
-    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
-    Description & Based on the point in hypercube returns the value of the following integrand:
-    \begin{gather}
-        \textrm{jac} \cdot \mu^2 \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
-    \end{gather}
-    %
-    (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{integrand\_M2}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{double integrand\_M2(x);} \\
-    Arguments & \texttt{hep::mc\_point<double> const\& x} \\
-    Description & Based on the point in hypercube returns the value of the following integrand:
-    \begin{gather}
-        \textrm{jac} \cdot \Big[ \mu, H \Big] \cdot \exp \lb -\frac{E}{k T} \rb. \notag 
-    \end{gather}
-    %
-    The derivative of dipole with respect to coordinates is computed using 2-point central finite-difference formula. (The energy is computed for \texttt{MoleculeSystem} that is passed in using global pointer. The pointer to dipole function is also assumed to be set globally.)
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{mpi\_perform\_integration}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{double mpi\_perform\_integration(*ms, integrand, *params, Temperature, niterations, npoints, *m, *q);} \\
-    Arguments & \texttt{MoleculeSystem *ms} \\
-              & \texttt{Integrand integrand} -- \texttt{typedef double (*Integrand)(hep::mc\_point<double> const\&)}\\
-              & \texttt{CalcParams *params} \\
-              & \texttt{double Temperature} \\
-              & \texttt{size\_t niterations} \\
-              & \texttt{size\_t npoints} \\
-              & \texttt{double *m} \\
-              & \texttt{double *q} \\
-    Description & Evaluates the integral of requested \texttt{integrand} 
-\end{longtable}
 
 \subsection{Functions to transform angles between frames of reference}
 \label{subsec:angle-transformation}
@@ -1135,38 +1293,7 @@ Function \recttext{\texttt{sb\_free}} \vspace*{-0.25em}
     Description & This function releases the memory held by the internal buffer of the \texttt{String\_Builder} and resets the fields. 
  \end{longtable}
 
-\subsection{External functions}
-\label{subsec:external-functions}
 
-The potential energy and its derivatives are expected to be provided as functions with the following signatures:   
-
-\noindent
-Function \recttext{\texttt{pes}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{double pes(*q);} \\
-    Arguments & \texttt{double *q} \\
-    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return energy in Hartree.
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{dpes}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void dpes(*q, *dpesdq);} \\
-    Arguments & \texttt{double *q} \\
-              & \texttt{double *dpesdq} \\
-    Description & An array of \texttt{Q\_SIZE} variables is passed to this function; \texttt{MoleculeSystem} describes their order. Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return an array of derivatives of energy in units of Hartree/Bohr of length \texttt{Q\_SIZE}.
-\end{longtable}
-
-\noindent
-Function \recttext{\texttt{dipole}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
-    Call & \texttt{void dpes(*q, *dpesdq);} \\
-    Arguments & \texttt{double *q} \\
-              & \texttt{double *dpesdq} \\
-    Description &
-\end{longtable}
-
-\texttt{pes} and \texttt{dpes} are defined as external functions in the header \texttt{hawaii.h}, so they have to be implemented in the user program, whereas the dipole function needs to be set through function pointer named \texttt{dipole}. 
 
 
 \noindent
@@ -1222,6 +1349,7 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
 
 \end{enumerate}
 
+\printbibliography[heading=bibintoc]
 
 
 
@@ -1262,19 +1390,26 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
     \item [08.02.2025] the factor by ALU$^3$ is moved from \texttt{save\_correlation\_function} to \texttt{correlation\_eval}. {\color{red} correctness: check that after moving the factor ALU$^3$ here, the produced correlation functions are correct for both single-correlation function and correlation-array calculations}
     \item [09.02.2025] added \texttt{normalized} flag to CFnc, changed reading/saving correlation function from/to file ({\color{red} not documented})
     \item [09.02.2025] added parsing Temperature and ntraj from header of the file using regex and added averaging of correlation functions
-    \item [09.02.2025] rewrite of LOESS code to better understand what's going on there
+    \item [09.02.2025] rewrite of LOESS code to better understand what's going on there: prepare for OpenMP parallelization, check out different approaches to solve the weighted linear squares problem
     \item [09.02.2025] loess: added OpenMP parallelization of the main loop
     \item [11.02.2025] loess: refactored creating window \& added stubs for running outside OpenMP environment
     \item [12.02.2025] added checking for energy conservation inside trajectory. {\color{red} maybe need to check this info in \texttt{correlation\_eval} and discard the outlying trajectories?}
     \item [12.02.2025] implemented \texttt{average\_correlation\_functions} using vararg
+    \item [12.03.2025] calculated correlation functions for He-Ar at 50K and 300K using 500mln and 300mln trajectories, respectively. At 300K we achieved a decent looking spectrum, however at 50K it still looks not converged at large frequencies. Moreover, the correlation function at 50K exhibits pulsing (beating) oscillations which result in some spectral feature at 3.5 cm-1. What is it? Is it reproducible in quantum calculation?
+    \item [16.03.2025] \texttt{hawaii}: use appropriate partial partition function for each temperature when calculating M$_0$ before proceeding to propagate trajectories
+    \item [18.03.2025] Caught this mysterious error during bound states calculation for CH$_4-$CO$_2$: \texttt{[n01p012:2488401:0:2488401] Caught signal 7 (Bus error: nonexistent physical address)}. No stack trace, location of error unknown.
+    \item [23.03.2025] Added functions to perform D4 and D4a desymmetrization
 \end{enumerate}
 
 \section{Todo's}
 
 \begin{itemize}
     \item \texttt{mpi\_calculate\_M0}/\texttt{mpi\_calculate\_M2}: the temporary result is not accumulated over communicator, it is printed only for values accumulated only for zeroth process.
+    \item think about adding more information to output file, at least need to add timestamps 
+    \item get rid of OpenMP magic in LOESS and instead use explicitly \texttt{pthread} library 
     \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow. Honestly, calculating zeroth moments for 10+ temperatures is also no joke. It should be possible to cache these values as well.}
-    \item add an option to parallelize [OpenMP] smoothing of correlation function 
+    \item CO$_2-$CO$_2$ in 200-300K range (communicate with Wishnow about the possibility to conduct an experiment)
+    \item How to go about computing cross-term? We need to allow to have 2 dipole functions
     \item How to organize and store the calculated results for examples? The results include CFs, SFs, spectra, spectral moments and partial partition functions.
     \item We should store the results of individual iterations of \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. Maybe use SQL database for this?
     \item Arena Allocator for storing some temporary strings and small arrays. At the moment, there are waaaay too many mallocs/frees. 
@@ -1298,6 +1433,7 @@ Usage of GNU profiler (gprof):
     \item Run the program: \texttt{./test}
     \item Generate the profiling report: \texttt{gprof test gmon.out > analysis.txt}
 \end{enumerate}
+
 
 
 \end{document}
