@@ -351,8 +351,8 @@ size_t* linspace_size_t(size_t start, size_t end, size_t n);
 // std::vector<double> arange(double start, double step, size_t size);
 
 double integrate_composite_simpson(double *x, double *y, size_t len); 
-double compute_M0_from_sf(SFnc sf);
-double compute_M2_from_sf(SFnc sf);
+double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
+double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n);
 
 void free_cfnc(CFnc cf);
 void free_cfnc_array(CFncArray ca);

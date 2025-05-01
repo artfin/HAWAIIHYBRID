@@ -22,7 +22,8 @@
 
 #define ZeroCoeff   (0.00361479637/(4.0*M_PI))
 #define SecondCoeff 13856114.29344114
-    
+
+// This constant is also denoted as A
 // MOMENT_SF_COEFF * \int_{-\infty}^{+\infty} J(\nu) * \nu^n d\nu -> cm^(-n-1) amagat^(-2)
 #define Moment_SF_Coeff  ((8.0*M_PI*M_PI*M_PI)*NL*NL/3.0/HBar)
 
@@ -38,6 +39,7 @@
 #define m_He (4.00260325413 * RAMTOAMU)
 
 #define m_H2 (2.0 * m_H)
+#define m_N2 (2.0 * m_N)
 #define m_CO (m_C + m_O)
 #define m_CO2 (m_C + 2.0 * m_O)
 #define m_CH4 (m_C + 4.0 * m_H)
@@ -47,12 +49,19 @@
 
 // ? 
 #define l_CO2 4.398
+    
+// zero-point vibrationally averaged value
+// Source: J. Bendten and F. Rasmussen, Journal of Raman Spectroscopy, 2000, 31, 433-438  
+// #define L_N2 2.078 
+#define L_N2 2.07856749
 
 // Source: K. P. Huber, G. Herzberg. Molecular Spectra and Molecular Structure. IV. Constants of Diatomic molecules, Springer, US, 1979
 // did not found B0 but this value of L_H2 is mentioned in several works, e.g.:
 // O. Denis-Alpizar, Y. Kalugina, T. Stoecklin, M. Hernandez Vera, F. lique, A new ab initio potential energy surface for the collisional excitation of HCN by para- and ortho-H2. J. Chem. Phys., 139, 224301, 2013.
 // W. Rijks, P. E. S. Wormer, Correlated van der Waals coefficients for dimers consisting of He, Ne, H2, and N2. J. Chem. Phys., 88, 5704, 1988.
 #define l_H2 1.448736 
+    
+#define II_N2  (m_N / 2.0 * L_N2 * L_N2)
     
 #define II_CO2 (m_O/2.0*l_CO2*l_CO2)
 #define II_H2  (m_H/2.0*l_H2*l_H2)

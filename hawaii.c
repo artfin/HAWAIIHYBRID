@@ -2381,8 +2381,8 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         }
         sf_total.ntraj += local_ntrajectories * _wsize;
 
-        double M0_est = compute_M0_from_sf(sf_total) / sf_total.ntraj;
-        double M2_est = compute_M2_from_sf(sf_total) / sf_total.ntraj;
+        double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
+        double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
         PRINT0("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
@@ -2666,7 +2666,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
-        printf("Error: could not open the file '%s': %s\n", filename, strerror(errno));
+        printf("ERROR: could not open the file '%s': %s\n", filename, strerror(errno));
         return_defer(false); 
     }
  
@@ -2693,8 +2693,9 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
         header_lines++;
     }
-   
-    printf("  # of lines in header: %zu\n", header_lines);
+  
+    printf("INFO: Reading correlation function from '%s'\n", filename); 
+    printf("INFO: # of lines in header: %zu\n", header_lines);
     
     regex_t regex = {0};
     int ret;
@@ -3348,9 +3349,12 @@ void connes_apodization(Array a, double sampling_time)
 
 double *dct(double *v, size_t len)
 /*
- * Implementation of Fast Discrete Cosine Transform using specific trick of Makhoul (2N + half-sample shift) and FFT -- so-called DCT-II.
+ * Implements the Fast Discrete Cosine Transform using the trick of Makhoul (2N + half-sample shift) and FFT, also known as DCT-II. 
+ * A new vector with result is allocated and returned. 
+ *
  * See original paper:
- * http://eelinux.ee.usm.maine.edu/courses/ele486/docs/makhoul.fastDCT.pdf 
+ * https://ieeexplore.ieee.org/document/1163351  
+ * http://eelinux.ee.usm.maine.edu/courses/ele486/docs/makhoul.fastDCT.pdf
  *
  * [a, b, c, d] becomes [a, b, c, d, d, c, b, a]. Take the FFT of that to get [A, B, C, D, 0, D*, C*, B*], then throw away everything but [A, B, C, D] 
  * and make a half-sample shift to get the DCT.
@@ -3394,6 +3398,11 @@ double *dct(double *v, size_t len)
     for (size_t i = 1; i < len; ++i) {
         double complex cx = (hcx[i] + I*hcx[2*len - i]) * cexp(-I * M_PI * i / (2.0 * len));
         v_dct[i] = creal(cx); 
+        
+        if (isnan(v_dct[i])) {
+            printf("ERROR: dct: the value calculated at i = %zu is NaN! Check the provided array\n", i);
+            exit(1);
+        }
     }
    
     free(hcx);
@@ -3406,8 +3415,11 @@ double *dct(double *v, size_t len)
 
 double *idct(double *v, size_t len)
 /*
- * Implementation of Inverse Fast Discrete Cosine Transform using the same Makhoul trick (2N + half-sample shift) and IFFT.
+ * Implements the Inverse Fast Discrete Cosine Transform using the trick of Makhoul (2N + half-sample shift) and IFFT.
+ *  A new vector with result is allocated and returned.  
+ *
  * See original paper:
+ * https://ieeexplore.ieee.org/document/1163351  
  * http://eelinux.ee.usm.maine.edu/courses/ele486/docs/makhoul.fastDCT.pdf 
  * 
  * The packing of input array for IFFT procedure is more clearly demonstrated by the following Python code: 
@@ -3499,7 +3511,7 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
 
     double *cfnum = (double*) malloc(cf.len * sizeof(double));
     for (size_t i = 0; i < cf.len; ++i) {
-        cfnum[i] = cf.data[i] - wingmodel(wp, cf.t[i]);    
+        cfnum[i] = cf.data[i] - wingmodel(wp, cf.t[i]);
     }
     
     double dt = (cf.t[1] - cf.t[0]) / ATU;
@@ -3753,19 +3765,42 @@ double integrate_composite_simpson(double *x, double *y, size_t len)
     return sum * 3.0 * h / 8.0;
 } 
 
-double compute_M0_from_sf(SFnc sf) {
-    return 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, sf.data, sf.len);
-}
-
-double compute_M2_from_sf(SFnc sf) {
-    double *y = (double*) malloc(sf.len * sizeof(double));
-
-    for (size_t i = 0; i < sf.len; ++i) {
-        y[i] = sf.nu[i] * sf.nu[i] * sf.data[i];
+double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n)
+{
+    if (n % 2 == 1) {
+        return 0.0;
     }
 
-    double M2 = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
+    double *y = (double*) malloc(sf.len * sizeof(double));
+    
+    for (size_t i = 0; i < sf.len; ++i) {
+        y[i] = sf.data[i] * pow(sf.nu[i], n);
+    }
+
+    double Mn = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
     free(y);
 
-    return M2;
+    return Mn;
+}
+
+double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n)
+{
+    double *y = (double*) malloc(sf.len * sizeof(double));
+
+    if (n % 2 == 0) {
+        for (size_t i = 0; i < sf.len; ++i) {
+            double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature); 
+            y[i] = sf.data[i] * pow(sf.nu[i], n) * (1.0 + exp(-hnukt)); 
+        }
+    } else {
+        for (size_t i = 0; i < sf.len; ++i) {
+            double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature); 
+            y[i] = sf.data[i] * pow(sf.nu[i], n) * (1.0 - exp(-hnukt)); 
+        }
+    }
+    
+    double Mn = Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
+    free(y);
+
+    return Mn;
 }
