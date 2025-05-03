@@ -1784,6 +1784,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     }
 
     double *base_crln  = malloc(params->MaxTrajectoryLength * sizeof(double));
+    memset(base_crln, 0, params->MaxTrajectoryLength * sizeof(double));
 
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
     
