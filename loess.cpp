@@ -69,7 +69,8 @@ void loess_init(double *x, double *y, size_t ilen)
 /*
  * This function prepares the input data for LOESS by storing the predictor 'x' and response 'y' values,
  * and setting up the necessary values for subsequent LOESS calculations. The function assumes that
- * the input arrays `x` and `y` are of equal length and contain valid numerical data. 
+ * the input arrays `x` and `y` are of equal length and contain valid numerical data.
+ * Copies the values of 'x' and 'y' into internal buffers. 
  */
 {
     xp = (double*) malloc(ilen * sizeof(double));
@@ -191,6 +192,10 @@ inline double bisquare(double x) {
 }
 
 double loess_estimate(double x, size_t window_size, size_t degree)
+/* 
+ * This function computes a local polynomial fit of provided degree within a specified window around the predictor 
+ *  value 'x' and uses it to estimate the response value 'y'.
+ */
 {
     double nx = (x - minx) / (maxx - minx);
     
@@ -325,7 +330,14 @@ double loess_estimate(double x, size_t window_size, size_t degree)
     return y;
 }
 
-double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoints) 
+double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoints)
+/*
+ * Generates a uniformly spaced grid of predictor values within a specified range.
+ * This function creates a grid of equally spaced 'grid_npoints' points between `grid_xmin` 
+ * and `grid_xmax` (inclusive).
+ * The function checks the validity of the provided grid bounds with respect to  the range of the 
+ * previously provided input data for smoothing.
+ */  
 {
     if (grid_xmin < minx) {
         printf("ERROR: the starting point of the grid (%.5e) is less than the minimum xvalue in the raw data (%.5e). Adjust the grid bounds to be within the data range.\n", 
@@ -360,6 +372,12 @@ double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoint
 }
 
 double *loess_apply_smoothing(Smoothing_Config *config) 
+/* 
+ * This function performs LOESS smoothing on the input data  by fitting local polynomials to subsets of the data
+ * and combining the results to produce a smoothed curve. The behavior of the smoothing process is controlled
+ * by the `Smoothing_Config` struct, which specifies parameters such as the polynomial degree, window size,
+ * and parameters of window extension.
+ */
 {
     if (GRID_NPOINTS <= 0) {
         printf("ERROR: the grid is not initialized. Ensure 'loess_create_grid' is called to define the grid before applying the smoothing algorithm\n");
