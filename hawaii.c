@@ -1680,6 +1680,10 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     // are correct for both single-correlation function and correlation-array calculations 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
+    	if (fabs(crln[i]) > 1e100) {
+	    printf("crln: broken value detected for i = %zu!\n", i);
+	    assert(false);
+	}
     } 
 
     *tps = tr.turning_points;
@@ -2027,10 +2031,15 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
     //       the case when total_trajectories is not divisible by niterations. 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
+    
+    // temporary buffer for MPI communication
+    double *buf = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
    
     double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
     double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
-    
+    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
+    memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
+
     CFnc total_crln = {
         .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
         .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
@@ -2130,12 +2139,29 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             }
         }
 
-        MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-       
-        for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-            total_crln.data[i] += total_crln_iter.data[i];
-        }
-        total_crln.ntraj += local_ntrajectories * _wsize;
+        // MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+     	if (_wrank == 0) {
+		MPI_Status status;
+
+		for (size_t i = 1; i < (size_t) _wsize; ++i) {
+			memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
+			MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+
+			for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
+				total_crln_iter.data[j] += buf[j];
+			}
+		}
+	} else { 
+		MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+	} 
+
+	if (_wrank == 0) {
+		for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+			total_crln.data[i] += total_crln_iter.data[i];
+		}
+
+		total_crln.ntraj += local_ntrajectories * _wsize;
+	}
 
         memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
@@ -2162,6 +2188,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     free(crln);
     free(local_crln);
     free_cfnc(total_crln_iter);
+    free(buf);
 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         total_crln.data[i] /= total_crln.ntraj;

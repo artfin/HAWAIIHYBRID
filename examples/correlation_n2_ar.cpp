@@ -222,15 +222,15 @@ int main(int argc, char *argv[])
     params.ps                               = FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.51;
     params.sampler_Rmax                     = 40.0;
-    params.niterations                      = 3;
-    params.total_trajectories               = 600;
+    params.niterations                      = 100;
+    params.total_trajectories               = 10000000;
     params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
     params.Rcut                             = 40.0;
     params.partial_partition_function_ratio = 2.68234e+05;
-    params.initialM0_npoints                = 2000;
-    params.initialM2_npoints                = 2000;
+    params.initialM0_npoints                = 30000000;
+    params.initialM2_npoints                = 30000000;
     params.pesmin                           = -97.3 / HTOCM;
     params.cf_filename                      = "./CF-N2-Ar-F-300.0.txt";
 
