@@ -30,6 +30,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/correlation_co_ar.exe                   \
 			examples/correlation_co2_ar.exe                  \
 			examples/correlation_n2_ar.exe                   \
+			examples/correlation_array_n2_ar.exe             \
 			examples/correlation_array_co2_ar.exe            \
 			examples/correlation_ch4_co2.exe                 \
 			examples/correlation_array_ch4_co2.exe           \
@@ -200,7 +201,10 @@ examples/correlation_co2_ar.exe: examples/correlation_co2_ar.cpp build/trajector
 
 examples/correlation_n2_ar.exe: examples/correlation_n2_ar.cpp build/trajectory.o $(MPI_OBJ) $(N2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
-			
+
+examples/correlation_array_n2_ar.exe: examples/correlation_array_n2_ar.cpp build/trajectory.o $(MPI_OBJ) $(N2_AR)
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
+
 examples/correlation_array_co2_ar.exe: examples/correlation_array_co2_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO2_AR)
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
