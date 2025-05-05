@@ -126,16 +126,16 @@ int main(int argc, char *argv[])
     params.partial_partition_function_ratios = (double*) malloc(params.num_satellite_temperatures * sizeof(double)); 
   
     /* 
-    params.partial_partition_function_ratios[0]  = 2.67722e+05; // 9.60078e+05; // F, 500 K
-    params.partial_partition_function_ratios[0]  = 2.67821e+05; // 9.13128e+05; // F, 490 K
-    params.partial_partition_function_ratios[0]  = 2.67839e+05; // 8.67309e+05; // F, 480 K
-    params.partial_partition_function_ratios[0]  = 2.67803e+05; // 8.22728e+05; // F, 470 K
-    params.partial_partition_function_ratios[0]  = 2.67813e+05; // 7.79693e+05; // F, 460 K
-    params.partial_partition_function_ratios[0]  = 2.67864e+05; // 7.38145e+05; // F, 450 K
-    params.partial_partition_function_ratios[0]  = 2.67863e+05; // 6.97816e+05; // F, 440 K
-    params.partial_partition_function_ratios[0]  = 2.67891e+05; // 6.58911e+05; // F, 430 K
-    params.partial_partition_function_ratios[0]  = 2.67945e+05; // 6.21391e+05; // F, 420 K
-    params.partial_partition_function_ratios[0]  = 2.67901e+05; // 5.84966e+05; // F, 410 K
+    params.partial_partition_function_ratios[0]  = 2.67722e+05; // F, 500 K
+    params.partial_partition_function_ratios[0]  = 2.67821e+05; // F, 490 K
+    params.partial_partition_function_ratios[0]  = 2.67839e+05; // F, 480 K
+    params.partial_partition_function_ratios[0]  = 2.67803e+05; // F, 470 K
+    params.partial_partition_function_ratios[0]  = 2.67813e+05; // F, 460 K
+    params.partial_partition_function_ratios[0]  = 2.67864e+05; // F, 450 K
+    params.partial_partition_function_ratios[0]  = 2.67863e+05; // F, 440 K
+    params.partial_partition_function_ratios[0]  = 2.67891e+05; // F, 430 K
+    params.partial_partition_function_ratios[0]  = 2.67945e+05; // F, 420 K
+    params.partial_partition_function_ratios[0]  = 2.67901e+05; // F, 410 K
     params.partial_partition_function_ratios[0]  = 2.67966e+05; // 5.50081e+05; // F, 400 K
     params.partial_partition_function_ratios[0]  = 2.67973e+05; // 5.16356e+05; // F, 390 K
     params.partial_partition_function_ratios[0]  = 2.67991e+05; // 4.83923e+05; // F, 380 K
@@ -175,15 +175,15 @@ int main(int argc, char *argv[])
     */
 
     /*                                                               
-    params.partial_partition_function_ratios[0] = 4.68641e+01; // B, 150 K
-    params.partial_partition_function_ratios[0] = 4.76290e+01; // B, 140 K
-    params.partial_partition_function_ratios[0] = 4.85049e+01; // B, 130 K
-    params.partial_partition_function_ratios[0] = 4.95999e+01; // B, 120 K
-    params.partial_partition_function_ratios[0] = 5.09598e+01; // B, 110 K
-    params.partial_partition_function_ratios[0] = 5.26148e+01; // B, 100 K
-    params.partial_partition_function_ratios[0] = 5.48078e+01; // B, 90 K
-    params.partial_partition_function_ratios[0] = 5.77305e+01; // B, 80 K
-    params.partial_partition_function_ratios[0] = 6.18422e+01; // B, 70 K
+    params.partial_partition_function_ratios[0] = 2.65122e+02; // B, 150 K
+    params.partial_partition_function_ratios[0] = 3.20199e+02; // B, 140 K
+    params.partial_partition_function_ratios[0] = 3.92547e+02; // B, 130 K
+    params.partial_partition_function_ratios[0] = 4.90240e+02; // B, 120 K
+    params.partial_partition_function_ratios[0] = 6.25928e+02; // B, 110 K
+    params.partial_partition_function_ratios[0] = 8.20360e+02; // B, 100 K
+    params.partial_partition_function_ratios[0] = 1.11193e+03; // B, 90 K
+    params.partial_partition_function_ratios[0] = 1.57226e+03; // B, 80 K
+    params.partial_partition_function_ratios[0] = 2.35171e+03; // B, 70 K
     */
 
     params.cf_filenames = (const char **) malloc(params.num_satellite_temperatures * sizeof(char *));
