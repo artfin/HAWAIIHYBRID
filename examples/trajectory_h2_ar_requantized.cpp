@@ -48,31 +48,32 @@ int main()
 
     Array qp = create_array(ms.QP_SIZE);
     double data[ms.QP_SIZE];
-    data[IR]       = 10.0000000000000000;
-    data[IPR]      = -0.1390728108333908;
+    data[IR]       = 30.0000000000000000;
+    data[IPR]      = -4.1390728108333908;
     data[IPHI]     = 2.6149492227311319;
-    data[IPPHI]    = -0.845274877844076;
-    data[ITHETA]   = 1.5712832054878647;
-    data[IPTHETA]  = 0.7051209557879594;
-    data[IPHI1]    = 1.7133086475792336;
-    data[IPPHI1]   = -0.4428409546240073;
+    data[IPPHI]    = -1.845274877844076;
+    data[ITHETA]   = 1.9712832054878647;
+    data[IPTHETA]  = 3.7051209557879594;
+    data[IPHI1]    = 0.7133086475792336;
+    data[IPPHI1]   = -0.0428409546240073;
     data[ITHETA1]  = 0.5404197109595652;
-    data[IPTHETA1] = 0.3298923262808994;
+    data[IPTHETA1] = -0.1298923262808994;
     
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
+    double E0 = Hamiltonian(&ms);
 
     double tolerance = 1e-15;
     Trajectory traj = init_trajectory(&ms, tolerance);
-   
-    double E0 = Hamiltonian(&ms);
+    traj.check_energy_conservation = false;
+
     set_initial_condition(&traj, qp);
     print_array(qp);
 
     CalcParams params = {};
-    params.sampling_time = 200.0; 
-    params.torque_cache_len = 10;
-    params.torque_bound = 1e-5;
+    params.sampling_time = 10.0; 
+    params.torque_cache_len = 50;
+    params.torque_limit = 1e-4;
     
     size_t switch_counter = 0;
 
@@ -84,6 +85,10 @@ int main()
 
     for (size_t nstep = 0; ; ++nstep, tout += params.sampling_time)
     {
+        // 14.05: every call to 'make_step' applies requatization resulting in the discretization equal to
+        // params.sampling_time. We should test whether this scheme produces the H2-Ar spectrum similar
+        // to that obtained with Sokolov.
+        // 
         int status = make_step(&traj, tout, &t);
         if (status > 0) {
             fprintf(stderr, "CVODE ERROR: status = %d\n", status);
@@ -93,47 +98,39 @@ int main()
         double E = Hamiltonian(&ms);
         double j = j_monomer(ms.m1);
         double torq = torque_monomer(ms.m1); 
+        printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e\n", t, ms.intermolecular_qp[IR], E-E0, j, torq);
 
         cache[nstep % params.torque_cache_len] = torq;
-        bool all_less_than_bound = true;
-        bool all_more_than_bound = true;
+        bool all_less_than_limit = true;
+        bool all_more_than_limit = true;
         for (size_t i = 0; i < params.torque_cache_len; ++i) {
-            if (torq > params.torque_bound) {
-                all_less_than_bound = false;
+            if (torq > params.torque_limit) {
+                all_less_than_limit = false;
             }
-            if (torq < params.torque_bound) {
-                all_more_than_bound = false;
+            if (torq < params.torque_limit) {
+                all_more_than_limit = false;
             } 
         }
 
-        if (all_less_than_bound) {
+        if (all_less_than_limit) {
             if (!ms.m1.apply_requantization) {
                 ms.m1.apply_requantization = true;
                 switch_counter++;
 
                 printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+                memset(cache, 0, params.torque_cache_len*sizeof(double));
             }
         }
 
-        if (all_more_than_bound) {
+        if (all_more_than_limit) {
             if (ms.m1.apply_requantization) {
                 ms.m1.apply_requantization = false;
                 switch_counter++;
                 
                 printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+                memset(cache, 0, params.torque_cache_len*sizeof(double));
             }
         }
-
-        if (ms.m1.apply_requantization) {
-            for (size_t i = 0; i < 4; ++i) {
-                NV_Ith_S(traj.y, i + 6) = ms.m1.qp[i];  
-            } 
-
-            reinit_trajectory(&traj, tout);
-        }
-
-
-        printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e\n", t, ms.intermolecular_qp[IR], E-E0, j, torq);
 
         if (ms.intermolecular_qp[IR] > 40.0) break;
     }

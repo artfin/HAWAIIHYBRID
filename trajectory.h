@@ -32,7 +32,8 @@ typedef struct
     SUNMatrix A;
     SUNLinearSolver LS;
     void *cvode_mem;
-    //  
+    // 
+    Array temp_qp; 
     MoleculeSystem* ms;
     N_Vector ic; 
     // -- energy conservation 

@@ -172,7 +172,7 @@ typedef struct {
    
     /* requantization */ 
     size_t torque_cache_len;
-    double torque_bound;
+    double torque_limit;
 
     /* trajectory */
     double sampling_time; // a.t.u.
@@ -329,6 +329,7 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
 double j_monomer(Monomer m);
 double torque_monomer(Monomer m); 
+double find_closest_half_integer(double j); 
 
 void invert_momenta(MoleculeSystem *ms);
 

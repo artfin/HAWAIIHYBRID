@@ -151,15 +151,13 @@ double find_closest_half_integer(double j)
 /*
  * requantization to:
  *    0.0, 1.5, 2.5, 3.5 ...
- * NOTE: probably should return 1.5 if j > 0.75, however it doesn't..
  */
 {
     double r = 0.0;
 
     // to avoid the requantization to j = 0.5
-    if (j < 1.0) {
-        return 0.0;
-    }
+    if (j < 0.75) return 0.0;
+    if (j < 1.5) return 1.5;
 
     while (j - r >= 1.0) {
         r += 1.0;
@@ -224,6 +222,7 @@ double torque_monomer(Monomer m)
 void rhsMonomer(Monomer *m, double *deriv) {
     switch (m->t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
         case LINEAR_MOLECULE: {
            double pPhi   = m->qp[IPPHI];
            double Theta  = m->qp[ITHETA];
@@ -237,34 +236,6 @@ void rhsMonomer(Monomer *m, double *deriv) {
            deriv[ITHETA]  = pTheta / m->II[0]; 
            deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->II[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
           
-           break;                                                    
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-           if (m->apply_requantization) {
-                double j    = j_monomer(*m);
-                double jreq = find_closest_half_integer(j);
-
-                double scaling_factor = 0.0;
-                if (j > 1e-15) {
-                    scaling_factor = jreq / j; 
-                }
-
-                m->qp[IPPHI]   *= scaling_factor;
-                m->qp[IPTHETA] *= scaling_factor;
-           }
-
-           double pPhi   = m->qp[IPPHI];
-           double Theta  = m->qp[ITHETA];
-           double pTheta = m->qp[IPTHETA];
-
-           double sin_theta = sin(Theta);
-           double cos_theta = cos(Theta);
-
-           deriv[IPHI]    = pPhi / m->II[0] / sin_theta / sin_theta;
-           deriv[IPPHI]   = -m->dVdq[IPHI/2];
-           deriv[ITHETA]  = pTheta / m->II[0]; 
-           deriv[IPTHETA] = pPhi * pPhi * cos_theta / m->II[0] / sin_theta / sin_theta / sin_theta - m->dVdq[ITHETA/2]; 
-    
            break;                                                    
         }
         case ROTOR: {
