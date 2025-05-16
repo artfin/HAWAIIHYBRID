@@ -10,7 +10,7 @@ MPICXX := mpic++
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
-FLAGS := $(FLAGS_RELEASE)
+FLAGS := $(FLAGS_DEBUG)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
 INC_EIGEN    := -I/usr/local/include/eigen3
@@ -35,6 +35,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/correlation_ch4_co2.exe                 \
 			examples/correlation_array_ch4_co2.exe           \
 			examples/prmu_calculation_co2_ar.exe             \
+			examples/prmu_calculation_co_ar_requantized.exe  \
 			examples/fftrump.exe                             \
 			examples/test_sb.exe                             \
 			examples/test_loess.exe                          \
@@ -215,6 +216,9 @@ examples/fftrump.exe: examples/fftrump.cpp build/loess.o $(OBJ)
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) -fopenmp
 
 examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
+			
+examples/prmu_calculation_co_ar_requantized.exe: examples/prmu_calculation_co_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
 examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 

@@ -44,8 +44,10 @@
 #define m_CO2 (m_C + 2.0 * m_O)
 #define m_CH4 (m_C + 4.0 * m_H)
 
-// ?
-#define l_CO 2.132 // bohr 
+// A.  Rizzo, J. L. Cacheiro, B. F. Rodriguez, B. Jansik, T. B. Pedersen. Theoretical gas and dielectric second virial coefficients of CO-Ar.
+// Molecular Physics, 2008, 106 (07), pp. 881-892. doi: 10.1080/00268970802001363   
+#define l_CO 2.132      // bohr
+#define mu_CO 0.0481131 // e a0
 
 // ? 
 #define l_CO2 4.398

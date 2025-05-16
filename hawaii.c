@@ -934,13 +934,11 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
 
     switch (ms->m1.t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION:
         case LINEAR_MOLECULE: {
           ms->m1.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
           ms->m1.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
           break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("q_generator");
         }
         case ROTOR: {
           ms->m1.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
@@ -1029,12 +1027,10 @@ void p_generator(MoleculeSystem *ms, double Temperature)
     
     switch (ms->m1.t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQUANTIZED_ROTATION:
         case LINEAR_MOLECULE: {
           p_generator_linear_molecule(&ms->m1, Temperature);
           break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("p_generator");
         }
         case ROTOR: {
           p_generator_rotor(&ms->m1, Temperature);
@@ -2184,6 +2180,19 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     assert(params->ApproximateFrequencyMax > 0);
     assert(params->sf_filename != NULL);
     
+    double* torque_cache = NULL;
+
+    if (ms->m1.t == LINEAR_MOLECULE_REQUANTIZED_ROTATION) {
+        assert(params->torque_cache_len > 0);
+        assert(params->torque_limit > 0);
+
+        torque_cache = (double*) alloca(params->torque_cache_len * sizeof(double));
+        memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+
+        // by default we turn on the requantization
+        ms->m1.apply_requantization = true;
+    }
+    
     INIT_WRANK;
     INIT_WSIZE;
     
@@ -2269,7 +2278,8 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     
 
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
-    
+    traj.check_energy_conservation = false;
+
     int status = 0; 
     double t, tout;
 
@@ -2288,6 +2298,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std);
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2 - prelim_M2std, prelim_M2 + prelim_M2std);
     PRINT0("Error: %.3f%%\n\n", prelim_M2std/prelim_M2 * 100.0);
+
 
     for (size_t iter = 0; iter < params->niterations; ++iter) {
 
@@ -2311,12 +2322,51 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
             t    = 0.0;
             tout = params->sampling_time;
 
+            int req_switch_counter = 0;
+            memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+
             for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
             {
                 status = make_step(&traj, tout, &t);
                 if (status) {
                     printf("CVODE ERROR: status =  %d\n", status);
                     break;
+                }
+       
+                if (ms->m1.t == LINEAR_MOLECULE_REQUANTIZED_ROTATION) {
+                    double j    = j_monomer(ms->m1);
+                    double torq = torque_monomer(ms->m1);
+                    torque_cache[step_counter % params->torque_cache_len] = torq;
+                    //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
+
+                    bool all_less_than_limit = true;
+                    bool all_more_than_limit = true;
+                    for (size_t i = 0; i < params->torque_cache_len; ++i) {
+                        if (torq > params->torque_limit) {
+                            all_less_than_limit = false;
+                        }
+                        if (torq < params->torque_limit) {
+                            all_more_than_limit = false;
+                        } 
+                    }
+
+                    if (all_less_than_limit) {
+                        if (!ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = true;
+                            req_switch_counter++;
+
+                            printf("Setting requantization to 'true': switch counter = %d\n", req_switch_counter);
+                        }
+                    }
+
+                    if (all_more_than_limit) {
+                        if (ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = false;
+                            req_switch_counter++;
+
+                            printf("Setting requantization to 'false': switch counter = %d\n", req_switch_counter);
+                        }
+                    }
                 }
 
                 extract_q_and_write_into_ms(ms);
@@ -2338,7 +2388,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
                 printf("Caught CVode error. Resampling new conditions...\n");
                 continue;
             }
-           
+    
             // if we hit this 'if', it means that the length of the trajectory turned out to be longer
             // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
             // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
