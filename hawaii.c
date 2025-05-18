@@ -72,8 +72,16 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
         seed = mt_goodseed();
         mt_seed32(seed);
     }
+    
+    time(&ms.init_rawtime);
+    struct tm * init_timeinfo;
+    init_timeinfo = localtime(&ms.init_rawtime);
      
     PRINT0("-------------------------------------------------------------------\n");
+    PRINT0("CURRENT TIME: %04d-%02d-%02d %02d:%02d:%02d\n\n",  
+           init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
+           init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
+
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
 
@@ -2307,6 +2315,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     assert(sf_total.data != NULL && "ASSERT: not enough memory!\n"); 
     memset(sf_total.data, 0, frequency_array_length * sizeof(double)); 
     
+    String_Builder sb_datetime = {};
 
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
     traj.check_energy_conservation = false;
@@ -2465,6 +2474,27 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+
+        time_t current_rawtime;
+        time(&current_rawtime);
+        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);  
+            
+        sb_reset(&sb_datetime);
+        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+            
+        if (iter == 0) {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+        } else {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+            
+            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+            sb_reset(&sb_datetime);
+            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+        }
+
+        ms->temp_rawtime = current_rawtime;
+
         PRINT0("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
         PRINT0("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
@@ -2473,6 +2503,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         }
     }
 
+    sb_free(&sb_datetime);
     free_sfnc(sf_iter);
 
     for (size_t i = 0; i < frequency_array_length; ++i) {
@@ -2615,8 +2646,17 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     
     // resets the file position indicator
     rewind(fp);
+    
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
 
     fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+             timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+             timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
     fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
     fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", sf.ntraj); 
     fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
@@ -2667,6 +2707,7 @@ void sb_reset(String_Builder *sb)
 {
     sb->count = 0;
 }
+
 
 void sb_append_cstring(String_Builder *sb, const char *line)
 /*
@@ -2726,6 +2767,28 @@ void sb_append_format(String_Builder *sb, const char *format, ...)
     va_end(args);
 
     sb->count += needed_length;    
+}
+
+void sb_append_seconds_as_datetime_string(String_Builder *sb, int s)
+/*
+ * Appends a string representation of a time duration in seconds to a String Builder.
+ * The string is formatted as a human-readable datetime string (e.g. "1h 2m 3s"). 
+ * TODO: we could also accept the format string for the datetime
+ */  
+{
+    int h = s / 3600;
+    s = s - h * 3600;
+
+    int m = s / 60;
+    s = s - m * 60;
+
+    if (h > 0) {
+        sb_append_format(sb, "%dh %dm %ds", h, m, s);
+    } else if (m > 0) {
+        sb_append_format(sb, "%dm %ds", m, s);
+    } else {
+        sb_append_format(sb, "%ds", s);
+    }
 }
 
 void sb_free(String_Builder *sb)

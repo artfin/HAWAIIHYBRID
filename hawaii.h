@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <regex.h>
+#include <time.h>
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -151,6 +152,9 @@ typedef struct {
 
     double *intermediate_q;
     double *dVdq;
+
+    time_t init_rawtime;
+    time_t temp_rawtime;
 } MoleculeSystem;
 
 typedef enum {
@@ -379,6 +383,7 @@ typedef struct {
 void sb_append(String_Builder *sb, const char *line, size_t n);
 void sb_append_cstring(String_Builder *sb, const char *line);
 void sb_append_format(String_Builder *sb, const char *format, ...);
+void sb_append_seconds_as_datetime_string(String_Builder *sb, int seconds);
 void sb_reset(String_Builder *sb);
 void sb_free(String_Builder *sb);
 // ----------------------------------------------------------
