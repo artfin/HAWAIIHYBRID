@@ -44,7 +44,7 @@ int main()
 
     double MU = m_H2 * m_Ar / (m_H2 + m_Ar); 
     double I1[2] = {II_H2, II_H2};
-    MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQUANTIZED_ROTATION, ATOM, I1, NULL, seed);
+    MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_HALFINTEGER, ATOM, I1, NULL, seed);
 
     Array qp = create_array(ms.QP_SIZE);
     double data[ms.QP_SIZE];

@@ -124,7 +124,8 @@ extern "C" {
 typedef enum {
     ATOM                                 = 0,
     LINEAR_MOLECULE                      = 4,
-    LINEAR_MOLECULE_REQUANTIZED_ROTATION = MODULO_BASE + 4,
+    LINEAR_MOLECULE_REQ_INTEGER          = MODULO_BASE + 4,
+    LINEAR_MOLECULE_REQ_HALFINTEGER      = 2*MODULO_BASE + 4,
     ROTOR                                = 6,
     ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,
 } MonomerType;
@@ -329,6 +330,7 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
 double j_monomer(Monomer m);
 double torque_monomer(Monomer m); 
+double find_closest_integer(double j);
 double find_closest_half_integer(double j); 
 
 void invert_momenta(MoleculeSystem *ms);

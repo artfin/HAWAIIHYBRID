@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
 
     double MU = m_CO * m_Ar / (m_CO + m_Ar); 
     double I1[2] = {II_CO, II_CO};
-    MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQUANTIZED_ROTATION, ATOM, I1, NULL, seeds[_wrank]);
+    MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_INTEGER, ATOM, I1, NULL, seeds[_wrank]);
     
     dipole = dipole_lab;
 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
     params.initialM2_npoints                = 10000;
     params.pesmin                           = -105.0 / HTOCM;
     params.R0                               = 40.0;
-    params.ApproximateFrequencyMax          = 500.0;
+    params.ApproximateFrequencyMax          = 150.0;
     params.sf_filename                      = "./SF-PRMU-CO-Ar-300.0.txt";
     params.torque_cache_len                 = 30;
     params.torque_limit                     = 5e-6;

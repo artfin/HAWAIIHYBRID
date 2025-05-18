@@ -17,12 +17,9 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
 
     switch (t1) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
+        case LINEAR_MOLECULE_REQ_INTEGER:
         case LINEAR_MOLECULE: {
-          assert(II1[0] == II1[1]);
-          memcpy(ms.m1.II, II1, 2*sizeof(double));
-          break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
           assert(II1[0] == II1[1]);
           memcpy(ms.m1.II, II1, 2*sizeof(double));
           break;
@@ -42,12 +39,9 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     ms.m2.t = t2;
     switch (t2) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
+        case LINEAR_MOLECULE_REQ_INTEGER:
         case LINEAR_MOLECULE: {
-          assert(II2[0] == II2[1]);
-          memcpy(ms.m2.II, II2, 2*sizeof(double));
-          break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
           assert(II2[0] == II2[1]);
           memcpy(ms.m2.II, II2, 2*sizeof(double));
           break;
@@ -85,21 +79,43 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
 
     PRINT0("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
     switch (t1) {
-        case ATOM:                                 PRINT0("\n"); break;
-        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
-        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
+        case ATOM: {
+            PRINT0("\n"); break;
+        }
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE: {
+            PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); 
+            break;
+        }
+        case ROTOR_REQUANTIZED_ROTATION:
+        case ROTOR: {
+            PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); 
+            break;
+        }
 
     }
     
     PRINT0("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
     switch (t2) {
-        case ATOM:                                 PRINT0("\n"); break;
-        case LINEAR_MOLECULE:                      PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); break;
-        case ROTOR:                                PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
-        case ROTOR_REQUANTIZED_ROTATION:           PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
+        case ATOM: {
+            PRINT0("\n"); 
+            break;
+        }
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE: {
+            PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); 
+            break;
+        }
+        case ROTOR: {
+            PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); 
+            break;
+        }
+        case ROTOR_REQUANTIZED_ROTATION: {
+            PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); 
+            break;
+        }
     }
 
     PRINT0("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
@@ -122,11 +138,12 @@ void free_ms(MoleculeSystem *ms) {
 
 const char* monomer_type_name(MonomerType t) {
     switch (t) {
-        case ATOM:                                 return "ATOM";
-        case LINEAR_MOLECULE:                      return "LINEAR MOLECULE";
-        case ROTOR:                                return "ROTOR";
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: return "LINEAR_MOLECULE_REQUANTIZED_ROTATION";
-        case ROTOR_REQUANTIZED_ROTATION:           return "ROTOR_REQUANTIZED_ROTATION";
+        case ATOM:                            return "ATOM";
+        case LINEAR_MOLECULE:                 return "LINEAR MOLECULE";
+        case ROTOR:                           return "ROTOR";
+        case LINEAR_MOLECULE_REQ_INTEGER:     return "LINEAR_MOLECULE_REQ_INTEGER";
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: return "LINEAR_MOLECULE_REQ_HALFINTEGER";
+        case ROTOR_REQUANTIZED_ROTATION:      return "ROTOR_REQUANTIZED_ROTATION";
     }
 
     UNREACHABLE("monomer_type_name");
@@ -146,6 +163,15 @@ const char* pair_state_name(PairState ps) {
 //        qp[k + 1] = q[k / 2];
 //    }
 //} 
+
+double find_closest_integer(double j) 
+/*
+ * requantization to:
+ *    0.0, 1.0, 2.0, 3.0 ...
+ */
+{
+    return round(j); 
+}
 
 double find_closest_half_integer(double j) 
 /*
@@ -169,8 +195,9 @@ double find_closest_half_integer(double j)
 double j_monomer(Monomer m) {
     switch (m.t) {
         case ATOM: return 0.0;
-        case LINEAR_MOLECULE:
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+        case LINEAR_MOLECULE_REQ_INTEGER: 
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: 
+        case LINEAR_MOLECULE: {
             double phi    = m.qp[IPHI]; 
             double pPhi   = m.qp[IPPHI];
             double theta  = m.qp[ITHETA];
@@ -196,8 +223,9 @@ double torque_monomer(Monomer m)
 {
     switch (m.t) {
         case ATOM: return 0.0;
-        case LINEAR_MOLECULE:
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
+        case LINEAR_MOLECULE_REQ_INTEGER: 
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: 
+        case LINEAR_MOLECULE: {
             double phi   = m.qp[IPHI];
             double theta = m.qp[ITHETA];
 
@@ -222,7 +250,8 @@ double torque_monomer(Monomer m)
 void rhsMonomer(Monomer *m, double *deriv) {
     switch (m->t) {
         case ATOM: break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
+        case LINEAR_MOLECULE_REQ_INTEGER: 
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: {
            double pPhi   = m->qp[IPPHI];
            double Theta  = m->qp[ITHETA];
@@ -774,7 +803,8 @@ double kinetic_energy(MoleculeSystem *ms) {
 
     switch (ms->m1.t) {
         case ATOM: break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
+        case LINEAR_MOLECULE_REQ_INTEGER: 
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: {
           double phi1t    = ms->m1.qp[IPHI]; UNUSED(phi1t);
           double pphi1t   = ms->m1.qp[IPPHI];
@@ -812,7 +842,8 @@ double kinetic_energy(MoleculeSystem *ms) {
     
     switch (ms->m2.t) {
         case ATOM: break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: 
+        case LINEAR_MOLECULE_REQ_INTEGER: 
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: { 
           double phi2t    = ms->m2.qp[IPHI]; UNUSED(phi2t);
           double pphi2t   = ms->m2.qp[IPPHI];
@@ -934,7 +965,8 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
 
     switch (ms->m1.t) {
         case ATOM: break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION:
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
         case LINEAR_MOLECULE: {
           ms->m1.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
           ms->m1.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
@@ -953,13 +985,12 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
     
     switch (ms->m2.t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
         case LINEAR_MOLECULE: {
           ms->m2.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
           ms->m2.qp[ITHETA] = acos(2.0*mt_drand() - 1.0);
           break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("q_generator");
         }
         case ROTOR: {
           ms->m2.qp[IPHI]   = mt_drand() * 2.0 * M_PI;
@@ -1027,7 +1058,8 @@ void p_generator(MoleculeSystem *ms, double Temperature)
     
     switch (ms->m1.t) {
         case ATOM: break;
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION:
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
         case LINEAR_MOLECULE: {
           p_generator_linear_molecule(&ms->m1, Temperature);
           break;
@@ -1043,12 +1075,11 @@ void p_generator(MoleculeSystem *ms, double Temperature)
 
     switch (ms->m2.t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQ_INTEGER:
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
         case LINEAR_MOLECULE: {
           p_generator_linear_molecule(&ms->m2, Temperature);
           break;
-        }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          TODO("p_generator");
         }
         case ROTOR: {
           p_generator_rotor(&ms->m2, Temperature);
@@ -2182,7 +2213,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     
     double* torque_cache = NULL;
 
-    if (ms->m1.t == LINEAR_MOLECULE_REQUANTIZED_ROTATION) {
+    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         assert(params->torque_cache_len > 0);
         assert(params->torque_limit > 0);
 
@@ -2333,7 +2364,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
                     break;
                 }
        
-                if (ms->m1.t == LINEAR_MOLECULE_REQUANTIZED_ROTATION) {
+                if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
                     double j    = j_monomer(ms->m1);
                     double torq = torque_monomer(ms->m1);
                     torque_cache[step_counter % params->torque_cache_len] = torq;

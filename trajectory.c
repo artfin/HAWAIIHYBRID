@@ -93,7 +93,22 @@ int make_step(Trajectory *traj, double tout, double *t)
     put_qp_into_ms(traj->ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = traj->ms->QP_SIZE});
 
     if (traj->ms->m1.apply_requantization) {
-        if (traj->ms->m1.t == LINEAR_MOLECULE_REQUANTIZED_ROTATION) {
+        if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
+            Monomer *m = &traj->ms->m1;
+            double j    = j_monomer(*m);
+            double jreq = find_closest_integer(j);
+
+            double scaling_factor = 0.0;
+            if (j > 1e-15) {
+                scaling_factor = jreq / j; 
+            }
+
+            m->qp[IPPHI]   *= scaling_factor;
+            m->qp[IPTHETA] *= scaling_factor;
+
+            //printf("make_step: pphi = %.5e => j after scaling = %.5e\n", m->qp[IPPHI], j_monomer(*m));
+        }
+        if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
             Monomer *m = &traj->ms->m1;
             double j    = j_monomer(*m);
             double jreq = find_closest_half_integer(j);
