@@ -157,8 +157,8 @@ int main(int argc, char *argv[])
     params.sampler_Rmin = 4.0;
     params.sampler_Rmax = 40.0;
 
-    params.niterations                      = 100;
-    params.total_trajectories               = 1000;
+    params.niterations                      = 10;
+    params.total_trajectories               = 100;
     params.cvode_tolerance                  = 1e-12;
     params.sampling_time                    = 20.0;
     params.MaxTrajectoryLength              = 262144; 
@@ -168,9 +168,12 @@ int main(int argc, char *argv[])
     params.pesmin                           = -105.0 / HTOCM;
     params.R0                               = 40.0;
     params.ApproximateFrequencyMax          = 150.0;
-    params.sf_filename                      = "./SF-PRMU-CO-Ar-300.0.txt";
     params.torque_cache_len                 = 30;
     params.torque_limit                     = 5e-6;
+   
+    String_Builder sf_filename = {};
+    sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-RMAX=%.1f.txt", params.R0); 
+    params.sf_filename = sf_filename.items; 
 
     double Temperature = 300.0;
     SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, Temperature); 
@@ -183,6 +186,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    sb_free(&sf_filename);
     free_ms(&ms);
     free_sfnc(sf); 
      
