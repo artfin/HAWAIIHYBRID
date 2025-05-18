@@ -97,9 +97,11 @@ and $\rho_1$ and $\rho_2$ are gas densities in mixture. We will express the bina
     \toprule
               & \rotatebox{70}{trajectory} & \rotatebox{70}{phase-space moments} & \rotatebox{70}{single correlation function} & \rotatebox{70}{array of correlation functions} \\
     \midrule
-    He-Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} &{\color{red}$\times$} \\  
+    He-Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} &{\color{red}$\times$} \\ 
+    CO$-$Ar & {\color{red}$\times$} & {\color{red}$\times$} & {\color{ForestGreen}\checkmark} & {\color{red}$\times$} \\
     CO$_2-$Ar & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
-    H$_2-$Ar & {\color{red}$\times$} &  {\color{red}$\times$}  &  {\color{red}$\times$} &  {\color{red}$\times$}  \\  
+    N$_2-$Ar & {\color{red}$\times$} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\ 
+    H$_2-$Ar & {\color{ForestGreen}\checkmark} &  {\color{red}$\times$}  &  {\color{red}$\times$} &  {\color{red}$\times$}  \\  
     CH$_4-$CO$_2$ & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} & {\color{ForestGreen}\checkmark} \\
     \bottomrule
   \end{tabular}
@@ -167,7 +169,8 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
 \begin{longtable}{lp{15cm}}
     Values & \texttt{ATOM = 0} \\
            & \texttt{LINEAR\_MOLECULE = 4} \\
-           & \texttt{LINEAR\_MOLECULE\_REQUANTIZED\_ROTATION = MODULO\_BASE + 4} \\
+           & \texttt{LINEAR\_MOLECULE\_REQ\_INTEGER = MODULO\_BASE + 4} \\
+           & \texttt{LINEAR\_MOLECULE\_REQ\_HALFINTEGER = 2*MODULO\_BASE + 4} \\
            & {\color{red} \texttt{/* LINEAR\_VIBRATING\_MOLECULE = MODULO\_BASE + 6 */}} \\
            & \texttt{ROTOR = 6} \\
            & \texttt{ROTOR\_REQUANTIZED\_ROTATION = 2*MODULO\_BASE + 6} \\
@@ -212,6 +215,9 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
            & \texttt{size\_t QP\_SIZE} -- total number of coordinates and momenta for molecule pair (a.k.a. \texttt{size(phase\_point)}) \\
            & \texttt{double *intermediate\_q} -- contiguous vector of coordinates \\
            & \texttt{double *dVdq} -- contiguous vector of potential energy derivatives  \\
+           & \texttt{time\_t init\_rawtime} -- the initialization time, represented as the number of seconds since the Unix Epoch; set in \texttt{init\_ms} \\
+           & \texttt{time\_t temp\_rawtime} -- a temporary time field for the time at which the previous iteration was completed, used for tracking elapsed time between iterations \\
+
     Description &  Keep in mind that angular variables and momenta are stored in the same order as for \texttt{qp} in \texttt{Monomer}. These variables' locations are \texttt{\#define}d as follows: \\
     &  \texttt{\#define IPHI 0} \\
     & \texttt{\#define IPPHI 1} \\
@@ -386,7 +392,8 @@ Function \recttext{\texttt{make\_step}} \vspace*{-0.25em}
     Arguments & \texttt{Trajectory *traj} \\
               & \texttt{double tout} \\
               & \texttt{double *t} \\
-    Description & 
+    Description & Invokes the CVode main function and, if enabled, applies requantization to the monomers' angular momenta.
+    When the \texttt{apply\_requantization} flag is set, the momenta in \texttt{qp} are rescaled to adjust the angular momentum to the nearest half-integer or integer, according to the requantization rule which is represented with the Monomer type. Subsequently, the function synchronizes the internal \texttt{trajectory} phase-space vector with the \texttt{MoleculeSystem} phase-space vector, and reinitializes the state of CVode to reset its state since a sudden change of phase-point has occured.
 \end{longtable}
 
 \noindent
@@ -433,8 +440,8 @@ Function \recttext{\texttt{rhsMonomer}} \vspace*{-0.25em}
     Call & \texttt{void rhsMonomer(*m, *deriv);} \\
     Arguments & \texttt{Monomer *m} \\
               & \texttt{double *deriv} stores the right-hand side of Hamilton's equations of motion with respect to coordinates and momenta that correspond to the passed-in monomer \\
-    Description &  In addition to differentiating the kinetic energy, the derivatives of potential energy, which are taken from \texttt{Monomer.dVdq}, are also added to compute the right-hand side. When \texttt{apply\_requantization} flag is set, then the momenta in \texttt{qp} are rescaled so that angular momentum is brought to the closest half-integer. 
-    {\color{red} Implemented for cases of LINEAR\_MOLECULE (tested), LINEAR\_MOLECULE\_REQUANTIZED\_ROTATION (not tested enough) and ROTOR (tested).}
+    Description &  In addition to differentiating the kinetic energy, the derivatives of potential energy, which are taken from \texttt{Monomer.dVdq}, are also added to compute the right-hand side.  
+    {\color{red} Implemented for cases of LINEAR\_MOLECULE (tested) and ROTOR (tested).}
 \end{longtable} 
 
 \noindent
@@ -476,6 +483,22 @@ Function \recttext{\texttt{torque\_monomer}} \vspace*{-0.25em}
             \displaystyle -\frac{\diff{V}}{\diff{\varphi}}
         \end{bmatrix} \notag
     \end{gather}
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{find\_closest\_integer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double find\_closest\_integer(j);} \\
+    Arguments & \texttt{double j} \\
+    Description & Requantizes a given value of the angular momentum to the nearest integer, effectively rounding to the closest whole number (0, 1, 2, 3 ...). Note that the value returned as double-precision value.
+\end{longtable} 
+
+\noindent
+Function \recttext{\texttt{find\_closest\_half\_integer}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{double find\_closest\_integer(j);} \\
+    Arguments & \texttt{double j} \\
+    Description & Requantizes a given value of the angular momentum to the nearest half-integer, effectively rounding to the closest value of the form (0, 1.5, 2.5, 3.5...). Note that 0.5 is skipped to represent the S-band rotational structure of the homonuclear diatomics (see Sokolov coursework).  
 \end{longtable} 
 
 
@@ -847,22 +870,22 @@ Function \recttext{\texttt{integrate\_composite\_simpson}} \vspace*{-0.25em}
 \end{longtable}
 
 \noindent
-Function \recttext{\texttt{compute\_M0\_from\_sf}} \vspace*{-0.25em}
+Function \recttext{\texttt{ compute\_Mn\_from\_sf\_using\_classical\_detailed\_balance}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{double compute\_M0\_from\_sf(sf);} \\
+    Call & \texttt{double compute\_Mn\_from\_sf\_using\_classical\_detailed\_balance(sf, n);} \\
     Arguments & \texttt{SFnc sf} \\
-    Description & Computes the zeroth moment of the spectral function using \texttt{integrate\_composite\_simpson}. The dimensions of the frequency and spectral function values are expected to be $\textrm{cm}^{-1}$ and $\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s}^{-1}$, respectively. The zeroth moment is returned in units of $\textrm{cm}^{-1} \cdot \textrm{Amagat}^{-2}$.  
+              & \texttt{size\_t n} \\
+    Description & Calculates the n-th moment of the spectral function via numerical integration using the composite Simpson's rule \texttt{integrate\_composite\_simpson}. The expressions for classical detailed balance are employed. The implementation employs a straightforward application of the Simpson's rule, without invoking any special handling of lower- or higher-frequency ranges. It is assumed that the spectral function is provided solely for positive frequencies. The dimensions of the frequency and spectral function values are expected to be $\textrm{cm}^{-1}$ and $\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s}^{-1}$, respectively. The resulting spectral moment is obtained in units of $\textrm{cm}^{-n-1} \cdot \textrm{Amagat}^{-2}$.  
 \end{longtable}
 
 \noindent
-Function \recttext{\texttt{compute\_M2\_from\_sf}} \vspace*{-0.25em}
+Function \recttext{\texttt{ compute\_Mn\_from\_sf\_using\_quantum\_detailed\_balance}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{double compute\_M2\_from\_sf(sf);} \\
+    Call & \texttt{double compute\_Mn\_from\_sf\_using\_quantum\_detailed\_balance(sf, n);} \\
     Arguments & \texttt{SFnc sf} \\
-    Description & Computes the second moment of the spectral function using \texttt{integrate\_composite\_simpson}. The dimensions of the frequency and spectral function values are expected to be $\textrm{cm}^{-1}$ and $\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s}^{-1}$, respectively. The zeroth moment is returned in units of $\textrm{cm}^{-3} \cdot \textrm{Amagat}^{-2}$.
+              & \texttt{size\_t n} \\
+    Description & Calculates the n-th moment of the spectral function via numerical integration using the composite Simpson's rule \texttt{integrate\_composite\_simpson}. The expressions for quantum detailed balance are employed.  The implementation employs a straightforward application of the Simpson's rule, without invoking any special handling of lower- or higher-frequency ranges. It is assumed that the spectral function is provided solely for positive frequencies. The dimensions of the frequency and spectral function values are expected to be $\textrm{cm}^{-1}$ and $\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s}^{-1}$, respectively. The resulting spectral moment is obtained in units of $\textrm{cm}^{-n-1} \cdot \textrm{Amagat}^{-2}$.  
 \end{longtable}
-
-
 
 
 \noindent
@@ -987,7 +1010,7 @@ Function \recttext{\texttt{desymmetrize\_frm}} \vspace*{-0.25em}
 
 \noindent
 \recttext{\texttt{struct Spectrum}} \vspace*{-0.25em}
-\begin{longtable}{lp{15cm}}
+\begin{longtable}{lp{15cm}} 
     Fields & \texttt{double *nu} \\
            & \texttt{double *data} \\
            & \texttt{size\_t len} -- number of samples in \texttt{*nu} and \texttt{*data} \\
@@ -1277,6 +1300,16 @@ Function \recttext{\texttt{sb\_append\_format}} \vspace*{-0.25em}
 \end{longtable}
 
 \noindent
+Function \recttext{\texttt{sb\_append\_seconds\_as\_datetime\_string}} \vspace*{-0.25em}
+\begin{longtable}{lp{15cm}}
+    Call & \texttt{void sb\_append\_seconds\_as\_datetime\_string(*sb, s);} \\
+    Arguments & \texttt{String\_Builder *sb} \\
+              & \texttt{int s} \\
+    Description & Appends a string representation of a time duration in seconds to a String Builder. The string is formatted as a human-readable datetime string (e.g., "1h 2m 3s"). 
+\end{longtable}
+
+
+\noindent
 Function \recttext{\texttt{sb\_reset}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{void sb\_reset(*sb);} \\
@@ -1305,15 +1338,15 @@ Function \recttext{\texttt{sb\_free}} \vspace*{-0.25em}
     \item spherical decomposition for \textit{ab initio} IDS for CH$_4-$CO$_2$ (Finenko)
     \item spherical decomposition for \textit{ab initio} PES for H$_2-$Ar (LeRoy/Chistikov)
     \item spherical decomposition for \textit{ab initio} PES for CO$-$Ar (Pederson)
-\item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
+    \item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
+    \item PIP-NN representation for \textit{ab initio} PES surface for N$_2-$Ar (Finenko)
+    \item PIP-NN representation for \textit{ab initio} IDS surface for N$_2-$Ar (Finenko)
 \end{enumerate}
 
 \noindent
 {\textbf{Routines to be added in the future:}}
 \begin{enumerate}
 \item spherical decomposition for full-dimensional \textit{ab initio} PES for N$_2-$Ar (Finenko)
-\item PIP-NN representation for \textit{ab initio} PES surface for N$_2-$Ar (Finenko)
-\item PIP-NN representation for \textit{ab initio} IDS surface for N$_2-$Ar (Finenko)
 \item spherical decomposition for long-range IDS for N$_2-$Ar (Wang)
 \item spherical decomposition for long-range $\textrm{d}\mu/\textrm{d}r$ surface for N$_2-$Ar (Wang)
 \item spherical decomposition for long-range IDS for H$_2-$Ar (Kalugina)
@@ -1395,27 +1428,37 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
     \item [11.02.2025] loess: refactored creating window \& added stubs for running outside OpenMP environment
     \item [12.02.2025] added checking for energy conservation inside trajectory. {\color{red} maybe need to check this info in \texttt{correlation\_eval} and discard the outlying trajectories?}
     \item [12.02.2025] implemented \texttt{average\_correlation\_functions} using vararg
-    \item [12.03.2025] calculated correlation functions for He-Ar at 50K and 300K using 500mln and 300mln trajectories, respectively. At 300K we achieved a decent looking spectrum, however at 50K it still looks not converged at large frequencies. Moreover, the correlation function at 50K exhibits pulsing (beating) oscillations which result in some spectral feature at 3.5 cm-1. What is it? Is it reproducible in quantum calculation?
+    \item [12.03.2025] calculated correlation functions for He-Ar at 50K and 300K using 500mln and 300mln trajectories, respectively. At 300K we achieved a decent looking spectrum, however at 50K it still looks not converged at large frequencies. Moreover, the correlation function at 50K exhibits pulsing (beating) oscillations which result in some spectral feature at 3.5 cm-1. What is it? Is it reproducible in quantum calculation? {\color{red} It is somewhat reproduced in quantum calculation. More investigation is needed. Probably should be discussed in separate paper on He-Ar calculations with spectra provided in wide temperature range.}
     \item [16.03.2025] \texttt{hawaii}: use appropriate partial partition function for each temperature when calculating M$_0$ before proceeding to propagate trajectories
     \item [18.03.2025] Caught this mysterious error during bound states calculation for CH$_4-$CO$_2$: \texttt{[n01p012:2488401:0:2488401] Caught signal 7 (Bus error: nonexistent physical address)}. No stack trace, location of error unknown.
-    \item [23.03.2025] Added functions to perform D4 and D4a desymmetrization
+    \item [23.03.2025] Added functions to perform D4 and D4a desymmetrization. {\color{red} Found out to be erroneous when performing calculations for He-Ar. FIX IS NEEDED.}
+    \item [02.05.2025] N$_2-$Ar PIP-NN potential and dipole are added. N$_2-$Ar 300K: M$_0$ = 3.833$\cdot$10$^{-5}$, M$_2$ = 0.2321.
+    \item [03.05.2025] When performing calculation of the correlation function, garbage-like values were found in the correlation accumulator. Fixed: forgot to \texttt{memset} before use. Also call to \texttt{memset} is added in \texttt{calculate\_correlation\_array\_and\_save}.
+    \item [03.05.2025] Call to \texttt{MPI\_Reduce} is changed to the \texttt{MPI\_Send}/\texttt{MPI\_Recv} pair in \texttt{calculate\_correlation\_and\_save}.
+    \item [14.05.2025] Applying requantization to H$_2-$Ar trajectory.
+    \item [18.05.2025] Added some timestamps for HAWAII output and when saving spectral function to file in prmu-representation. {\color{red} Need to use to do the same for correlation function and correlation function arrays.}
 \end{enumerate}
 
 \section{Todo's}
 
 \begin{itemize}
+    \item Investigate whether two-peak structure appears for He$-$Ne CIA in trajectory-based calculation using Karman PES \& IDS surfaces
+    \item Investigate three-body He$-$He$-$He CIA \cite{Kowalski2014}
+    \item Correct D4/D4a desymmetrization
+    \item When processing correlation function, add the Q-branch to the spectral function. I expect that part of the Q-branch is seen for CH$_4-$CO$_2$ after numerical FFT, but it's analytical part is missing. 
+    \item Support N$_2$ vibration for N$_2-$Ar calculation 
     \item \texttt{mpi\_calculate\_M0}/\texttt{mpi\_calculate\_M2}: the temporary result is not accumulated over communicator, it is printed only for values accumulated only for zeroth process.
-    \item think about adding more information to output file, at least need to add timestamps 
+    \item think about adding more information to output file
     \item get rid of OpenMP magic in LOESS and instead use explicitly \texttt{pthread} library 
     \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow. Honestly, calculating zeroth moments for 10+ temperatures is also no joke. It should be possible to cache these values as well.}
-    \item CO$_2-$CO$_2$ in 200-300K range (communicate with Wishnow about the possibility to conduct an experiment)
+    \item CO$_2-$CO$_2$ in 200-300K range: communicate with Wishnow about the possibility to conduct an experiment. And write a small article about trajectory-based results?
     \item How to go about computing cross-term? We need to allow to have 2 dipole functions
     \item How to organize and store the calculated results for examples? The results include CFs, SFs, spectra, spectral moments and partial partition functions.
     \item We should store the results of individual iterations of \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. Maybe use SQL database for this?
     \item Arena Allocator for storing some temporary strings and small arrays. At the moment, there are waaaay too many mallocs/frees. 
     \item Saving the contributions of free and metastable states in correlation function separately. How can we pass in the information about the desired filenames? How to organize the storage for these contributions? 
     \item The information about the number of turning points could be saved into gsl\_histogram, and then partially displayed in the output file and saved to file system
-    \item We are using MPI\_Allreduce mechanism for broadcasting. This should be changed to direct MPI\_Send / MPI\_Recv calls.
+    \item We are using MPI\_Allreduce mechanism for broadcasting. This should be changed to direct MPI\_Send / MPI\_Recv calls. {\color{red} It is changed in \texttt{calculate\_correlation\_and\_save}.}
     \item Can the \texttt{hawaii.h} file be used without constructing the MoleculeSystem? I moved code for processing correlation function there, but it can't be used without creating stubs for PES/dPES functions. Should \texttt{hawaii} create stubs when certain macro is in place? 
     \item Maybe we need a check that processes in the communicator get different seeds each?
     \item In case when correlation function is calculated for bound states, we can separate the contributions for bound-bound and bound-free transitions (Fakhardji trick)
