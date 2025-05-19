@@ -25,6 +25,9 @@
 #include <gsl/gsl_fft_complex.h>
 #include <gsl/gsl_fft_halfcomplex.h>
 
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
@@ -153,8 +156,9 @@ typedef struct {
     double *intermediate_q;
     double *dVdq;
 
-    time_t init_rawtime;
-    time_t temp_rawtime;
+    // time_t: time as the number of seconds since the Epoch (1970-01-01)  
+    time_t init_rawtime; // set in init_ms 
+    time_t temp_rawtime; // used to mark the previous iteration of a longlasting calculation
 } MoleculeSystem;
 
 typedef enum {
@@ -196,6 +200,7 @@ typedef struct {
     const char *sf_filename;
     double ApproximateFrequencyMax; // cm-1
     double R0; // initial distance, a.u. 
+    double average_time_between_collisions; // a.t.u.
 
     /* correlation function array ONLY */
     double* partial_partition_function_ratios;

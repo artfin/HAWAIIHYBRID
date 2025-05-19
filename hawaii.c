@@ -74,7 +74,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     }
     
     time(&ms.init_rawtime);
-    struct tm * init_timeinfo;
+    struct tm *init_timeinfo;
     init_timeinfo = localtime(&ms.init_rawtime);
      
     PRINT0("-------------------------------------------------------------------\n");
@@ -2259,19 +2259,46 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("\n\n");
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating spectral function using pr/mu representation at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
-    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
-    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
-    PRINT0("    initial intermolecular distance (R0):                                %.2f\n", params->R0);
-    PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
-    PRINT0("    Approximate maximum frequency:                                       %.3e\n", params->ApproximateFrequencyMax);
+    PRINT0("    trajectories to be calculated (total_trajectories):                       %zu\n",  params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):       %zu\n",  params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                       %zu samples\n",  params->MaxTrajectoryLength);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):                    %.2f a.t.u.\n", params->sampling_time);
+    PRINT0("    initial intermolecular distance (R0):                                     %.2f a.u.\n", params->R0);
+    PRINT0("    CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
+    PRINT0("    approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
+
+    if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
+        PRINT0("\n");
+        PRINT0("    Applying requantization to nearest integer for the first monomer\n");
+        PRINT0("    limiting value of torque (torque_limit):                                  %.3e a.u.\n", params->torque_limit);
+        PRINT0("    torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", params->torque_cache_len); 
+    }
+
+    if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
+       PRINT0(" Applying requantization to nearest half-integer for the first monomer\n");
+       PRINT0("   limiting value of torque (torque_limit):                                  %.3e a.u.\n", params->torque_limit);
+       PRINT0("   torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", params->torque_cache_len); 
+    }
+
+    gsl_rng *gsl_rng_state = NULL;
+    if (params->average_time_between_collisions > 0) {
+        PRINT0("  The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
+        PRINT0("    average time between collisions (in Poisson distribution):                %.3e a.t.u. = %.3e ns\n", 
+               params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9); 
+    
+        gsl_rng_env_setup();
+    
+        gsl_rng_state = gsl_rng_alloc(gsl_rng_default);
+    } else {
+        PRINT0("  The trajectory will be cut off at initial distance R0\n");
+    }
+
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n");
 
-    PRINT0("Theoretical maximum frequency with provided parameters: %.3e\n", theoretical_frequency_max);
-    PRINT0("The frequency step with provided parameters:            %.3e\n", frequency_step);
-    PRINT0("The spectral function will be calculated in the range [0 .. %.3e] for %zu points\n", max_frequency, frequency_array_length);
+    PRINT0("Theoretical maximum frequency with provided parameters: %.3e cm-1\n", theoretical_frequency_max);
+    PRINT0("The frequency step with provided parameters:            %.3e cm-1\n", frequency_step);
+    PRINT0("The spectral function will be calculated in the range [0 .. %.3e cm-1] for %zu points\n", max_frequency, frequency_array_length);
 
     PRINT0("NOTE: Connes apodization will be applied to the time dependence of dipole before applying Fourier transform\n"); 
 
@@ -2365,6 +2392,12 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
             int req_switch_counter = 0;
             memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
 
+            double poisson_tmax = -1.0;
+            if (params->average_time_between_collisions > 0) {
+                poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
+                printf("selected poisson_tmax = %.3e\n", poisson_tmax);
+            }
+
             for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
             {
                 status = make_step(&traj, tout, &t);
@@ -2419,8 +2452,17 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
                 // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
                 // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
 
-                if (ms->intermolecular_qp[IR] > params->R0) {
-                    break;
+                // TODO:
+                // are we interested in the distribution of Rmax?
+                if (poisson_tmax > 0.0) { 
+                    if (tout >= poisson_tmax) {
+                        printf("Propagated until tout = %.3e\n", tout);
+                        break;
+                    }
+                } else {
+                    if (ms->intermolecular_qp[IR] > params->R0) {
+                        break;
+                    }
                 }
             }
 
@@ -2433,9 +2475,18 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
             // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
             // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
             // there will be only a few of those long-living metastable trajectories.  
-            if (ms->intermolecular_qp[IR] < params->R0) {
-                printf("INFO: the trajectory is too long. Fouier transform of the dipole from this trajectory will not be added to the cumulative result. Continuing...\n"); 
+            if ((poisson_tmax > 0.0) && (tout < poisson_tmax)) {
+                printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                       "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                       "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
                 continue;
+            } else { 
+                if (ms->intermolecular_qp[IR] < params->R0) {
+                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                           "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                           "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                    continue;
+                }
             }
 
             // Here we chose to apply apodization procedure to dipole time-dependence

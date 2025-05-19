@@ -54,7 +54,7 @@ test: $(EXAMPLES)
 	./run_tests.sh	
 
 docs: docs/main.tex
-	cd docs && pdflatex main.tex && pdflatex main.tex
+	cd docs && pdflatex main.tex && bibtex main && pdflatex main.tex
 
 build/hawaii.o: hawaii.c | build
 	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 

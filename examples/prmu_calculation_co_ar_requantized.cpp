@@ -159,9 +159,9 @@ int main(int argc, char *argv[])
 
     params.niterations                      = 10;
     params.total_trajectories               = 100;
-    params.cvode_tolerance                  = 1e-12;
-    params.sampling_time                    = 20.0;
-    params.MaxTrajectoryLength              = 262144; 
+    params.cvode_tolerance                  = 1e-8;
+    params.sampling_time                    = 200.0;
+    params.MaxTrajectoryLength              = 8388608;  
     params.partial_partition_function_ratio = 2.68854e+05;
     params.initialM0_npoints                = 10000;
     params.initialM2_npoints                = 10000;
@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
     params.ApproximateFrequencyMax          = 150.0;
     params.torque_cache_len                 = 30;
     params.torque_limit                     = 5e-6;
+    params.average_time_between_collisions  = 4.5e-9 / ATU; // a.t.u.
    
     String_Builder sf_filename = {};
     sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-RMAX=%.1f.txt", params.R0); 
