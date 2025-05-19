@@ -4,6 +4,7 @@
 #include "angles_handler.hpp"
 
 #include "ai_pes_h2ar_leroy.h"
+#include "ai_ids_h2_ar_pip_nn.hpp"
 
 #include <alloca.h>
 
@@ -33,6 +34,31 @@ void dpes(double *q, double *dpesdq) {
     Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
 }
 
+void dipole_lab(double *q, double diplab[3]) {
+    double qmol[5];
+    linear_molecule_atom_lab_to_mol(q, qmol);
+    
+    Eigen::Vector3d dipmol = dipole_bf(qmol[0], qmol[4]); 
+    
+    double sinphiem, cosphiem;
+    double sinthetaem, costhetaem;
+    double sinpsiem, cospsiem;
+
+    sincos(qmol[1], &sinphiem, &cosphiem);
+    sincos(qmol[2], &sinthetaem, &costhetaem);
+    sincos(qmol[3], &sinpsiem, &cospsiem);
+
+    Sz_filler(Sphiem, sinphiem, cosphiem);
+    Sx_filler(Sthetaem, sinthetaem, costhetaem);
+    Sz_filler(Spsiem, sinpsiem, cospsiem);
+       
+    Eigen::Vector3d diplab_eig = Sphiem.transpose() * Sthetaem.transpose() * Spsiem.transpose() * dipmol; 
+   
+    diplab[0] = diplab_eig(0); 
+    diplab[1] = diplab_eig(1); 
+    diplab[2] = diplab_eig(2); 
+}
+
 #define IPHI1 6
 #define IPPHI1 7
 #define ITHETA1 8
@@ -40,6 +66,9 @@ void dpes(double *q, double *dpesdq) {
 
 int main()
 {
+    dipole_init(true);
+    dipole = dipole_lab;
+
     int seed = 42;
 
     double MU = m_H2 * m_Ar / (m_H2 + m_Ar); 
@@ -83,6 +112,8 @@ int main()
     double* cache = (double*) alloca(params.torque_cache_len * sizeof(double));
     size_t cur_cache = 0;
 
+    double dipt[3];
+
     for (size_t nstep = 0; ; ++nstep, tout += params.sampling_time)
     {
         // 14.05: every call to 'make_step' applies requatization resulting in the discretization equal to
@@ -94,11 +125,15 @@ int main()
             fprintf(stderr, "CVODE ERROR: status = %d\n", status);
             exit(1);
         }
+        
+        extract_q_and_write_into_ms(&ms);
+        dipole_lab(ms.intermediate_q, dipt);
     
         double E = Hamiltonian(&ms);
         double j = j_monomer(ms.m1);
         double torq = torque_monomer(ms.m1); 
-        printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e\n", t, ms.intermolecular_qp[IR], E-E0, j, torq);
+        printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e \t %12.5e\n", 
+                t, ms.intermolecular_qp[IR], E-E0, j, torq, sqrt(dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]));
 
         cache[nstep % params.torque_cache_len] = torq;
         bool all_less_than_limit = true;

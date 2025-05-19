@@ -93,8 +93,20 @@ build/ai_ids_co2_ar.o: ./PES-IDS/ai_ids_co2ar.cpp | build
 ###########################################################
 ###################### H2-Ar ##############################
 ###########################################################
+build/c_basis_2_2_1_3_intermolecular.o: ./PES-IDS/c_basis_2_2_1_3_intermolecular.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+
+build/c_basis_2_1_1_1_3_intermolecular.o: ./PES-IDS/c_basis_2_1_1_1_3_intermolecular.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+
+build/c_basis_1_1_2_1_3_intermolecular.o: ./PES-IDS/c_basis_1_1_2_1_3_intermolecular.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+
 build/ai_pes_h2ar_leroy.o: ./PES-IDS/ai_pes_h2ar_leroy.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm
+
+build/ai_ids_h2_ar_pip_nn.o: ./PES-IDS/ai_ids_h2_ar_pip_nn.cpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
 ###########################################################
 
 ###########################################################
@@ -166,7 +178,8 @@ CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
 N2_AR   := build/cnpy.o -lz build/ai_pes_n2_ar_pip_nn.o build/ai_ids_n2_ar_pip_nn.o \
 		   build/c_basis_2_1_4_purify.o build/c_jac_2_1_4_purify.o \
 		   build/c_basis_2_2_1_3_purify.o build/c_basis_2_1_1_1_3_purify.o build/c_basis_1_1_2_1_3_purify.o
-H2_AR   := build/ai_pes_h2ar_leroy.o
+H2_AR   := build/cnpy.o -lz build/ai_pes_h2ar_leroy.o build/ai_ids_h2_ar_pip_nn.o \
+		   build/c_basis_2_2_1_3_intermolecular.o build/c_basis_2_1_1_1_3_intermolecular.o build/c_basis_1_1_2_1_3_intermolecular.o
 CO_AR   := build/potv.o build/potv_d.o 
 CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
 		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o build/ai_ids_ch4_co2.o
