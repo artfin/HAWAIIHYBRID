@@ -66,11 +66,12 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     
     memset(ms.intermolecular_qp, 0.0, 6 * sizeof(double));
 
-    if (seed > 0) { 
+    if (seed > 0) {
+        ms.seed = seed; 
         mt_seed32(seed);
     } else {
-        seed = mt_goodseed();
-        mt_seed32(seed);
+        ms.seed = mt_goodseed();
+        mt_seed32(ms.seed);
     }
     
     time(&ms.init_rawtime);
@@ -2288,7 +2289,8 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     
         gsl_rng_env_setup();
     
-        gsl_rng_state = gsl_rng_alloc(gsl_rng_default);
+        gsl_rng_state = gsl_rng_alloc(gsl_rng_mt19937);
+        gsl_rng_set(gsl_rng_state, ms->seed);
     } else {
         PRINT0("  The trajectory will be cut off at initial distance R0\n");
     }
@@ -2556,6 +2558,8 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     sb_free(&sb_datetime);
     free_sfnc(sf_iter);
+
+    if (gsl_rng_state != NULL) gsl_rng_free(gsl_rng_state);
 
     for (size_t i = 0; i < frequency_array_length; ++i) {
         sf_total.data[i] /= sf_total.ntraj;

@@ -156,6 +156,8 @@ typedef struct {
     double *intermediate_q;
     double *dVdq;
 
+    size_t seed; 
+
     // time_t: time as the number of seconds since the Epoch (1970-01-01)  
     time_t init_rawtime; // set in init_ms 
     time_t temp_rawtime; // used to mark the previous iteration of a longlasting calculation
