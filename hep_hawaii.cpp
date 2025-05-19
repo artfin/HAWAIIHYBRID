@@ -71,8 +71,11 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
           
           break;
         }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQUANTIZED_ROTATION\n"); // ? 
+        case LINEAR_MOLECULE_REQ_INTEGER: {
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_INTEGER\n"); // ? 
+        }
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: {
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_HALFINTEGER\n"); // ? 
         }
         case ROTOR_REQUANTIZED_ROTATION: {
           assert(0 && "ERROR: not applicable for ROTOR_REQUANTIZED_ROTATION\n"); // ? 
@@ -99,8 +102,11 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
         case ROTOR: {
           TODO("transform_variables");
         }
-        case LINEAR_MOLECULE_REQUANTIZED_ROTATION: {
-          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQUANTIZED_ROTATION\n"); // ? 
+        case LINEAR_MOLECULE_REQ_INTEGER: {
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_INTEGER\n"); // ? 
+        }
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: {
+          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_HALFINTEGER\n"); // ? 
         }
         case ROTOR_REQUANTIZED_ROTATION: {
           assert(0 && "ERROR: not applicable for ROTOR_REQUANTIZED_ROTATION\n"); // ? 
