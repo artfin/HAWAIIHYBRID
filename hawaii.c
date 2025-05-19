@@ -2324,20 +2324,22 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
 
     SFnc sf_iter = {
-        .nu       = NULL,
-        .data     = (double*) malloc(frequency_array_length * sizeof(double)),
-        .len      = frequency_array_length,
-        .capacity = frequency_array_length,
-        .ntraj    = 0,
+        .nu          = NULL,
+        .data        = (double*) malloc(frequency_array_length * sizeof(double)),
+        .len         = frequency_array_length,
+        .capacity    = frequency_array_length,
+        .ntraj       = 0,
+        .Temperature = Temperature, 
     };
     assert(sf_iter.data != NULL && "ASSERT: not enough memory!\n"); 
 
     SFnc sf_total = {
-        .nu       = linspace(0.0, max_frequency, frequency_array_length),
-        .data     = (double*) malloc(frequency_array_length * sizeof(double)),
-        .len      = frequency_array_length,
-        .capacity = frequency_array_length,
-        .ntraj    = 0,
+        .nu          = linspace(0.0, max_frequency, frequency_array_length),
+        .data        = (double*) malloc(frequency_array_length * sizeof(double)),
+        .len         = frequency_array_length,
+        .capacity    = frequency_array_length,
+        .ntraj       = 0,
+        .Temperature = Temperature, 
     };
 
     assert(sf_total.nu != NULL && "ASSERT: not enough memory!\n"); 
@@ -2368,192 +2370,198 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2 - prelim_M2std, prelim_M2 + prelim_M2std);
     PRINT0("Error: %.3f%%\n\n", prelim_M2std/prelim_M2 * 100.0);
 
-
     for (size_t iter = 0; iter < params->niterations; ++iter) {
-
         memset(sf_iter.data, 0, frequency_array_length * sizeof(double));
-
-        for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
-        {
-            q_generator(ms, params);
-            ms->intermolecular_qp[IR] = params->R0;
-            p_generator(ms, Temperature);
-
-            if (ms->intermolecular_qp[IPR] > 0.0) {
-                ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
-            }
-
-            double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
             
-            get_qp_from_ms(ms, &qp0);
-            set_initial_condition(&traj, qp0);
+        if (_wrank > 0) {
+          for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
+          {
+              q_generator(ms, params);
+              ms->intermolecular_qp[IR] = params->R0;
+              p_generator(ms, Temperature);
 
-            t    = 0.0;
-            tout = params->sampling_time;
+              if (ms->intermolecular_qp[IPR] > 0.0) {
+                  ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
+              }
 
-            int req_switch_counter = 0;
-            memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+              double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
+              
+              get_qp_from_ms(ms, &qp0);
+              set_initial_condition(&traj, qp0);
 
-            double poisson_tmax = -1.0;
-            if (params->average_time_between_collisions > 0) {
-                poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
-                printf("selected poisson_tmax = %.3e\n", poisson_tmax);
-            }
+              t    = 0.0;
+              tout = params->sampling_time;
 
-            for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
-            {
-                status = make_step(&traj, tout, &t);
-                if (status) {
-                    printf("CVODE ERROR: status =  %d\n", status);
-                    break;
-                }
+              int req_switch_counter = 0;
+              memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+
+              double poisson_tmax = -1.0;
+              if (params->average_time_between_collisions > 0) {
+                  poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
+                  printf("selected poisson_tmax = %.3e\n", poisson_tmax);
+              }
+
+              for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
+                  status = make_step(&traj, tout, &t);
+                  if (status) {
+                      printf("CVODE ERROR: status =  %d\n", status);
+                      break;
+                  }
        
-                if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                    double j    = j_monomer(ms->m1);
-                    double torq = torque_monomer(ms->m1);
-                    torque_cache[step_counter % params->torque_cache_len] = torq;
-                    //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
+                  if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                      double j    = j_monomer(ms->m1);
+                      double torq = torque_monomer(ms->m1);
+                      torque_cache[step_counter % params->torque_cache_len] = torq;
+                      //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
 
-                    bool all_less_than_limit = true;
-                    bool all_more_than_limit = true;
-                    for (size_t i = 0; i < params->torque_cache_len; ++i) {
-                        if (torq > params->torque_limit) {
-                            all_less_than_limit = false;
-                        }
-                        if (torq < params->torque_limit) {
-                            all_more_than_limit = false;
-                        } 
-                    }
+                      bool all_less_than_limit = true;
+                      bool all_more_than_limit = true;
+                      for (size_t i = 0; i < params->torque_cache_len; ++i) {
+                          if (torq > params->torque_limit) {
+                              all_less_than_limit = false;
+                          }
+                          if (torq < params->torque_limit) {
+                              all_more_than_limit = false;
+                          } 
+                      }
 
-                    if (all_less_than_limit) {
-                        if (!ms->m1.apply_requantization) {
-                            ms->m1.apply_requantization = true;
-                            req_switch_counter++;
+                      if (all_less_than_limit) {
+                          if (!ms->m1.apply_requantization) {
+                              ms->m1.apply_requantization = true;
+                              req_switch_counter++;
 
-                            printf("Setting requantization to 'true': switch counter = %d\n", req_switch_counter);
-                        }
-                    }
+                              printf("Setting requantization to 'true': switch counter = %d\n", req_switch_counter);
+                          }
+                      }
 
-                    if (all_more_than_limit) {
-                        if (ms->m1.apply_requantization) {
-                            ms->m1.apply_requantization = false;
-                            req_switch_counter++;
+                      if (all_more_than_limit) {
+                          if (ms->m1.apply_requantization) {
+                              ms->m1.apply_requantization = false;
+                              req_switch_counter++;
 
-                            printf("Setting requantization to 'false': switch counter = %d\n", req_switch_counter);
-                        }
-                    }
-                }
+                              printf("Setting requantization to 'false': switch counter = %d\n", req_switch_counter);
+                          }
+                      }
+                  }
 
-                extract_q_and_write_into_ms(ms);
-                (*dipole)(ms->intermediate_q, dipt);
+                  extract_q_and_write_into_ms(ms);
+                  (*dipole)(ms->intermediate_q, dipt);
 
-                dipx[step_counter] = dipt[0];
-                dipy[step_counter] = dipt[1];
-                dipz[step_counter] = dipt[2];
+                  dipx[step_counter] = dipt[0];
+                  dipy[step_counter] = dipt[1];
+                  dipz[step_counter] = dipt[2];
 
-                // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
-                // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
+                  // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
+                  // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
 
-                // TODO:
-                // are we interested in the distribution of Rmax?
-                if (poisson_tmax > 0.0) { 
-                    if (tout >= poisson_tmax) {
-                        printf("Propagated until tout = %.3e\n", tout);
-                        break;
-                    }
-                } else {
-                    if (ms->intermolecular_qp[IR] > params->R0) {
-                        break;
-                    }
-                }
-            }
+                  // TODO:
+                  // are we interested in the distribution of Rmax?
+                  if (poisson_tmax > 0.0) { 
+                      if (tout >= poisson_tmax) {
+                          printf("Propagated until tout = %.3e\n", tout);
+                          break;
+                      }
+                  } else {
+                      if (ms->intermolecular_qp[IR] > params->R0) {
+                          break;
+                      }
+                  }
+              }
 
-            if (status) {
-                printf("Caught CVode error. Resampling new conditions...\n");
-                continue;
-            }
+              if (status) {
+                  printf("Caught CVode error. Resampling new conditions...\n");
+                  continue;
+              }
     
-            // if we hit this 'if', it means that the length of the trajectory turned out to be longer
-            // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
-            // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
-            // there will be only a few of those long-living metastable trajectories.  
-            if ((poisson_tmax > 0.0) && (tout < poisson_tmax)) {
-                printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                       "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                       "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                continue;
-            } else { 
-                if (ms->intermolecular_qp[IR] < params->R0) {
-                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                           "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                           "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                    continue;
-                }
-            }
+              // if we hit this 'if', it means that the length of the trajectory turned out to be longer
+              // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
+              // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
+              // there will be only a few of those long-living metastable trajectories.  
+              if ((poisson_tmax > 0.0) && (tout < poisson_tmax)) {
+                  printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                         "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                         "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                  continue;
+              } else { 
+                  if (ms->intermolecular_qp[IR] < params->R0) {
+                      printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                             "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                             "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                      continue;
+                  }
+              }
 
-            // Here we chose to apply apodization procedure to dipole time-dependence
-            // TODO: should we make it customizable? 
-            connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
-            connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
-            connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
+              // Here we chose to apply apodization procedure to dipole time-dependence
+              // TODO: should we make it customizable? 
+              connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
+              connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
+              connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
+              
+              gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
+              gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
+              gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+
+              gsl_fft_square(dipx, params->MaxTrajectoryLength);
+              gsl_fft_square(dipy, params->MaxTrajectoryLength);
+              gsl_fft_square(dipz, params->MaxTrajectoryLength);
+                 
+              for (size_t i = 0; i < frequency_array_length; ++i) {
+                  sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]);
+              }
+
+              memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
+              memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
+              memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+              traj_counter++;
+          } 
             
-            gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
-            gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
-            gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+          MPI_Send(sf_iter.data, frequency_array_length, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+      } else {
+          assert(_wsize > 1);
 
-            gsl_fft_square(dipx, params->MaxTrajectoryLength);
-            gsl_fft_square(dipy, params->MaxTrajectoryLength);
-            gsl_fft_square(dipz, params->MaxTrajectoryLength);
-               
-            for (size_t i = 0; i < frequency_array_length; ++i) {
-                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]);
-            }
+          MPI_Status status;
+          for (size_t i = 1; i < (size_t) _wsize; ++i) {
+              memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
+              MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
 
-            memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
-            memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
-            memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
+			  for (size_t j = 0; j < frequency_array_length; ++j) {
+			  	sf_total.data[j] += sf_iter.data[j];
+			  }
 
-            traj_counter++;
-        } 
+              sf_total.ntraj += local_ntrajectories;
+          }
 
-        MPI_Allreduce(MPI_IN_PLACE, sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+          double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
+          double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 
-        for (size_t i = 0; i < frequency_array_length; ++i) {
-            sf_total.data[i] += sf_iter.data[i];
-        }
-        sf_total.ntraj += local_ntrajectories * _wsize;
+          printf("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
 
-        double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
-        double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
+          time_t current_rawtime;
+          time(&current_rawtime);
+          double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);  
+          
+          sb_reset(&sb_datetime);
+          sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+          
+          if (iter == 0) {
+              printf("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+          } else {
+              printf("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+             
+              double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+              sb_reset(&sb_datetime);
+              sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+              printf("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+          }
 
-        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+          ms->temp_rawtime = current_rawtime;
 
-        time_t current_rawtime;
-        time(&current_rawtime);
-        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);  
-            
-        sb_reset(&sb_datetime);
-        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
-            
-        if (iter == 0) {
-            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
-        } else {
-            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
-            
-            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
-            sb_reset(&sb_datetime);
-            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
-            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
-        }
+          printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
+          printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
-        ms->temp_rawtime = current_rawtime;
-
-        PRINT0("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
-        PRINT0("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
-
-        if (_wrank == 0) {
-            save_spectral_function(fp, sf_total, params);
-        }
+          save_spectral_function(fp, sf_total, params);
+      }
     }
 
     sb_free(&sb_datetime);
@@ -2566,7 +2574,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     }
 
     return sf_total; 
-
 }
 #endif // USE_MPI
 

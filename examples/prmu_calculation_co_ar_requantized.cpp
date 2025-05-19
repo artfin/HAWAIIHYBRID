@@ -132,6 +132,18 @@ void dipole_lab(double *q, double diplab[3])
 #endif
 }
 
+int main2()
+{
+    double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
+    double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+    printf("B(CO) = %.5e cm-1\n", B_cm);
+    printf("B(CO) = %.5f MHz\n", B_MHz);
+
+    double mu_D = mu_CO * ADIPTODEBYE;
+    printf("mu(CO) = %.5f D\n", mu_D); 
+
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {

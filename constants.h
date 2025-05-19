@@ -1,6 +1,10 @@
 #ifndef CONSTANTS_H_
 #define CONSTANTS_H_
 
+// SOURCE: 
+// CODATA Task Group on Fundamental Constants, 2022 edition (became available on 20 May 2024)
+// https://physics.nist.gov/cuu/Constants/
+
 #define ALU           5.29177210903e-11                           // SI: m
 #define Boltzmann     1.380649e-23                                // SI: J * K^(-1)
 #define Hartree       4.3597447222071e-18                         // SI: J 
@@ -10,7 +14,9 @@
 #define LightSpeed_cm 2.99792458e10                               // cm / s
 #define ADIPMOMU      8.4783536255e-30                            // SI: C * m
 #define EPSILON0      8.8541878128e-12                            // SI: F * m^(-1)
-                                            
+#define AMU           9.1093837139e-31                            // SI: kg
+#define ADIPTODEBYE   2.541580                                    // atomic units of dipole -> Debye   
+
 #define Planck        6.62607015e-34                              // SI: J * s^(-1)
 #define HBar          1.054571817e-34                             // SI: J * s^(-1)
 #define NL            2.686780111e25                              // SI: m^(-3)
@@ -46,8 +52,17 @@
 
 // A.  Rizzo, J. L. Cacheiro, B. F. Rodriguez, B. Jansik, T. B. Pedersen. Theoretical gas and dielectric second virial coefficients of CO-Ar.
 // Molecular Physics, 2008, 106 (07), pp. 881-892. doi: 10.1080/00268970802001363   
-#define l_CO 2.132      // bohr
+// #define l_CO 2.132      // bohr
 #define mu_CO 0.0481131 // e a0
+
+// 19.05.2025. The length of CO is updated according to the rotational constant B = 57635.96828(12) MHz  
+// from https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
+//    double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
+//    double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+// NIST also recommends the following value of dipole moment for CO:
+//   mu(CO) = 0.10980(3) D whereas the Rizzo value in D is 0.12228 (>10% difference) 
+#define l_CO 2.1370695550 
+
 
 // ? 
 #define l_CO2 4.398
