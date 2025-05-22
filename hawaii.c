@@ -2474,7 +2474,9 @@ if (_wrank > 0) {
                 
             // TODO: are we interested in the distribution of Rmax when Poisson distribution is used?
             
-            if (poisson_tmax > 0.0) { 
+            if (poisson_tmax > 0.0) {
+                assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
+
                 double psi0, ppsi;
                 // Phi, Theta are saved within matrices of angles_handler
                 compute_psi_ppsi_for_linear_molecule(ms->m1.qp[IPHI], ms->m1.qp[IPPHI], ms->m1.qp[ITHETA], ms->m1.qp[IPTHETA], &psi0, &ppsi);
@@ -2742,6 +2744,10 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
     fprintf(fp, "# INITIAL DISTANCE: %.3f\n", params->R0);
     fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+
+    if (params->average_time_between_collisions > 0) {
+        fprintf(fp, "# AVERAGE TIME BETWEEN COLLISIONS (POISSON DISTRIBUTION): %.3e\n", params->average_time_between_collisions);
+    }
 
     for (size_t i = 0; i < sf.len; ++i) {
         fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj); 
