@@ -94,13 +94,16 @@ int make_step(Trajectory *traj, double tout, double *t)
 
     if (traj->ms->m1.apply_requantization) {
         if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
+            double j[3];
             Monomer *m = &traj->ms->m1;
-            double j    = j_monomer(*m);
-            double jreq = find_closest_integer(j);
+
+            j_monomer(*m, j);
+            double jl   = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+            double jreq = find_closest_integer(jl);
 
             double scaling_factor = 0.0;
-            if (j > 1e-15) {
-                scaling_factor = jreq / j; 
+            if (jl > 1e-15) {
+                scaling_factor = jreq / jl; 
             }
 
             m->qp[IPPHI]   *= scaling_factor;
@@ -109,13 +112,16 @@ int make_step(Trajectory *traj, double tout, double *t)
             //printf("make_step: pphi = %.5e => j after scaling = %.5e\n", m->qp[IPPHI], j_monomer(*m));
         }
         if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
+            double j[3];
             Monomer *m = &traj->ms->m1;
-            double j    = j_monomer(*m);
-            double jreq = find_closest_half_integer(j);
+
+            j_monomer(*m, j);
+            double jl   = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+            double jreq = find_closest_half_integer(jl);
 
             double scaling_factor = 0.0;
-            if (j > 1e-15) {
-                scaling_factor = jreq / j; 
+            if (jl > 1e-15) {
+                scaling_factor = jreq / jl; 
             }
 
             m->qp[IPPHI]   *= scaling_factor;

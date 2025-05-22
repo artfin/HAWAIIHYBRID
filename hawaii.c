@@ -201,9 +201,10 @@ double find_closest_half_integer(double j)
     return r + 0.5;
 }
 
-double j_monomer(Monomer m) {
+void j_monomer(Monomer m, double j[3])
+{
     switch (m.t) {
-        case ATOM: return 0.0;
+        case ATOM: TODO("j_monomer"); 
         case LINEAR_MOLECULE_REQ_INTEGER: 
         case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: {
@@ -212,20 +213,18 @@ double j_monomer(Monomer m) {
             double theta  = m.qp[ITHETA];
             double pTheta = m.qp[IPTHETA];
 
-            double jx = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
-            double jy = pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
-            double jz = pPhi;
-
-            return sqrt(jx*jx + jy*jy + jz*jz);
+            j[0] = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
+            j[1] = pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
+            j[2] = pPhi;
+            break; 
         }
         case ROTOR_REQUANTIZED_ROTATION: 
         case ROTOR: {
             TODO("j_monomer");
         }
     }
-
-    UNREACHABLE("j_monomer");
 }
+
 
 double torque_monomer(Monomer m)
 // torque: T = dJ/dt 
@@ -2206,6 +2205,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     return total_crln; 
 }
 
+#include "angles_handler.hpp"
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
@@ -2373,151 +2373,169 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     for (size_t iter = 0; iter < params->niterations; ++iter) {
         memset(sf_iter.data, 0, frequency_array_length * sizeof(double));
             
-        if (_wrank > 0) {
-          for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
-          {
-              q_generator(ms, params);
-              ms->intermolecular_qp[IR] = params->R0;
-              p_generator(ms, Temperature);
+if (_wrank > 0) {
+        for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
+        {
+            q_generator(ms, params);
+            ms->intermolecular_qp[IR] = params->R0;
+            p_generator(ms, Temperature);
 
-              if (ms->intermolecular_qp[IPR] > 0.0) {
-                  ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
-              }
+            if (ms->intermolecular_qp[IPR] > 0.0) {
+                ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
+            }
 
-              double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
-              
-              get_qp_from_ms(ms, &qp0);
-              set_initial_condition(&traj, qp0);
+            double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
+            
+            get_qp_from_ms(ms, &qp0);
+            set_initial_condition(&traj, qp0);
 
-              t    = 0.0;
-              tout = params->sampling_time;
+            t    = 0.0;
+            tout = params->sampling_time;
 
-              int req_switch_counter = 0;
-              memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+            int req_switch_counter = 0;
+            memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
 
-              double poisson_tmax = -1.0;
-              if (params->average_time_between_collisions > 0) {
-                  poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
-                  printf("selected poisson_tmax = %.3e\n", poisson_tmax);
-              }
+            double poisson_tmax = -1.0;
+            if (params->average_time_between_collisions > 0) {
+                poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
+                printf("selected poisson_tmax = %.3e\n", poisson_tmax);
+            }
 
-              for (size_t step_counter = 0; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
-                  status = make_step(&traj, tout, &t);
-                  if (status) {
-                      printf("CVODE ERROR: status =  %d\n", status);
-                      break;
-                  }
+            size_t step_counter = 0;
+            for ( ; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
+                status = make_step(&traj, tout, &t);
+                if (status) {
+                    printf("CVODE ERROR: status =  %d\n", status);
+                    break;
+                }
        
-                  if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                      double j    = j_monomer(ms->m1);
-                      double torq = torque_monomer(ms->m1);
-                      torque_cache[step_counter % params->torque_cache_len] = torq;
-                      //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
+                if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                    double torq = torque_monomer(ms->m1);
+                    torque_cache[step_counter % params->torque_cache_len] = torq;
+                    //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
 
-                      bool all_less_than_limit = true;
-                      bool all_more_than_limit = true;
-                      for (size_t i = 0; i < params->torque_cache_len; ++i) {
-                          if (torq > params->torque_limit) {
-                              all_less_than_limit = false;
-                          }
-                          if (torq < params->torque_limit) {
-                              all_more_than_limit = false;
-                          } 
-                      }
+                    bool all_less_than_limit = true;
+                    bool all_more_than_limit = true;
+                    for (size_t i = 0; i < params->torque_cache_len; ++i) {
+                        if (torq > params->torque_limit) {
+                            all_less_than_limit = false;
+                        }
+                        if (torq < params->torque_limit) {
+                            all_more_than_limit = false;
+                        } 
+                    }
 
-                      if (all_less_than_limit) {
-                          if (!ms->m1.apply_requantization) {
-                              ms->m1.apply_requantization = true;
-                              req_switch_counter++;
+                    if (all_less_than_limit) {
+                        if (!ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = true;
+                            req_switch_counter++;
 
-                              printf("Setting requantization to 'true': switch counter = %d\n", req_switch_counter);
-                          }
-                      }
+                            printf("Setting requantization to 'true': switch counter = %d\n", req_switch_counter);
+                        }
+                    }
 
-                      if (all_more_than_limit) {
-                          if (ms->m1.apply_requantization) {
-                              ms->m1.apply_requantization = false;
-                              req_switch_counter++;
+                    if (all_more_than_limit) {
+                        if (ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = false;
+                            req_switch_counter++;
 
-                              printf("Setting requantization to 'false': switch counter = %d\n", req_switch_counter);
-                          }
-                      }
-                  }
+                            printf("Setting requantization to 'false': switch counter = %d\n", req_switch_counter);
+                        }
+                    }
+                }
 
-                  extract_q_and_write_into_ms(ms);
-                  (*dipole)(ms->intermediate_q, dipt);
+                extract_q_and_write_into_ms(ms);
+                (*dipole)(ms->intermediate_q, dipt);
 
-                  dipx[step_counter] = dipt[0];
-                  dipy[step_counter] = dipt[1];
-                  dipz[step_counter] = dipt[2];
+                dipx[step_counter] = dipt[0];
+                dipy[step_counter] = dipt[1];
+                dipz[step_counter] = dipt[2];
 
-                  // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
-                  // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
+                // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
+                // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
+                if (ms->intermolecular_qp[IR] > params->R0) break;
+            }
 
-                  // TODO:
-                  // are we interested in the distribution of Rmax?
-                  if (poisson_tmax > 0.0) { 
-                      if (tout >= poisson_tmax) {
-                          printf("Propagated until tout = %.3e\n", tout);
-                          break;
-                      }
-                  } else {
-                      if (ms->intermolecular_qp[IR] > params->R0) {
-                          break;
-                      }
-                  }
-              }
+            if (status) {
+                printf("Caught CVode error. Resampling new conditions...\n");
+                continue;
+            }
+            
+            // if we hit this 'if', it means that the length of the trajectory turned out to be longer
+            // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
+            // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
+            // there will be only a few of those long-living metastable trajectories.  
+            if (ms->intermolecular_qp[IR] < params->R0) {
+                printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                        "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                        "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                continue;
+            }
+                
+            // TODO: are we interested in the distribution of Rmax when Poisson distribution is used?
+            
+            if (poisson_tmax > 0.0) { 
+                double psi0, ppsi;
+                // Phi, Theta are saved within matrices of angles_handler
+                compute_psi_ppsi_for_linear_molecule(ms->m1.qp[IPHI], ms->m1.qp[IPPHI], ms->m1.qp[ITHETA], ms->m1.qp[IPTHETA], &psi0, &ppsi);
 
-              if (status) {
-                  printf("Caught CVode error. Resampling new conditions...\n");
-                  continue;
-              }
-    
-              // if we hit this 'if', it means that the length of the trajectory turned out to be longer
-              // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
-              // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
-              // there will be only a few of those long-living metastable trajectories.  
-              if ((poisson_tmax > 0.0) && (tout < poisson_tmax)) {
-                  printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                         "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                         "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                  continue;
-              } else { 
-                  if (ms->intermolecular_qp[IR] < params->R0) {
-                      printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                             "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                             "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                      continue;
-                  }
-              }
+                double tini = tout; // initial time for analytic solution of dynamic equation 
+                while (tout < poisson_tmax) {
+                    double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini); // should we wrap it around 2*Pi? 
+                    
+                    double dipmol[3];
+                    dipmol[0] = mu_CO*cos(psit);
+                    dipmol[1] = mu_CO*sin(psit);
+                    dipmol[2] = 0.0;
 
-              // Here we chose to apply apodization procedure to dipole time-dependence
-              // TODO: should we make it customizable? 
-              connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
-              connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
-              connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
-              
-              gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
-              gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
-              gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+                    double diplab[3];
+                    rotate_to_lab_for_linear_molecule(dipmol, diplab);
 
-              gsl_fft_square(dipx, params->MaxTrajectoryLength);
-              gsl_fft_square(dipy, params->MaxTrajectoryLength);
-              gsl_fft_square(dipz, params->MaxTrajectoryLength);
-                 
-              for (size_t i = 0; i < frequency_array_length; ++i) {
-                  sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]);
-              }
+                    dipx[step_counter] = diplab[0];
+                    dipy[step_counter] = diplab[1];
+                    dipz[step_counter] = diplab[2];
+                    
+                    tout += params->sampling_time; 
+                    step_counter++;
+           
+                    if (step_counter >= params->MaxTrajectoryLength) {
+                        printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                                "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                                "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                        continue;
+                    }         
+                    //printf("tout = %.5f, diplab = %.10e, %.10e, %.10e\n", tout, diplab[0], diplab[1], diplab[2]);
+                }
+            }
 
-              memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
-              memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
-              memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
 
-              traj_counter++;
+            // Here we chose to apply apodization procedure to dipole time-dependence
+            // TODO: should we make it customizable? 
+            connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            
+            gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+
+            gsl_fft_square(dipx, params->MaxTrajectoryLength);
+            gsl_fft_square(dipy, params->MaxTrajectoryLength);
+            gsl_fft_square(dipz, params->MaxTrajectoryLength);
+               
+            for (size_t i = 0; i < frequency_array_length; ++i) {
+                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]);
+            }
+
+            memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
+            memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
+            memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
+
+            traj_counter++;
           } 
             
           MPI_Send(sf_iter.data, frequency_array_length, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-      } else {
+} else {
           assert(_wsize > 1);
 
           MPI_Status status;

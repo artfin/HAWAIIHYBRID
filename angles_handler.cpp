@@ -554,3 +554,58 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, doub
     jac(7, 2) = 0.0;
 } 
 
+void compute_psi_ppsi_for_linear_molecule(double eta, double pEta, double chi, double pChi, double *psi, double *ppsi)
+// eta - azimuthal angle
+// chi - polar angle
+{
+    double jx = -pChi * sin(eta) - pEta * cos(eta) / tan(chi);
+    double jy = pChi * cos(eta) - pEta * sin(eta) / tan(chi);
+    double jz = pEta;
+
+    *ppsi = sqrt(jx*jx + jy*jy + jz*jz); 
+
+    double cosTheta = jz / *ppsi;
+    double sinTheta = sqrt(1.0 - jz / *ppsi * jz / *ppsi);
+    //double Theta    = acos(cosTheta);
+
+    double Phi    = atan2(jy / *ppsi / sinTheta, jx / *ppsi / sinTheta);
+    double sinPhi = sin(Phi);
+    double cosPhi = cos(Phi);
+
+    SPhi(0, 0) = -sinPhi;
+    SPhi(0, 1) = cosPhi;
+    SPhi(0, 2) = 0.0;
+    SPhi(1, 0) = -cosPhi;
+    SPhi(1, 1) = -sinPhi;
+    SPhi(1, 2) = 0.0;
+    SPhi(2, 0) = 0.0;
+    SPhi(2, 1) = 0.0;
+    SPhi(2, 2) = 1.0;
+    Sx_filler(STheta, sinTheta, cosTheta);
+
+    dd(0) = cos(eta)*sin(chi);
+    dd(1) = sin(eta)*sin(chi);
+    dd(2) = cos(chi); 
+
+    dd2 = STheta*SPhi*dd;
+
+    *psi = atan2(dd2(1), dd2(0));
+    printf("psi = %.10e, ppsi = %.10e\n", *psi, *ppsi);
+
+    // save this rotation matrix to rotate vector from molecular to laboratory frame
+    S1 = SPhi.transpose() * STheta.transpose(); 
+}
+
+void rotate_to_lab_for_linear_molecule(double dipmol[3], double diplab[3])
+{
+    dd(0) = dipmol[0];
+    dd(1) = dipmol[1];
+    dd(2) = dipmol[2];
+
+    dd2 = S1 * dd;
+
+    diplab[0] = dd2(0);
+    diplab[1] = dd2(1);
+    diplab[2] = dd2(2);
+}
+

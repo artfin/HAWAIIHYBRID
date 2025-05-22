@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
     params.average_time_between_collisions  = 4.5e-9 / ATU; // a.t.u.
    
     String_Builder sf_filename = {};
-    sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-RMAX=%.1f.txt", params.R0); 
+    sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-POISSON.txt"); 
     params.sf_filename = sf_filename.items; 
 
     double Temperature = 300.0;

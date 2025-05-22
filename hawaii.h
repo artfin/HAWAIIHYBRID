@@ -339,7 +339,7 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
-double j_monomer(Monomer m);
+void j_monomer(Monomer m, double j[3]);
 double torque_monomer(Monomer m); 
 double find_closest_integer(double j);
 double find_closest_half_integer(double j); 
