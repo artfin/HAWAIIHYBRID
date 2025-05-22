@@ -2481,6 +2481,16 @@ if (_wrank > 0) {
                 // Phi, Theta are saved within matrices of angles_handler
                 compute_psi_ppsi_for_linear_molecule(ms->m1.qp[IPHI], ms->m1.qp[IPPHI], ms->m1.qp[ITHETA], ms->m1.qp[IPTHETA], &psi0, &ppsi);
 
+                if (abs(ppsi) < 1e-14) {
+                    printf("INFO: ppsi is close to zero. Continuing...\n"); 
+                    continue;
+                }
+
+                if (isnan(psi0)) { 
+                    printf("INFO: caught a NaN value of psi0. Continuing...\n");
+                    continue;
+                } 
+
                 double tini = tout; // initial time for analytic solution of dynamic equation 
                 while (tout < poisson_tmax) {
                     double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini); // should we wrap it around 2*Pi? 
