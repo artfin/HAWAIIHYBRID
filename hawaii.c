@@ -5,8 +5,8 @@
 #define R_HISTOGRAM_BINS 100
 #define R_HISTOGRAM_MAX  10000000.0
 
-#define J_HISTOGRAM_BINS 30 
-#define J_HISTOGRAM_MAX  30.0 
+#define J_HISTOGRAM_BINS 40 
+#define J_HISTOGRAM_MAX  40.0 
 
 dipolePtr dipole = NULL;
 
@@ -2419,7 +2419,7 @@ if (_wrank > 0) {
             double poisson_tmax = -1.0;
             if (params->average_time_between_collisions > 0) {
                 poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
-                printf("selected poisson_tmax = %.3e\n", poisson_tmax);
+                //printf("selected poisson_tmax = %.3e\n", poisson_tmax);
             }
 
             size_t step_counter = 0;
@@ -2603,10 +2603,12 @@ if (_wrank > 0) {
           MPI_Status status;
           double *buf = NULL;
 
-          // TODO: we don't need to receive the packets 'in order' (from 1 to _wsize)
           for (size_t i = 1; i < (size_t) _wsize; ++i) {
+              int source;
+
               memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
-              MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+              MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+              source = status.MPI_SOURCE;
 
 			  for (size_t j = 0; j < frequency_array_length; ++j) {
 			  	sf_total.data[j] += sf_iter.data[j];
@@ -2619,10 +2621,10 @@ if (_wrank > 0) {
                   // filling R_histogram
                   {
                     int n;
-                    MPI_Recv(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &status);
+                    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
 
                     buf = malloc(n * sizeof(double)); 
-                    MPI_Recv(buf, n, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+                    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
 
                     // TODO: we don't take into account that histogram could be extended on the slave process
                     if (R_histogram->n < (size_t) n) {
@@ -2639,10 +2641,10 @@ if (_wrank > 0) {
                   // filling j_histogram
                   {
                     int n;
-                    MPI_Recv(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &status);
+                    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
                     
                     buf = malloc(n * sizeof(double)); 
-                    MPI_Recv(buf, n, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+                    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
                     
                     // TODO: we don't take into account that histogram could be extended on the slave process
                     if (j_histogram->n < (size_t) n) {

@@ -590,7 +590,7 @@ void compute_psi_ppsi_for_linear_molecule(double eta, double pEta, double chi, d
     dd2 = STheta*SPhi*dd;
 
     *psi = atan2(dd2(1), dd2(0));
-    printf("psi = %.10e, ppsi = %.10e\n", *psi, *ppsi);
+    // printf("psi = %.10e, ppsi = %.10e\n", *psi, *ppsi);
 
     // save this rotation matrix to rotate vector from molecular to laboratory frame
     S1 = SPhi.transpose() * STheta.transpose(); 
