@@ -421,6 +421,8 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 
 void connes_apodization(Array a, double sampling_time); 
 
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h);
+
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
 static inline bool is_power_of_two(size_t n) {
     return n && !(n & (n - 1));
