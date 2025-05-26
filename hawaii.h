@@ -1,14 +1,16 @@
 #ifndef HAWAII_H_
 #define HAWAII_H_
 
+#include <assert.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdarg.h>
 #include <regex.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -49,14 +51,14 @@ int syncfs(int);
  *   Generate 32-bit random value 
  */
 
-#include <assert.h>
-#include <stdbool.h>
 
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
 
 #include "array.h"
 #include "constants.h"
+
+#include "arena.h"
 
 #define IPHI    0
 #define IPPHI   1
@@ -351,6 +353,8 @@ void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp);
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
 
+void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
+
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
@@ -361,8 +365,8 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 #endif // USE_MPI
     
 double* linspace(double start, double end, size_t n);
-size_t* linspace_size_t(size_t start, size_t end, size_t n);
-// std::vector<double> arange(double start, double step, size_t size);
+double* arena_linspace(Arena *a, double start, double end, size_t n); 
+size_t* linspace_size_t(Arena *a, size_t start, size_t end, size_t n);
 
 double integrate_composite_simpson(double *x, double *y, size_t len); 
 double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
@@ -421,7 +425,7 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 
 void connes_apodization(Array a, double sampling_time); 
 
-gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h);
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, int add_bins);
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
 static inline bool is_power_of_two(size_t n) {

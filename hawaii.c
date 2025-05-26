@@ -1,3 +1,5 @@
+#define ARENA_REGION_DEFAULT_CAPACITY (32*1024*1024)
+#define ARENA_IMPLEMENTATION
 #include "hawaii.h"
 
 #define HISTOGRAM_MAX_TPS 50
@@ -2219,8 +2221,33 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
 #include "angles_handler.hpp"
 
+void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
+{
+    MPI_Status status;
+
+    int n;
+    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
+
+    double *buf = (double*) arena_alloc(a, n*sizeof(double));
+    assert(buf != NULL && "ASSERT: not enough memory"); 
+    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
+
+    // TODO: we don't take into account that histogram could be extended on the slave process
+    if ((*h)->n < (size_t) n) {
+        *h = gsl_histogram_extend_right(*h, n - (*h)->n + 1);
+    }
+
+    for (size_t i = 0; i < (*h)->n; ++i) {
+        (*h)->bin[i] += buf[i]; 
+    }
+}
+
+
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
+    INIT_WRANK;
+    INIT_WSIZE;
+
     // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
     assert(dipole != NULL);
 
@@ -2232,21 +2259,19 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     assert(params->ApproximateFrequencyMax > 0);
     assert(params->sf_filename != NULL);
     
+    Arena a = {0};
+    
     double* torque_cache = NULL;
-
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         assert(params->torque_cache_len > 0);
         assert(params->torque_limit > 0);
 
-        torque_cache = (double*) alloca(params->torque_cache_len * sizeof(double));
-        memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+        torque_cache = (double*) arena_alloc(&a, params->torque_cache_len*sizeof(double));
+        memset(torque_cache, 0, params->torque_cache_len*sizeof(double));
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
     }
-    
-    INIT_WRANK;
-    INIT_WSIZE;
     
     FILE *fp = NULL; 
     if (_wrank == 0) {
@@ -2307,7 +2332,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, NSWITCH_HISTOGRAM_MAX);
     }
 
-
     gsl_rng *gsl_rng_state = NULL;
     gsl_histogram *R_histogram = NULL;
     gsl_histogram *jini_histogram = NULL;
@@ -2361,40 +2385,38 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     double dipt[3]; 
 
-    double *dipx = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    // These arrays can become quite large and are allocated only once per calculation,
+    // so it's likely not beneficial to allocate them within the arena
+    double *dipx = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
     assert(dipx != NULL && "ASSERT: not enough memory!\n");
     memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double)); 
 
-    double *dipy = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    double *dipy = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
     assert(dipy != NULL && "ASSERT: not enough memory!\n");
-    memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double)); 
+    memset(dipy, 0, params->MaxTrajectoryLength*sizeof(double)); 
 
-    double *dipz = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
+    double *dipz = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
     assert(dipz != NULL && "ASSERT: not enough memory!\n"); 
-    memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double)); 
-
+    memset(dipz, 0, params->MaxTrajectoryLength*sizeof(double)); 
+    
     SFnc sf_iter = {
         .nu          = NULL,
-        .data        = (double*) malloc(frequency_array_length * sizeof(double)),
+        .data        = (double*) arena_alloc(&a, frequency_array_length*sizeof(double)),
         .len         = frequency_array_length,
         .capacity    = frequency_array_length,
         .ntraj       = 0,
         .Temperature = Temperature, 
     };
-    assert(sf_iter.data != NULL && "ASSERT: not enough memory!\n"); 
 
     SFnc sf_total = {
         .nu          = linspace(0.0, max_frequency, frequency_array_length),
-        .data        = (double*) malloc(frequency_array_length * sizeof(double)),
+        .data        = (double*) malloc(frequency_array_length*sizeof(double)),
         .len         = frequency_array_length,
         .capacity    = frequency_array_length,
         .ntraj       = 0,
         .Temperature = Temperature, 
     };
-
-    assert(sf_total.nu != NULL && "ASSERT: not enough memory!\n"); 
-    assert(sf_total.data != NULL && "ASSERT: not enough memory!\n"); 
-    memset(sf_total.data, 0, frequency_array_length * sizeof(double)); 
+    memset(sf_total.data, 0, frequency_array_length*sizeof(double)); 
     
     String_Builder sb_datetime = {};
 
@@ -2420,8 +2442,10 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2 - prelim_M2std, prelim_M2 + prelim_M2std);
     PRINT0("Error: %.3f%%\n\n", prelim_M2std/prelim_M2 * 100.0);
 
+    Arena_Mark iter_mark = arena_snapshot(&a);
+
     for (size_t iter = 0; iter < params->niterations; ++iter) {
-        memset(sf_iter.data, 0, frequency_array_length * sizeof(double));
+        memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
             
 if (_wrank > 0) {
         for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
@@ -2458,7 +2482,8 @@ if (_wrank > 0) {
                 double jinil = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
                 if (jini_histogram != NULL) {
                     while (jinil > jini_histogram->range[jini_histogram->n]) {
-                        jini_histogram = gsl_histogram_extend_right(jini_histogram);
+                        int bins_to_add = 5;
+                        jini_histogram = gsl_histogram_extend_right(jini_histogram, bins_to_add);
                         printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
                                _wrank, jini_histogram->range[0], jini_histogram->range[jini_histogram->n]); 
                     }
@@ -2543,7 +2568,8 @@ if (_wrank > 0) {
                 double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
                 if (jfin_histogram != NULL) {
                     while (jfinl > jfin_histogram->range[jfin_histogram->n]) {
-                        jfin_histogram = gsl_histogram_extend_right(jfin_histogram);
+                        int bins_to_add = 5;
+                        jfin_histogram = gsl_histogram_extend_right(jfin_histogram, bins_to_add);
                         printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
                                _wrank, jfin_histogram->range[0], jfin_histogram->range[jfin_histogram->n]); 
                     }
@@ -2554,7 +2580,8 @@ if (_wrank > 0) {
                             
             if (nswitch_histogram != NULL) {
                 while (req_switch_counter > nswitch_histogram->range[nswitch_histogram->n]) {
-                    nswitch_histogram = gsl_histogram_extend_right(nswitch_histogram);
+                    int bins_to_add = 5;
+                    nswitch_histogram = gsl_histogram_extend_right(nswitch_histogram, bins_to_add);
                 }
                 gsl_histogram_increment(nswitch_histogram, req_switch_counter);
             }
@@ -2606,12 +2633,13 @@ if (_wrank > 0) {
                     //printf("tout = %.5f, diplab = %.10e, %.10e, %.10e\n", tout, diplab[0], diplab[1], diplab[2]);
                 }
 
-                // printf("the trajectory ended with Rfin = %.3e\n", ms->intermolecular_qp[IR]);
+                //printf("the trajectory ended with Rfin = %.3e\n", ms->intermolecular_qp[IR]);
    
                 while (ms->intermolecular_qp[IR] > R_histogram->range[R_histogram->n]) {
-                    R_histogram = gsl_histogram_extend_right(R_histogram);
-                    printf("[%d] INFO: extending intermolecular distance histogram (R_histogram) to [%.3e ... %.3e]\n", 
-                           _wrank, R_histogram->range[0], R_histogram->range[R_histogram->n]);
+                    int bins_to_add = 10;
+                    R_histogram = gsl_histogram_extend_right(R_histogram, bins_to_add);
+                    //printf("[%d] INFO: extending intermolecular distance histogram (R_histogram) to [%.3e ... %.3e]\n", 
+                    //       _wrank, R_histogram->range[0], R_histogram->range[R_histogram->n]);
                 }
 
                 gsl_histogram_increment(R_histogram, ms->intermolecular_qp[IR]);
@@ -2668,104 +2696,30 @@ if (_wrank > 0) {
           assert(_wsize > 1);
 
           MPI_Status status;
-          double *buf = NULL;
 
           for (size_t i = 1; i < (size_t) _wsize; ++i) {
               int source;
 
               memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
               MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-              source = status.MPI_SOURCE;
 
 			  for (size_t j = 0; j < frequency_array_length; ++j) {
 			  	sf_total.data[j] += sf_iter.data[j];
 			  }
 
               sf_total.ntraj += local_ntrajectories;
+
+              Arena_Mark recv_mark = arena_snapshot(&a);
                   
-              // TODO: use arena instead of calling malloc each time
               if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                  int n;
-                  MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
-
-                  buf = malloc(n * sizeof(double)); 
-                  MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
-
-                  // TODO: we don't take into account that histogram could be extended on the slave process
-                  if (nswitch_histogram->n < (size_t) n) {
-                      printf("INFO: received intemolecular distance histogram of length %d. "
-                             "Values after index %zu are thrown away.\n", n, nswitch_histogram->n);
-                    }
-
-                    for (size_t i = 0; i < nswitch_histogram->n; ++i) {
-                        nswitch_histogram->bin[i] += buf[i]; 
-                    }
-
-                    free(buf);
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &nswitch_histogram);
               }
 
               if (params->average_time_between_collisions > 0) {
-                  // TODO: use arena instead of calling malloc each time
-                  // filling R_histogram
-                  {
-                    int n;
-                    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
-
-                    buf = malloc(n * sizeof(double)); 
-                    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
-
-                    // TODO: we don't take into account that histogram could be extended on the slave process
-                    if (R_histogram->n < (size_t) n) {
-                        printf("INFO: received intemolecular distance histogram of length %d."
-                               " Values after index %zu are thrown away.\n", n, R_histogram->n);
-                    }
-
-                    for (size_t i = 0; i < R_histogram->n; ++i) {
-                        R_histogram->bin[i] += buf[i]; 
-                    }
-
-                    free(buf);
-                  } 
-                  // filling jini_histogram
-                  {
-                    int n;
-                    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
-                    
-                    buf = malloc(n * sizeof(double)); 
-                    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
-                    
-                    // TODO: we don't take into account that histogram could be extended on the slave process
-                    if (jini_histogram->n < (size_t) n) {
-                        printf("INFO: received angular momenta histogram of length %d."
-                               "Values after index %zu are thrown away.\n", n, jini_histogram->n);
-                    }
-
-                    for (size_t i = 0; i < jini_histogram->n; ++i) {
-                        jini_histogram->bin[i] += buf[i];
-                    }
-
-                    free(buf);
-                  }
-                  // filling jfin_histogram
-                  {
-                    int n;
-                    MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
-                    
-                    buf = malloc(n * sizeof(double)); 
-                    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
-                    
-                    // TODO: we don't take into account that histogram could be extended on the slave process
-                    if (jfin_histogram->n < (size_t) n) {
-                        printf("INFO: received angular momenta histogram of length %d."
-                               "Values after index %zu are thrown away.\n", n, jfin_histogram->n);
-                    }
-
-                    for (size_t i = 0; i < jfin_histogram->n; ++i) {
-                        jfin_histogram->bin[i] += buf[i];
-                    }
-
-                    free(buf);
-                  }
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &R_histogram);
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &jini_histogram);
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &jfin_histogram);
+                  arena_rewind(&a, recv_mark);
               }
           }
               
@@ -2788,7 +2742,9 @@ if (_wrank > 0) {
                      (int) count);
 
               for (size_t i = 0; i < R_histogram->n; ++i) {
-                  printf("  %.5e %.3e\n", R_histogram->range[i], gsl_histogram_get(R_histogram, i)/count);
+                  if (gsl_histogram_get(R_histogram, i) > 0) {
+                    printf("  %.5e %.3e\n", R_histogram->range[i], gsl_histogram_get(R_histogram, i)/count);
+                  }
               }
               printf("=======================================\n");
               printf("\n\n");
@@ -2837,20 +2793,24 @@ if (_wrank > 0) {
           printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
           printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
-           
-
           save_spectral_function(fp, sf_total, params);
+
+          arena_rewind(&a, iter_mark);
       }
     }
 
     sb_free(&sb_datetime);
-    free_sfnc(sf_iter);
 
     if (gsl_rng_state != NULL)     gsl_rng_free(gsl_rng_state);
     if (R_histogram != NULL)       gsl_histogram_free(R_histogram);
     if (jini_histogram != NULL)    gsl_histogram_free(jini_histogram);
     if (jfin_histogram != NULL)    gsl_histogram_free(jfin_histogram);
     if (nswitch_histogram != NULL) gsl_histogram_free(nswitch_histogram);
+
+    free(dipx);
+    free(dipy);
+    free(dipz);    
+    arena_free(&a);
 
     for (size_t i = 0; i < frequency_array_length; ++i) {
         sf_total.data[i] /= sf_total.ntraj;
@@ -2877,7 +2837,6 @@ int assert_float_is_equal_to(double estimate, double true_value, double abs_tole
     UNREACHABLE("assert_float_is_equal_to");
 }
 
-
 double* linspace(double start, double end, size_t n) {
     if (n == 0) return NULL;
 
@@ -2889,7 +2848,7 @@ double* linspace(double start, double end, size_t n) {
         step = (end - start)/(n - 1);
     }
     
-    double *v = (double*) malloc(n * sizeof(double));
+    double *v = (double*) malloc(n*sizeof(double));
     assert(v != NULL);
 
     for (size_t i = 0; i < n; ++i) {
@@ -2899,7 +2858,28 @@ double* linspace(double start, double end, size_t n) {
     return v;
 }
 
-size_t* linspace_size_t(size_t start, size_t end, size_t n) {
+double* arena_linspace(Arena *a, double start, double end, size_t n) {
+    if (n == 0) return NULL;
+
+    double step;
+    if (n == 1) {
+        assert(start == end);
+        step = 0; 
+    } else {
+        step = (end - start)/(n - 1);
+    }
+    
+    double *v = (double*) arena_alloc(a, n*sizeof(double));
+    assert(v != NULL);
+
+    for (size_t i = 0; i < n; ++i) {
+        v[i] = start + step * i;
+    }
+
+    return v;
+}
+
+size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n) {
     if (n == 0) return NULL;
 
     size_t step;
@@ -2910,7 +2890,7 @@ size_t* linspace_size_t(size_t start, size_t end, size_t n) {
         step = (end - start)/(n - 1);
     }
 
-    size_t *v = (size_t*) malloc(n * sizeof(size_t));
+    size_t *v = (size_t*) arena_alloc(a, n*sizeof(size_t));
     assert(v != NULL);
 
     for (size_t i = 0; i < n; ++i) {
@@ -3528,10 +3508,9 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     return pf_analytic;
 }
 
-gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h)
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, int add_bins)
 {
     size_t nbins = h->n;
-    double add_bins = 10;
     
     double xmin = h->range[0];
     double xmax = h->range[nbins];
