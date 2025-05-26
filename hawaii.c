@@ -2227,17 +2227,22 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 
     int n;
     MPI_Recv(&n, 1, MPI_INT, source, 0, MPI_COMM_WORLD, &status);
+    assert(status.MPI_SOURCE == source);
 
     double *buf = (double*) arena_alloc(a, n*sizeof(double));
     assert(buf != NULL && "ASSERT: not enough memory"); 
-    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
+    memset(buf, 0.0, n*sizeof(double));
 
-    // TODO: we don't take into account that histogram could be extended on the slave process
+    MPI_Recv(buf, n, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, &status);
+    assert(status.MPI_SOURCE == source);
+
     if ((*h)->n < (size_t) n) {
         *h = gsl_histogram_extend_right(*h, n - (*h)->n + 1);
     }
 
-    for (size_t i = 0; i < (*h)->n; ++i) {
+    // We iterate only up to 'n', the length of the received histogram,
+    // since we have already ensured that the histogram buffer (*h) has at least 'n' elements. 
+    for (size_t i = 0; i < n; ++i) {
         (*h)->bin[i] += buf[i]; 
     }
 }
@@ -2423,7 +2428,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
     traj.check_energy_conservation = false;
 
-    int status = 0; 
+    int cvode_status = 0; 
     double t, tout;
 
     Array qp0 = create_array(ms->QP_SIZE);
@@ -2481,9 +2486,8 @@ if (_wrank > 0) {
                 j_monomer(ms->m1, jini);
                 double jinil = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
                 if (jini_histogram != NULL) {
-                    while (jinil > jini_histogram->range[jini_histogram->n]) {
-                        int bins_to_add = 5;
-                        jini_histogram = gsl_histogram_extend_right(jini_histogram, bins_to_add);
+                    if (jinil > jini_histogram->range[jini_histogram->n]) {
+                        jini_histogram = gsl_histogram_extend_right(jini_histogram, jinil - jini_histogram->range[jini_histogram->n] + 1);
                         printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
                                _wrank, jini_histogram->range[0], jini_histogram->range[jini_histogram->n]); 
                     }
@@ -2494,9 +2498,9 @@ if (_wrank > 0) {
 
             size_t step_counter = 0;
             for ( ; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
-                status = make_step(&traj, tout, &t);
-                if (status) {
-                    printf("CVODE ERROR: status =  %d\n", status);
+                cvode_status = make_step(&traj, tout, &t);
+                if (cvode_status) {
+                    printf("CVODE ERROR: status =  %d\n", cvode_status);
                     break;
                 }
 
@@ -2544,7 +2548,7 @@ if (_wrank > 0) {
                 if (ms->intermolecular_qp[IR] > params->R0) break;
             }
 
-            if (status) {
+            if (cvode_status) {
                 printf("Caught CVode error. Resampling new conditions...\n");
                 continue;
             }
@@ -2579,10 +2583,10 @@ if (_wrank > 0) {
             }
                             
             if (nswitch_histogram != NULL) {
-                while (req_switch_counter > nswitch_histogram->range[nswitch_histogram->n]) {
-                    int bins_to_add = 5;
-                    nswitch_histogram = gsl_histogram_extend_right(nswitch_histogram, bins_to_add);
+                if (req_switch_counter > nswitch_histogram->range[nswitch_histogram->n]) {
+                    nswitch_histogram = gsl_histogram_extend_right(nswitch_histogram, req_switch_counter - nswitch_histogram->range[nswitch_histogram->n] + 1);
                 }
+                
                 gsl_histogram_increment(nswitch_histogram, req_switch_counter);
             }
             
@@ -2674,6 +2678,8 @@ if (_wrank > 0) {
           MPI_Send(sf_iter.data, frequency_array_length, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
   
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+              // printf("[%d] sending %lf switch values\n", _wrank, gsl_histogram_sum(nswitch_histogram));
+
               MPI_Send(&nswitch_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
               MPI_Send(nswitch_histogram->bin, nswitch_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
               gsl_histogram_reset(nswitch_histogram);
@@ -2697,9 +2703,7 @@ if (_wrank > 0) {
 
           MPI_Status status;
 
-          for (size_t i = 1; i < (size_t) _wsize; ++i) {
-              int source;
-
+          for (int i = 1; i < _wsize; ++i) {
               memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
               MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
 
@@ -3508,7 +3512,7 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     return pf_analytic;
 }
 
-gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, int add_bins)
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins)
 {
     size_t nbins = h->n;
     

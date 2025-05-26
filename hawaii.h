@@ -353,7 +353,6 @@ void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp);
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
 
-void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
@@ -425,7 +424,8 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 
 void connes_apodization(Array a, double sampling_time); 
 
-gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, int add_bins);
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins);
+void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
 static inline bool is_power_of_two(size_t n) {
