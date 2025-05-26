@@ -134,6 +134,10 @@ void dipole_lab(double *q, double diplab[3])
 
 int main2()
 {
+    double x = 0.45;
+    printf("x = %lf => round(x) = %lf\n", x, round(x));
+    return 0;
+
     double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
     double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
     printf("B(CO) = %.5e cm-1\n", B_cm);
@@ -144,6 +148,7 @@ int main2()
 
     return 0;
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -169,20 +174,21 @@ int main(int argc, char *argv[])
     params.sampler_Rmin = 4.0;
     params.sampler_Rmax = 40.0;
 
-    params.niterations                      = 10;
-    params.total_trajectories               = 100;
-    params.cvode_tolerance                  = 1e-8;
-    params.sampling_time                    = 200.0;
-    params.MaxTrajectoryLength              = 2097152; 
-    params.partial_partition_function_ratio = 2.68854e+05;
-    params.initialM0_npoints                = 10000;
-    params.initialM2_npoints                = 10000;
-    params.pesmin                           = -105.0 / HTOCM;
-    params.R0                               = 40.0;
-    params.ApproximateFrequencyMax          = 150.0;
-    params.torque_cache_len                 = 30;
-    params.torque_limit                     = 5e-6;
-    params.average_time_between_collisions  = 0.988e-10 / ATU; // a.t.u.
+    params.niterations                                   = 100;
+    params.total_trajectories                            = 400000;
+    params.cvode_tolerance                               = 1e-8;
+    params.sampling_time                                 = 200.0;
+    params.MaxTrajectoryLength                           = 4; // 2097152;
+    params.allow_truncating_trajectories_at_length_limit = true;
+    params.partial_partition_function_ratio              = 2.68854e+05;
+    params.initialM0_npoints                             = 10000;
+    params.initialM2_npoints                             = 10000;
+    params.pesmin                                        = -105.0 / HTOCM;
+    params.R0                                            = 40.0;
+    params.ApproximateFrequencyMax                       = 150.0;
+    params.torque_cache_len                              = 30;
+    params.torque_limit                                  = 5e-6;
+    //params.average_time_between_collisions  = 0.988e-10 / ATU; // a.t.u.
    
     String_Builder sf_filename = {};
     sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-POISSON.txt"); 
@@ -195,7 +201,7 @@ int main(int argc, char *argv[])
         printf("\n\n");
         printf("Spectral function is calculated. The initial values are:\n");
         for (size_t i = 0; i < 10; ++i) {
-            printf("%.2f   %.10e\n", sf.nu[i], sf.data[i]);
+            printf("%.4f   %.10e\n", sf.nu[i], sf.data[i]);
         }
     }
 

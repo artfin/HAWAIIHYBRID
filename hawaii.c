@@ -7,11 +7,11 @@
 #define R_HISTOGRAM_BINS 100
 #define R_HISTOGRAM_MAX  10000000.0
 
-#define JINI_HISTOGRAM_BINS 40 
-#define JINI_HISTOGRAM_MAX  40.0 
+#define JINI_HISTOGRAM_BINS 352 
+#define JINI_HISTOGRAM_MAX  35.0 
 
-#define JFIN_HISTOGRAM_BINS 40
-#define JFIN_HISTOGRAM_MAX  40.0
+#define JFIN_HISTOGRAM_BINS 352 
+#define JFIN_HISTOGRAM_MAX  35.0
 
 #define NSWITCH_HISTOGRAM_BINS 20
 #define NSWITCH_HISTOGRAM_MAX 20.0
@@ -193,7 +193,8 @@ double find_closest_integer(double j)
  *    0.0, 1.0, 2.0, 3.0 ...
  */
 {
-    return round(j); 
+    return floor(j);
+    //return round(j); 
 }
 
 double find_closest_half_integer(double j) 
@@ -2242,7 +2243,7 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 
     // We iterate only up to 'n', the length of the received histogram,
     // since we have already ensured that the histogram buffer (*h) has at least 'n' elements. 
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < (size_t) n; ++i) {
         (*h)->bin[i] += buf[i]; 
     }
 }
@@ -2336,11 +2337,21 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         nswitch_histogram = gsl_histogram_alloc(NSWITCH_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, NSWITCH_HISTOGRAM_MAX);
     }
+    
+    PRINT0("    Initializing histogram to store initial angular momenta values within the range [%.3e...%.3e] using %d bins\n",
+           0.0, JINI_HISTOGRAM_MAX, JINI_HISTOGRAM_BINS);
+
+    gsl_histogram *jini_histogram = gsl_histogram_alloc(JINI_HISTOGRAM_BINS);
+    gsl_histogram_set_ranges_uniform(jini_histogram, 0, JINI_HISTOGRAM_MAX);
+    
+    PRINT0("    Initializing histogram to store final angular momenta values within the range [%.3e...%.3e] using %d bins\n",
+           0.0, JFIN_HISTOGRAM_MAX, JFIN_HISTOGRAM_BINS);
+    
+    gsl_histogram *jfin_histogram = gsl_histogram_alloc(JFIN_HISTOGRAM_BINS);
+    gsl_histogram_set_ranges_uniform(jfin_histogram, 0, JFIN_HISTOGRAM_MAX);
 
     gsl_rng *gsl_rng_state = NULL;
     gsl_histogram *R_histogram = NULL;
-    gsl_histogram *jini_histogram = NULL;
-    gsl_histogram *jfin_histogram = NULL;
 
     if (params->average_time_between_collisions > 0) {
         PRINT0("  The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
@@ -2357,19 +2368,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         
         R_histogram = gsl_histogram_alloc(R_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(R_histogram, params->R0, R_HISTOGRAM_MAX);
-
-        PRINT0("    Initializing histogram to store initial angular momenta values within the range [%.3e...%.3e] using %d bins\n",
-               0.0, JINI_HISTOGRAM_MAX, JINI_HISTOGRAM_BINS);
-
-        jini_histogram = gsl_histogram_alloc(JINI_HISTOGRAM_BINS);
-        gsl_histogram_set_ranges_uniform(jini_histogram, 0, JINI_HISTOGRAM_MAX);
-        
-        PRINT0("    Initializing histogram to store final angular momenta values within the range [%.3e...%.3e] using %d bins\n",
-               0.0, JFIN_HISTOGRAM_MAX, JFIN_HISTOGRAM_BINS);
-        
-        jfin_histogram = gsl_histogram_alloc(JFIN_HISTOGRAM_BINS);
-        gsl_histogram_set_ranges_uniform(jfin_histogram, 0, JFIN_HISTOGRAM_MAX);
-
     } else {
         PRINT0("  The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
     }
@@ -2472,7 +2470,10 @@ if (_wrank > 0) {
             tout = params->sampling_time;
 
             int req_switch_counter = 0;
-            memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+
+            if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+            }
 
             double poisson_tmax = -1.0;
             if (params->average_time_between_collisions > 0) {
@@ -2481,10 +2482,14 @@ if (_wrank > 0) {
             }
 
             {
-                trajectory_apply_requantization(&traj);
+                if (trajectory_apply_requantization(&traj)) {
+                    trajectory_reinit(&traj);
+                }
+ 
                 double jini[3];
                 j_monomer(ms->m1, jini);
                 double jinil = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
+
                 if (jini_histogram != NULL) {
                     if (jinil > jini_histogram->range[jini_histogram->n]) {
                         jini_histogram = gsl_histogram_extend_right(jini_histogram, jinil - jini_histogram->range[jini_histogram->n] + 1);
@@ -2554,22 +2559,26 @@ if (_wrank > 0) {
             }
             
             // if we hit this 'if', it means that the length of the trajectory turned out to be longer
-            // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the 
-            // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength        
-            // there will be only a few of those long-living metastable trajectories.  
+            // than MaxTrajectoryLength. Not sure if it's a good idea to add this trajectory to the
+            // result, but it probably does not matter, because for reasonably large MaxTrajectoryLength
+            // there will be only a few of those long-living metastable trajectories. 
+            // The decision to include trajectory in this case is left to the caller of the function. 
             if (ms->intermolecular_qp[IR] < params->R0) {
-                printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                        "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                        "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                continue;
+                if (!params->allow_truncating_trajectories_at_length_limit) { 
+                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole. "
+                            "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                            "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                    continue;
+                }
             }
                 
-            // TODO: are we interested in the distribution of Rmax when Poisson distribution is used?
             {
                 trajectory_apply_requantization(&traj);
+
                 double jfin[3];
                 j_monomer(ms->m1, jfin);
                 double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
+
                 if (jfin_histogram != NULL) {
                     while (jfinl > jfin_histogram->range[jfin_histogram->n]) {
                         int bins_to_add = 5;
@@ -2609,7 +2618,8 @@ if (_wrank > 0) {
                 } 
 
                 double tini = tout; // initial time for analytic solution of dynamic equation 
-                while (tout < poisson_tmax) {
+                
+                while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
                     ms->intermolecular_qp[IR] += ms->intermolecular_qp[IPR]/ms->mu * (tout - tini); 
                     double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini); // should we wrap it around 2*Pi? 
                     
@@ -2624,18 +2634,18 @@ if (_wrank > 0) {
                     dipx[step_counter] = diplab[0];
                     dipy[step_counter] = diplab[1];
                     dipz[step_counter] = diplab[2];
-                    
-                    tout += params->sampling_time; 
-                    step_counter++;
-           
-                    if (step_counter >= params->MaxTrajectoryLength) {
-                        printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
-                                "The Fouier transform of the dipole for this trajectory will be skipped.\n"
-                                "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
-                        continue;
-                    }         
                     //printf("tout = %.5f, diplab = %.10e, %.10e, %.10e\n", tout, diplab[0], diplab[1], diplab[2]);
+                    
+                    step_counter++; 
+                    tout += params->sampling_time; 
                 }
+
+                if ((tout < poisson_tmax) && !params->allow_truncating_trajectories_at_length_limit) {
+                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                           "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                           "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n"); 
+                    continue;
+                }         
 
                 //printf("the trajectory ended with Rfin = %.3e\n", ms->intermolecular_qp[IR]);
    
@@ -2684,19 +2694,19 @@ if (_wrank > 0) {
               MPI_Send(nswitch_histogram->bin, nswitch_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
               gsl_histogram_reset(nswitch_histogram);
           } 
+              
+          MPI_Send(&jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(jini_histogram->bin, jini_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(jini_histogram);
+          
+          MPI_Send(&jfin_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(jfin_histogram->bin, jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(jfin_histogram);
 
           if (params->average_time_between_collisions > 0) {
               MPI_Send(&R_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
               MPI_Send(R_histogram->bin, R_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
               gsl_histogram_reset(R_histogram);
-
-              MPI_Send(&jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-              MPI_Send(jini_histogram->bin, jini_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-              gsl_histogram_reset(jini_histogram);
-              
-              MPI_Send(&jfin_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-              MPI_Send(jfin_histogram->bin, jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-              gsl_histogram_reset(jfin_histogram);
           }
 } else {
           assert(_wsize > 1);
@@ -2718,13 +2728,15 @@ if (_wrank > 0) {
               if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
                   recv_histogram_and_append(&a, status.MPI_SOURCE, &nswitch_histogram);
               }
+                  
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &jini_histogram);
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &jfin_histogram);
 
               if (params->average_time_between_collisions > 0) {
                   recv_histogram_and_append(&a, status.MPI_SOURCE, &R_histogram);
-                  recv_histogram_and_append(&a, status.MPI_SOURCE, &jini_histogram);
-                  recv_histogram_and_append(&a, status.MPI_SOURCE, &jfin_histogram);
-                  arena_rewind(&a, recv_mark);
               }
+                  
+              arena_rewind(&a, recv_mark);
           }
               
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
@@ -2737,11 +2749,27 @@ if (_wrank > 0) {
               printf("=======================================\n");
               printf("\n\n");
           }
-          
-          if (params->average_time_between_collisions > 0) {
-              double count;
 
-              count = gsl_histogram_sum(R_histogram);
+          { 
+              double count = gsl_histogram_sum(jini_histogram);
+              printf("INFO: Normalized histogram of initial angular momenta values: (# elements of %d)\n", (int) count);
+              for (size_t i = 0; i < jini_histogram->n; ++i) {
+                  printf("  %.3e %.5e\n", jini_histogram->range[i], gsl_histogram_get(jini_histogram, i)/count);
+              }
+              printf("=======================================\n");
+              printf("\n\n");
+          }
+          { 
+              double count = gsl_histogram_sum(jfin_histogram);
+              printf("INFO: Normalized histogram of final angular momenta values: (# elements of %d)\n", (int) count);
+              for (size_t i = 0; i < jfin_histogram->n; ++i) {
+                  printf("  %.3e %.5e\n", jfin_histogram->range[i], gsl_histogram_get(jfin_histogram, i)/count);
+              }
+              printf("=======================================\n");
+          }
+
+          if (params->average_time_between_collisions > 0) {
+              double count = gsl_histogram_sum(R_histogram);
               printf("INFO: Normalized histogram of final intermolecular distances where trajectories are terminated (# elements = %d):\n",
                      (int) count);
 
@@ -2752,21 +2780,6 @@ if (_wrank > 0) {
               }
               printf("=======================================\n");
               printf("\n\n");
-
-              count = gsl_histogram_sum(jini_histogram);
-              printf("INFO: Normalized histogram of initial angular momenta values: (# elements of %d)\n", (int) count);
-              for (size_t i = 0; i < jini_histogram->n; ++i) {
-                  printf("  %.1e %.5e\n", jini_histogram->range[i], gsl_histogram_get(jini_histogram, i)/count);
-              }
-              printf("=======================================\n");
-              printf("\n\n");
-
-              count = gsl_histogram_sum(jfin_histogram);
-              printf("INFO: Normalized histogram of final angular momenta values: (# elements of %d)\n", (int) count);
-              for (size_t i = 0; i < jfin_histogram->n; ++i) {
-                  printf("  %.1e %.5e\n", jfin_histogram->range[i], gsl_histogram_get(jfin_histogram, i)/count);
-              }
-              printf("=======================================\n");
           }
 
           double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;

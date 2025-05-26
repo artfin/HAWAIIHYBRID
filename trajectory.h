@@ -46,6 +46,7 @@ Trajectory init_trajectory(MoleculeSystem *ms, double reltol);
 void free_trajectory(Trajectory *traj);
 
 bool trajectory_apply_requantization(Trajectory *traj);
+void trajectory_reinit(Trajectory *traj);
 int make_step(Trajectory *traj, double tout, double *t);
 
 void set_initial_condition(Trajectory *traj, Array qp);

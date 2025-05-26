@@ -91,7 +91,6 @@ bool trajectory_apply_requantization(Trajectory *traj)
             j_monomer(*m, j);
             double jl   = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
             double jreq = find_closest_integer(jl);
-
             double scaling_factor = 0.0;
             if (jl > 1e-15) {
                 scaling_factor = jreq / jl; 
@@ -99,10 +98,9 @@ bool trajectory_apply_requantization(Trajectory *traj)
 
             m->qp[IPPHI]   *= scaling_factor;
             m->qp[IPTHETA] *= scaling_factor;
-
-            //printf("make_step: pphi = %.5e => j after scaling = %.5e\n", m->qp[IPPHI], j_monomer(*m));
-        }
-        if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
+            
+            //printf("jl = %lf => jreq = %lf, scaling_factor = %lf\n", jl, jreq, scaling_factor); 
+        } else if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
             double j[3];
             Monomer *m = &traj->ms->m1;
 
@@ -117,8 +115,6 @@ bool trajectory_apply_requantization(Trajectory *traj)
 
             m->qp[IPPHI]   *= scaling_factor;
             m->qp[IPTHETA] *= scaling_factor;
-            
-            //printf("make_step: pphi = %.5e => j after scaling = %.5e\n", m->qp[IPPHI], j_monomer(*m));
         }
 
         get_qp_from_ms(traj->ms, &traj->temp_qp);
@@ -128,6 +124,10 @@ bool trajectory_apply_requantization(Trajectory *traj)
     }
 
     return false; 
+}
+
+void trajectory_reinit(Trajectory *traj) {
+    CVodeReInit(traj->cvode_mem, 0.0, traj->y);
 }
 
 int make_step(Trajectory *traj, double tout, double *t)

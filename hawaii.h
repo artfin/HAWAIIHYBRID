@@ -190,6 +190,7 @@ typedef struct {
     /* trajectory */
     double sampling_time; // a.t.u.
     size_t MaxTrajectoryLength;
+    bool allow_truncating_trajectories_at_length_limit;
     double cvode_tolerance;
    
     /* applicable to both correlation function AND spectral function calculations */ 
