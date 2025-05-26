@@ -2883,6 +2883,14 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
         fprintf(fp, "# AVERAGE TIME BETWEEN COLLISIONS (POISSON DISTRIBUTION): %.3e\n", params->average_time_between_collisions);
     }
 
+    if (params->torque_limit > 0) {
+        fprintf(fp, "# LIMITING VALUE OF TORQUE: %.5e\n", params->torque_limit); 
+    }
+
+    if (params->torque_cache_len > 0) {
+        fprintf(fp, "# TORQUE CACHE LENGTH TO TURN ON/OFF REQUANTIZATION: %zu\n", params->torque_cache_len);
+    }
+
     for (size_t i = 0; i < sf.len; ++i) {
         fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj); 
     }
