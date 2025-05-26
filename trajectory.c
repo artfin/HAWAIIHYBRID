@@ -81,17 +81,8 @@ void free_trajectory(Trajectory *traj)
     free_array(&traj->temp_qp);
 }
 
-
-int make_step(Trajectory *traj, double tout, double *t)
+bool trajectory_apply_requantization(Trajectory *traj)
 {
-    int flag = CVode(traj->cvode_mem, tout, traj->y, t, CV_NORMAL);
-    
-    // 21.12.2024 NOTE: 
-    // We copy the "N_Vector y" from "Trajectory" into "MoleculeSystem" on each call of rhs.
-    // However after "rhs" has been executed, CVode advances the dynamic variables, therefore we 
-    // need to update the phase-point in MoleculeSystem once CVode function completes  
-    put_qp_into_ms(traj->ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = traj->ms->QP_SIZE});
-
     if (traj->ms->m1.apply_requantization) {
         if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
             double j[3];
@@ -126,17 +117,32 @@ int make_step(Trajectory *traj, double tout, double *t)
 
             m->qp[IPPHI]   *= scaling_factor;
             m->qp[IPTHETA] *= scaling_factor;
-
+            
             //printf("make_step: pphi = %.5e => j after scaling = %.5e\n", m->qp[IPPHI], j_monomer(*m));
         }
 
         get_qp_from_ms(traj->ms, &traj->temp_qp);
         memcpy(N_VGetArrayPointer(traj->y), traj->temp_qp.data, traj->ms->QP_SIZE * sizeof(double));
 
-        CVodeReInit(traj->cvode_mem, *t, traj->y);
+        return true;
     }
 
+    return false; 
+}
 
+int make_step(Trajectory *traj, double tout, double *t)
+{
+    int flag = CVode(traj->cvode_mem, tout, traj->y, t, CV_NORMAL);
+    
+    // 21.12.2024 NOTE: 
+    // We copy the "N_Vector y" from "Trajectory" into "MoleculeSystem" on each call of rhs.
+    // However after "rhs" has been executed, CVode advances the dynamic variables, therefore we 
+    // need to update the phase-point in MoleculeSystem once CVode function completes  
+    put_qp_into_ms(traj->ms, (Array){.data = N_VGetArrayPointer(traj->y), .n = traj->ms->QP_SIZE});
+
+    if (trajectory_apply_requantization(traj)) {
+        CVodeReInit(traj->cvode_mem, *t, traj->y);
+    }
 
     if (traj->check_energy_conservation) {
         traj->E_last = Hamiltonian(traj->ms);
