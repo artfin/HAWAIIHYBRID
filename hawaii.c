@@ -193,8 +193,7 @@ double find_closest_integer(double j)
  *    0.0, 1.0, 2.0, 3.0 ...
  */
 {
-    return floor(j);
-    //return round(j); 
+    return round(j); 
 }
 
 double find_closest_half_integer(double j) 
@@ -2517,12 +2516,13 @@ if (_wrank > 0) {
                     bool all_less_than_limit = true;
                     bool all_more_than_limit = true;
                     for (size_t i = 0; i < params->torque_cache_len; ++i) {
-                        if (torq > params->torque_limit) {
-                            all_less_than_limit = false;
-                        }
-                        if (torq < params->torque_limit) {
-                            all_more_than_limit = false;
-                        } 
+                        torq = torque_cache[i];
+
+                        if (torq > params->torque_limit) all_less_than_limit = false;
+                        if (torq < params->torque_limit) all_more_than_limit = false;
+
+                        // early exit
+                        if (!all_less_than_limit && !all_more_than_limit) break;
                     }
 
                     if (all_less_than_limit) {
@@ -2530,13 +2530,10 @@ if (_wrank > 0) {
                             ms->m1.apply_requantization = true;
                             req_switch_counter++;
                         }
-                    }
-
-                    if (all_more_than_limit) {
+                    } else if (all_more_than_limit) {
                         if (ms->m1.apply_requantization) {
                             ms->m1.apply_requantization = false;
                             req_switch_counter++;
-
                         }
                     }
                 }

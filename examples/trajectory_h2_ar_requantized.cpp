@@ -90,14 +90,22 @@ int main()
     
     init_array(&qp, data, ms.QP_SIZE);
     put_qp_into_ms(&ms, qp);
-    double E0 = Hamiltonian(&ms);
+        
+    // by default we turn on the requantization
+    ms.m1.apply_requantization = true;
 
     double tolerance = 1e-15;
     Trajectory traj = init_trajectory(&ms, tolerance);
     traj.check_energy_conservation = false;
-
+    
     set_initial_condition(&traj, qp);
+
+    if (trajectory_apply_requantization(&traj)) {
+        trajectory_reinit(&traj);
+    }
+
     print_array(qp);
+    double E0 = Hamiltonian(&ms);
 
     CalcParams params = {};
     params.sampling_time = 10.0; 
@@ -130,40 +138,41 @@ int main()
         dipole_lab(ms.intermediate_q, dipt);
     
         double E = Hamiltonian(&ms);
-        double j = j_monomer(ms.m1);
+
+        double j[3];
+        j_monomer(ms.m1, j);
+        double jl = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+        
         double torq = torque_monomer(ms.m1); 
+
         printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e \t %12.5e\n", 
-                t, ms.intermolecular_qp[IR], E-E0, j, torq, sqrt(dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]));
+                t, ms.intermolecular_qp[IR], E-E0, jl, torq, sqrt(dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]));
 
         cache[nstep % params.torque_cache_len] = torq;
+
         bool all_less_than_limit = true;
         bool all_more_than_limit = true;
         for (size_t i = 0; i < params.torque_cache_len; ++i) {
-            if (torq > params.torque_limit) {
-                all_less_than_limit = false;
-            }
-            if (torq < params.torque_limit) {
-                all_more_than_limit = false;
-            } 
+            torq = cache[i];
+
+            if (torq > params.torque_limit) all_less_than_limit = false;
+            if (torq < params.torque_limit) all_more_than_limit = false;
+
+            // early exit
+            if (!all_less_than_limit && !all_more_than_limit) break;
         }
 
         if (all_less_than_limit) {
             if (!ms.m1.apply_requantization) {
+                printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
                 ms.m1.apply_requantization = true;
                 switch_counter++;
-
-                printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
-                memset(cache, 0, params.torque_cache_len*sizeof(double));
             }
-        }
-
-        if (all_more_than_limit) {
+        } else if (all_more_than_limit) {
             if (ms.m1.apply_requantization) {
+                printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
                 ms.m1.apply_requantization = false;
                 switch_counter++;
-                
-                printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
-                memset(cache, 0, params.torque_cache_len*sizeof(double));
             }
         }
 
