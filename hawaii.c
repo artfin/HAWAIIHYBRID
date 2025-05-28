@@ -2277,7 +2277,8 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
     }
-    
+
+
     FILE *fp = NULL; 
     if (_wrank == 0) {
         fp = fopen(params->sf_filename, "w");
@@ -2319,7 +2320,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("    torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", params->torque_cache_len);
 
         PRINT0("    Initializing histogram to store number of requantization switches on individual trajectories within the range"
-               " [%.1e -- %.1e] using %d bins\n", 0.0, NSWITCH_HISTOGRAM_MAX, NSWITCH_HISTOGRAM_BINS);
+               " [%.1e -- %.1e] using %d bins\n\n", 0.0, NSWITCH_HISTOGRAM_MAX, NSWITCH_HISTOGRAM_BINS);
 
         nswitch_histogram = gsl_histogram_alloc(NSWITCH_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, NSWITCH_HISTOGRAM_MAX);
@@ -2331,7 +2332,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("   torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", params->torque_cache_len); 
 
         PRINT0("    Initializing histogram to store number of requantization switches on individual trajectories within the range"
-                " [%.1e -- %.1e] using %d bins\n", 0.0, NSWITCH_HISTOGRAM_MAX, NSWITCH_HISTOGRAM_BINS);
+                " [%.1e -- %.1e] using %d bins\n\n", 0.0, NSWITCH_HISTOGRAM_MAX, NSWITCH_HISTOGRAM_BINS);
         
         nswitch_histogram = gsl_histogram_alloc(NSWITCH_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, NSWITCH_HISTOGRAM_MAX);
@@ -2353,7 +2354,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     gsl_histogram *R_histogram = NULL;
 
     if (params->average_time_between_collisions > 0) {
-        PRINT0("  The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
+        PRINT0("    The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
         PRINT0("    average time between collisions (in Poisson distribution):                %.3e a.t.u. = %.3e ns\n", 
                params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9); 
     
@@ -2368,7 +2369,20 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         R_histogram = gsl_histogram_alloc(R_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(R_histogram, params->R0, R_HISTOGRAM_MAX);
     } else {
-        PRINT0("  The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
+        PRINT0("    The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
+    }
+
+    // These are the 'default' inertia tensor values, corresponding to centrifugal distortion correction equal to zero 
+    // for J = 0. When inertia tensor values are corrected to account for centrifugal distortion, the rotational constant B 
+    // is calculated using these saved inertia tensor values.
+    double IIini_m1[3];
+    IIini_m1[0] = ms->m1.II[0];
+    IIini_m1[1] = ms->m1.II[1];
+    IIini_m1[2] = ms->m1.II[2];
+    if (ms->m1.DJ > 0) {
+        assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
+        PRINT0("    An effective rotational constant (which accounts for centrifugal distortion) will be used. "
+               "The following value D for first monomer is provided: %.5e cm-1\n", ms->m1.DJ);
     }
 
     PRINT0("------------------------------------------------------------------------\n");
@@ -2485,20 +2499,35 @@ if (_wrank > 0) {
                     trajectory_reinit(&traj);
                 }
  
+                Monomer *m = &ms->m1;
+
                 double jini[3];
-                j_monomer(ms->m1, jini);
-                double jinil = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
+                j_monomer(*m, jini);
+                double jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
+
+                if (m->DJ > 0) {
+                    double Bini_cm = Planck/(8.0*M_PI*M_PI*IIini_m1[0]*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+                    double Beff_cm = Bini_cm - 2*m->DJ*(jini_len + 1)*(jini_len + 1); 
+                    // printf("INITIAL SETTING: J = %lf => B_eff(CO) = %.5e\n", jini_len, Beff_cm);
+    
+                    double IIeff = Planck/(8.0*M_PI*M_PI*Beff_cm*LightSpeed*100)/AMU/ALU/ALU;
+                    // printf("II = %.10e => IIeff = %.10e\n", II_CO, IIeff); 
+                    m->II[0] = IIeff;
+                    m->II[1] = IIeff;
+                }
 
                 if (jini_histogram != NULL) {
-                    if (jinil > jini_histogram->range[jini_histogram->n]) {
-                        jini_histogram = gsl_histogram_extend_right(jini_histogram, jinil - jini_histogram->range[jini_histogram->n] + 1);
+                    if (jini_len > jini_histogram->range[jini_histogram->n]) {
+                        jini_histogram = gsl_histogram_extend_right(jini_histogram, jini_len - jini_histogram->range[jini_histogram->n] + 1);
                         printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
                                _wrank, jini_histogram->range[0], jini_histogram->range[jini_histogram->n]); 
                     }
 
-                    gsl_histogram_increment(jini_histogram, jinil);
+                    gsl_histogram_increment(jini_histogram, jini_len);
                 }
             }
+                    
+            bool is_requantization_enabled_this_step = false;
 
             size_t step_counter = 0;
             for ( ; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
@@ -2508,10 +2537,36 @@ if (_wrank > 0) {
                     break;
                 }
 
+                // 28.05.2025
+                // when 'apply_requantization' is enabled, 'is_requantization_enable_this_step' is set true.
+                // On the next iteration in 'make_step', requantization is applied and the CVode state is reset.
+                // Since the CVode state has just been reset at the end of 'make_step', updating inertia tensor
+                // at this specific moment is unlikely to introduce any problems
+                if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                    if (is_requantization_enabled_this_step && (ms->m1.DJ > 0)) {
+                        Monomer *m = &ms->m1;
+
+                        double j[3];
+                        j_monomer(*m, j);
+                        double jlen = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+    
+                        double Bini_cm = Planck/(8.0*M_PI*M_PI*IIini_m1[0]*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+                        double Beff_cm = Bini_cm - 2*m->DJ*(jlen + 1)*(jlen + 1); 
+                        // printf("req_switch_counter = %d, J = %lf => B_eff(CO) = %.5e\n", req_switch_counter, jlen, Beff_cm);
+    
+                        double IIeff = Planck/(8.0*M_PI*M_PI*Beff_cm*LightSpeed*100)/AMU/ALU/ALU;
+                        // printf("II = %.10e => IIeff = %.10e\n", II_CO, IIeff); 
+                        m->II[0] = IIeff;
+                        m->II[1] = IIeff;
+                    }
+                }
+
                 if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
                     double torq = torque_monomer(ms->m1);
                     torque_cache[step_counter % params->torque_cache_len] = torq;
                     //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
+                    
+                    is_requantization_enabled_this_step = false;
 
                     bool all_less_than_limit = true;
                     bool all_more_than_limit = true;
@@ -2528,6 +2583,7 @@ if (_wrank > 0) {
                     if (all_less_than_limit) {
                         if (!ms->m1.apply_requantization) {
                             ms->m1.apply_requantization = true;
+                            is_requantization_enabled_this_step = true;
                             req_switch_counter++;
                         }
                     } else if (all_more_than_limit) {
@@ -2538,6 +2594,7 @@ if (_wrank > 0) {
                     }
                 }
 
+
                 extract_q_and_write_into_ms(ms);
                 (*dipole)(ms->intermediate_q, dipt);
 
@@ -2545,7 +2602,7 @@ if (_wrank > 0) {
                 dipy[step_counter] = dipt[1];
                 dipz[step_counter] = dipt[2];
 
-                // printf("t = %.2f, R = %.3e\n", t, ms->intermolecular_qp[IR]);
+                //printf("%zu: t = %.2f, R = %.3e\n", step_counter, t, ms->intermolecular_qp[IR]);
                 // printf("t = %.2f, R = %.3e, dipx = %.3e, dipy = %.3e, dipz = %.3e\n", t, ms->intermolecular_qp[IR], dipx[step_counter], dipy[step_counter], dipz[step_counter]); 
                 if (ms->intermolecular_qp[IR] > params->R0) break;
             }
@@ -2570,6 +2627,7 @@ if (_wrank > 0) {
             }
                 
             {
+                // this call is probably not needed and performed just in case
                 trajectory_apply_requantization(&traj);
 
                 double jfin[3];
@@ -2735,7 +2793,7 @@ if (_wrank > 0) {
                   
               arena_rewind(&a, recv_mark);
           }
-              
+
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
               double count = gsl_histogram_sum(nswitch_histogram);
               printf("INFO: Normalized histogram of number of angular momentum switches (# elements = %d):\n", (int) count);
@@ -2778,7 +2836,7 @@ if (_wrank > 0) {
               printf("=======================================\n");
               printf("\n\n");
           }
-
+          
           double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
           double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 

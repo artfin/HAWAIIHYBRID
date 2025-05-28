@@ -140,6 +140,7 @@ typedef enum {
 typedef struct { 
     MonomerType t;
     double II[3];
+    double DJ;
     double *qp;
     double *dVdq;
     // TODO: should this be a monomer field or a bool[2] in MoleculeSystem?

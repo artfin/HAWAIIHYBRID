@@ -59,9 +59,13 @@
 // from https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
 //    double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
 //    double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
-// NIST also recommends the following value of dipole moment for CO:
-//   mu(CO) = 0.10980(3) D whereas the Rizzo value in D is 0.12228 (>10% difference) 
 #define l_CO 2.1370695550 
+// The centrifugal distortion constant also taken from 
+//   https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
+// The raw value is in kHz and converted into cm-1 
+#define D_CO (183.5058*1e3/LightSpeed_cm) // cm-1
+// NIST also recommends the following value of dipole moment for CO:
+//   mu(CO) = 0.10980(3) Debye whereas the Rizzo value in Debye is 0.12228 (>10% difference) 
 
 
 // ? 

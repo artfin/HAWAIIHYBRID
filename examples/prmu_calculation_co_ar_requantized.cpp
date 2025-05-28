@@ -134,14 +134,24 @@ void dipole_lab(double *q, double diplab[3])
 
 int main2()
 {
-    double x = 0.45;
-    printf("x = %lf => round(x) = %lf\n", x, round(x));
-    return 0;
+    double D_kHz = 183.5058;
+    double D_cm = D_kHz*1e3 / LightSpeed_cm;
+    printf("D(CO) = %.5e cm-1\n", D_cm); 
+
+
 
     double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
     double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
     printf("B(CO) = %.5e cm-1\n", B_cm);
     printf("B(CO) = %.5f MHz\n", B_MHz);
+   
+    
+    int J = 30;
+    double Beff_cm = B_cm - 2*D_cm*(J + 1)*(J + 1); 
+    printf("J = %d => B_eff(CO) = %.5e\n", J, Beff_cm);
+
+    double IIeff = Planck/(8.0*M_PI*M_PI*Beff_cm*LightSpeed*100)/AMU/ALU/ALU;
+    printf("II = %.10e => IIeff = %.10e\n", II_CO, IIeff); 
 
     double mu_D = mu_CO * ADIPTODEBYE;
     printf("mu(CO) = %.5f D\n", mu_D); 
@@ -163,7 +173,8 @@ int main(int argc, char *argv[])
     double MU = m_CO * m_Ar / (m_CO + m_Ar); 
     double I1[2] = {II_CO, II_CO};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_INTEGER, ATOM, I1, NULL, seeds[_wrank]);
-    
+    ms.m1.DJ = D_CO;
+
     dipole = dipole_lab;
 
     CalcParams params = {};
@@ -174,12 +185,12 @@ int main(int argc, char *argv[])
     params.sampler_Rmin = 4.0;
     params.sampler_Rmax = 40.0;
 
-    params.niterations                                   = 100;
-    params.total_trajectories                            = 400000;
+    params.niterations                                   = 10;
+    params.total_trajectories                            = 100;
     params.cvode_tolerance                               = 1e-8;
     params.sampling_time                                 = 200.0;
-    params.MaxTrajectoryLength                           = 4; // 2097152;
-    params.allow_truncating_trajectories_at_length_limit = true;
+    params.MaxTrajectoryLength                           = 2097152;
+    params.allow_truncating_trajectories_at_length_limit = false;
     params.partial_partition_function_ratio              = 2.68854e+05;
     params.initialM0_npoints                             = 10000;
     params.initialM2_npoints                             = 10000;
@@ -188,7 +199,7 @@ int main(int argc, char *argv[])
     params.ApproximateFrequencyMax                       = 150.0;
     params.torque_cache_len                              = 30;
     params.torque_limit                                  = 5e-6;
-    //params.average_time_between_collisions  = 0.988e-10 / ATU; // a.t.u.
+    params.average_time_between_collisions  = 0.988e-10 / ATU; // a.t.u.
    
     String_Builder sf_filename = {};
     sb_append_format(&sf_filename, "./SF-PRMU-CO-Ar-300.0-POISSON.txt"); 
