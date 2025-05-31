@@ -2661,38 +2661,45 @@ if (_wrank > 0) {
                 // Phi, Theta are saved within the rotation matrices of angles_handler
                 compute_psi_ppsi_for_linear_molecule(ms->m1.qp[IPHI], ms->m1.qp[IPPHI], ms->m1.qp[ITHETA], ms->m1.qp[IPTHETA], &psi0, &ppsi);
 
-                // TODO: probably we should specifically handle the case of ppsi = 0 and not just skip it 
                 if (fabs(ppsi) < 1e-14) {
-                    printf("INFO: ppsi is close to zero. Continuing...\n"); 
-                    continue;
-                }
+                    // when ppsi = 0 (J = 0) the dipole remains stationary, we maintain its initial orientation as determined by the 
+                    // numerically calculated part of the trajectory 
+                    while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
+                        dipx[step_counter] = dipx[step_counter - 1];
+                        dipy[step_counter] = dipy[step_counter - 1];
+                        dipz[step_counter] = dipz[step_counter - 1];
 
-                if (isnan(psi0)) { 
-                    printf("INFO: caught a NaN value of psi0. Continuing...\n");
-                    continue;
-                } 
+                        step_counter++;
+                        tout += params->sampling_time;
+                    } 
+                } else {
+                    if (isnan(psi0)) { 
+                        printf("INFO: caught a NaN value of psi0. Continuing...\n");
+                        continue;
+                    } 
 
-                double tini = tout; // initial time for analytic solution of dynamic equation 
-                
-                while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
-                    ms->intermolecular_qp[IR] += ms->intermolecular_qp[IPR]/ms->mu * (tout - tini); 
-                    double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini); // should we wrap it around 2*Pi? 
+                    double tini = tout; // initial time for analytic solution of dynamic equation 
                     
-                    double dipmol[3];
-                    dipmol[0] = mu_CO*cos(psit);
-                    dipmol[1] = mu_CO*sin(psit);
-                    dipmol[2] = 0.0;
+                    while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
+                        ms->intermolecular_qp[IR] += ms->intermolecular_qp[IPR]/ms->mu * (tout - tini); 
+                        double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini); // should we wrap it around 2*Pi? 
+                        
+                        double dipmol[3];
+                        dipmol[0] = mu_CO*cos(psit);
+                        dipmol[1] = mu_CO*sin(psit);
+                        dipmol[2] = 0.0;
 
-                    double diplab[3];
-                    rotate_to_lab_for_linear_molecule(dipmol, diplab);
+                        double diplab[3];
+                        rotate_to_lab_for_linear_molecule(dipmol, diplab);
 
-                    dipx[step_counter] = diplab[0];
-                    dipy[step_counter] = diplab[1];
-                    dipz[step_counter] = diplab[2];
-                    //printf("tout = %.5f, diplab = %.10e, %.10e, %.10e\n", tout, diplab[0], diplab[1], diplab[2]);
-                    
-                    step_counter++; 
-                    tout += params->sampling_time; 
+                        dipx[step_counter] = diplab[0];
+                        dipy[step_counter] = diplab[1];
+                        dipz[step_counter] = diplab[2];
+                        //printf("tout = %.5f, diplab = %.10e, %.10e, %.10e\n", tout, diplab[0], diplab[1], diplab[2]);
+                        
+                        step_counter++; 
+                        tout += params->sampling_time; 
+                    }
                 }
 
                 if ((tout < poisson_tmax) && !params->allow_truncating_trajectories_at_length_limit) {

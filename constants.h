@@ -59,6 +59,7 @@
 // from https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
 //    double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
 //    double B_cm = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+//    [ B_cm = 1.92253e+00 cm-1 ]
 #define l_CO 2.1370695550 
 // The centrifugal distortion constant also taken from 
 //   https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
