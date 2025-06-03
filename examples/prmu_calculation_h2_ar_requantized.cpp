@@ -66,6 +66,17 @@ void dipole_lab(double *q, double diplab[3]) {
     diplab[2] = diplab_eig(2); 
 }
 
+int main2()
+{
+    double l = l_H2*sqrt(5.6919435017e+01 / 60.8530119); 
+    double II = (m_H/2.0*l*l); 
+    double B_cm = Planck/(8.0*M_PI*M_PI*II*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+    printf("II_H2 = %.10e => II = %.10e\n", II_H2, II);
+    printf("B_cm = %.10e\n", B_cm);
+    printf("l = %.10e\n", l);
+
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -80,6 +91,7 @@ int main(int argc, char *argv[])
     double MU = m_H2 * m_Ar / (m_H2 + m_Ar); 
     double I1[2] = {II_H2, II_H2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_HALFINTEGER, ATOM, I1, NULL, seeds[_wrank]);
+    ms.m1.DJ = D_H2;
     
     dipole_init(true);
     dipole = dipole_lab;
@@ -102,7 +114,7 @@ int main(int argc, char *argv[])
     params.initialM2_npoints                = 10000;
     params.pesmin                           = -105.0 / HTOCM;
     params.R0                               = 40.0;
-    params.ApproximateFrequencyMax          = 150.0;
+    params.ApproximateFrequencyMax          = 1500.0;
     params.torque_cache_len                 = 30;
     params.torque_limit                     = 5e-6;
     params.jini_histogram_bins              = 101;

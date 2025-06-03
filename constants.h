@@ -63,7 +63,7 @@
 #define l_CO 2.1370695550 
 // The centrifugal distortion constant also taken from 
 //   https://physics.nist.gov/PhysRefData/MolSpec/Diatomic/Html/Tables/CO.html 
-// The raw value is in kHz and converted into cm-1 
+// The raw value is in kHz and converted into cm-1 => 6.121e-06 cm-1 
 #define D_CO (183.5058*1e3/LightSpeed_cm) // cm-1
 // NIST also recommends the following value of dipole moment for CO:
 //   mu(CO) = 0.10980(3) Debye whereas the Rizzo value in Debye is 0.12228 (>10% difference) 
@@ -81,8 +81,16 @@
 // did not found B0 but this value of L_H2 is mentioned in several works, e.g.:
 // O. Denis-Alpizar, Y. Kalugina, T. Stoecklin, M. Hernandez Vera, F. lique, A new ab initio potential energy surface for the collisional excitation of HCN by para- and ortho-H2. J. Chem. Phys., 139, 224301, 2013.
 // W. Rijks, P. E. S. Wormer, Correlated van der Waals coefficients for dimers consisting of He, Ne, H2, and N2. J. Chem. Phys., 88, 5704, 1988.
-#define l_H2 1.448736 
-    
+// #define l_H2 1.448736 
+
+// Source: https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740&Mask=1000#Diatomic 
+//  taken rotational constant B = 60.8530119 cm-1 and derived the bond length from it =>
+#define l_H2 1.401130 // bohr
+// The centrifugal distortion constant (De) taken from
+//   https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740&Mask=1000#Diatomic 
+#define D_H2 0.0471121 // cm-1
+
+
 #define II_N2  (m_N / 2.0 * L_N2 * L_N2)
     
 #define II_CO2 (m_O/2.0*l_CO2*l_CO2)
