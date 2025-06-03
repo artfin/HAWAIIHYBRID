@@ -2689,13 +2689,12 @@ if (_wrank > 0) {
                     printf("ERROR: one of the components of the dipole is corrupted!\n");
                     printf("The initial phase-point for broken trajectory is:\n");
 
-                    Array qp = {0};
+                    Array qp = arena_create_array(&a, ms->QP_SIZE);
                     get_qp_from_ms(ms, &qp);
                     for (size_t i = 0; i < ms->QP_SIZE; ++i) {
                         printf("%.10e ", qp.data[i]);
                     }
                     printf("\n");
-                    free_array(&qp);
 
                     continue; 
                 }
