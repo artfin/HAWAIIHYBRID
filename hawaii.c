@@ -2567,10 +2567,6 @@ if (_wrank > 0) {
             double trajectory_weight = 1.0;
 
             {
-                if (trajectory_apply_requantization(&traj)) {
-                    trajectory_reinit(&traj);
-                }
- 
                 Monomer *m = &ms->m1;
 
                 double jini[3];
@@ -2586,6 +2582,13 @@ if (_wrank > 0) {
                     // printf("II = %.10e => IIeff = %.10e\n", II_CO, IIeff); 
                     m->II[0] = IIeff;
                     m->II[1] = IIeff;
+                }
+               
+                // Apply requantization *after* the centrifugal distortion adjustment to the inertia tensor. 
+                // If performed before, requantized angular momentum would be invalidated by inertia tensor adjustment 
+                // (it's a minor thing, but could lead to confusing values in angular momentum histograms)   
+                if (trajectory_apply_requantization(&traj)) {
+                    trajectory_reinit(&traj);
                 }
 
                 if (jini_histogram != NULL) {
