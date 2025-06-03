@@ -418,7 +418,7 @@ void sb_free(String_Builder *sb);
 // ----------------------------------------------------------
 // Processing the results   
 // ----------------------------------------------------------
-void write_histogram(FILE *fp, gsl_histogram *jini_histogram, int count);
+int write_histogram(FILE *fp, gsl_histogram *h, int count);
 
 int save_correlation_function(FILE *fp, CFnc cf);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);

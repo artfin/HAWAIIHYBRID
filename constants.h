@@ -38,6 +38,7 @@
 // M. Wang, G. Audi, F.G. Kondev, W.J. Huang, S. Naimi, X. Xu. The AME2016 atomic mass evaluation. Tables, graphs and references. 
 // http://nuclearmasses.org/resources_folder/Wang_2017_Chinese_Phys_C_41_030003.pdf 
 #define m_H  (1.007825032241 * RAMTOAMU)
+#define m_D  (2.014101778114 * RAMTOAMU)
 #define m_C  (12.000000000000 * RAMTOAMU)
 #define m_N  (14.003074004460 * RAMTOAMU)
 #define m_O  (15.994914619598 * RAMTOAMU)
@@ -45,6 +46,7 @@
 #define m_He (4.00260325413 * RAMTOAMU)
 
 #define m_H2 (2.0 * m_H)
+#define m_D2 (2.0 * m_D)
 #define m_N2 (2.0 * m_N)
 #define m_CO (m_C + m_O)
 #define m_CO2 (m_C + 2.0 * m_O)
@@ -89,12 +91,15 @@
 // The centrifugal distortion constant (De) taken from
 //   https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740&Mask=1000#Diatomic 
 #define D_H2 0.0471121 // cm-1
-
+// The centrifugal distortion constant (De) taken from
+//   https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782390&Mask=1000 
+#define D_D2 0.0114169 // cm-1
 
 #define II_N2  (m_N / 2.0 * L_N2 * L_N2)
     
 #define II_CO2 (m_O/2.0*l_CO2*l_CO2)
 #define II_H2  (m_H/2.0*l_H2*l_H2)
+#define II_D2  (m_D/2.0*l_H2*l_H2)     
 #define II_CO  ((m_C * m_O)/(m_C + m_O)*l_CO*l_CO)
 
 // Source: S. Albert, S. Bauerecker, V. Boudon, L. R. Brown, J. P. Champion, M. Loete, A. Nikitin, M. Quack, Chemical Physics, 2009, 356, 131-146.

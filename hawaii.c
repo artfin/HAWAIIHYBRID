@@ -2424,6 +2424,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     }
 
 
+    // TODO: rename ortho/para to even/odd-valued J
     if (params->ortho_state_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
         
@@ -3124,7 +3125,7 @@ int save_correlation_function(FILE *fp, CFnc cf)
     return nchars;
 }
 
-void write_histogram(FILE *fp, gsl_histogram *h, int count)
+int write_histogram(FILE *fp, gsl_histogram *h, int count)
 {
     int fd = fileno(fp);
 
@@ -3137,7 +3138,7 @@ void write_histogram(FILE *fp, gsl_histogram *h, int count)
     } else {
         if (ftruncate(fd, 0) < 0) {
             printf("ERROR: could not truncate file: %s\n", strerror(errno));
-            exit(1);
+            return -1; 
         }
 
         // resets the file position indicator
@@ -3156,7 +3157,23 @@ void write_histogram(FILE *fp, gsl_histogram *h, int count)
         for (size_t i = 0; i < h->n; ++i) {
             fprintf(fp, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
         }
+
+        // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
+        // and kernel may delay the committing its buffer to the filesystem for some reason 
+        if (fflush(fp) != 0) {
+            printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+            return -1;
+        }
+   
+        // so to force the kernel to commit the buffered data to the filesystem we have to 
+        // use 'syncfs' or 'sync' 
+        if (syncfs(fd) < 0) {
+            printf("ERROR: could not commit filesystem cache to disk\n");
+            return -1; 
+        }
     }
+
+    return 0;
 }
             
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 
