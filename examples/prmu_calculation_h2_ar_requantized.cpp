@@ -1,4 +1,11 @@
+#define JINI_HISTOGRAM_BINS 11
+#define JINI_HISTOGRAM_MAX  5.0 
+#define JFIN_HISTOGRAM_BINS 11
+#define JFIN_HISTOGRAM_MAX  5.0 
+#define NSWITCH_HISTOGRAM_BINS 10
+#define NSWITCH_HISTOGRAM_MAX 10.0
 #define USE_MPI
+
 #include "hawaii.h"
 
 #include "array.h"
@@ -89,16 +96,22 @@ int main(int argc, char *argv[])
     params.total_trajectories               = 100;
     params.cvode_tolerance                  = 1e-8;
     params.sampling_time                    = 200.0;
-    params.MaxTrajectoryLength              = 65536; 
+    params.MaxTrajectoryLength              = 65536;
     params.partial_partition_function_ratio = 2.68854e+05; // TODO: need to recalculate
-    params.initialM0_npoints                = 10000000;
-    params.initialM2_npoints                = 10000000;
+    params.initialM0_npoints                = 10000;
+    params.initialM2_npoints                = 10000;
     params.pesmin                           = -105.0 / HTOCM;
     params.R0                               = 40.0;
     params.ApproximateFrequencyMax          = 150.0;
     params.torque_cache_len                 = 30;
     params.torque_limit                     = 5e-6;
-   
+    params.jini_histogram_bins              = 101;
+    params.jini_histogram_max               = 10.0;
+    params.jfin_histogram_bins              = 101;
+    params.jfin_histogram_max               = 10.0;
+    params.ortho_state_weight               = 0.75;
+    params.para_state_weight                = 0.25;
+
     String_Builder sf_filename = {};
     sb_append_format(&sf_filename, "./SF-PRMU-H2-Ar-300.0-RMAX=%.1f.txt", params.R0); 
     params.sf_filename = sf_filename.items; 

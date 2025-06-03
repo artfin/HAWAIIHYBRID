@@ -188,6 +188,21 @@ typedef struct {
     size_t torque_cache_len;
     double torque_limit;
 
+    /* histograms */
+    size_t jini_histogram_bins;
+    double jini_histogram_max;
+    const char *jini_histogram_filename; 
+    size_t jfin_histogram_bins;
+    double jfin_histogram_max;
+    const char *jfin_histogram_filename;
+    size_t nswitch_histogram_bins; 
+    double nswitch_histogram_max;
+    const char *nswitch_histogram_filename;
+
+    /* weights to factor in spin statistics */
+    double ortho_state_weight;
+    double para_state_weight;
+
     /* trajectory */
     double sampling_time; // a.t.u.
     size_t MaxTrajectoryLength;
@@ -404,6 +419,8 @@ void sb_free(String_Builder *sb);
 // ----------------------------------------------------------
 // Processing the results   
 // ----------------------------------------------------------
+void write_histogram(FILE *fp, gsl_histogram *jini_histogram, int count);
+
 int save_correlation_function(FILE *fp, CFnc cf);
 void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
 
