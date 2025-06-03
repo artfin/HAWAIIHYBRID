@@ -109,7 +109,6 @@ int main(int argc, char *argv[])
     params.cvode_tolerance                  = 1e-8;
     params.sampling_time                    = 200.0;
     params.MaxTrajectoryLength              = 65536;
-    params.partial_partition_function_ratio = 2.68854e+05; // TODO: need to recalculate
     params.initialM0_npoints                = 10000;
     params.initialM2_npoints                = 10000;
     params.pesmin                           = -105.0 / HTOCM;

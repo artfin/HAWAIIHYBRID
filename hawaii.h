@@ -57,7 +57,6 @@ int syncfs(int);
 
 #include "array.h"
 #include "constants.h"
-
 #include "arena.h"
 
 #define IPHI    0

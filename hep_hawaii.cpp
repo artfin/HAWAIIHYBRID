@@ -1,4 +1,5 @@
 #include "hep_hawaii.hpp"
+#include "hep_hawaii.h"
 
 static MoleculeSystem* gms = NULL;
 static CalcParams *gparams = NULL;
@@ -35,6 +36,8 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
 
     switch (gms->m1.t) {
         case ATOM: break;
+        case LINEAR_MOLECULE_REQ_HALFINTEGER:
+        case LINEAR_MOLECULE_REQ_INTEGER:
         case LINEAR_MOLECULE: {
           qp[6 + IPHI] = x.point()[6 + IPHI] * 2.0 * M_PI;
           *jac *= 2.0 * M_PI;
@@ -70,12 +73,6 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
           *jac *= M_PI * (1.0 + qp[6 + IPPSI] * qp[6 + IPPSI]);
           
           break;
-        }
-        case LINEAR_MOLECULE_REQ_INTEGER: {
-          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_INTEGER\n"); // ? 
-        }
-        case LINEAR_MOLECULE_REQ_HALFINTEGER: {
-          assert(0 && "ERROR: not applicable for LINEAR_MOLECULE_REQ_HALFINTEGER\n"); // ? 
         }
         case ROTOR_REQUANTIZED_ROTATION: {
           assert(0 && "ERROR: not applicable for ROTOR_REQUANTIZED_ROTATION\n"); // ? 
@@ -271,3 +268,27 @@ void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams
     *m = result.value();
     *q = result.error();
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+void c_mpi_perform_integration(MoleculeSystem *ms, IntegrandType integrand_type, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q)
+{
+    Integrand integrand = {};
+    
+    switch (integrand_type) {
+        case INTEGRAND_M0: integrand = integrand_M0; break;
+        case INTEGRAND_M2: integrand = integrand_M2; break;
+        case INTEGRAND_PF: integrand = integrand_pf; break;
+        default: UNREACHABLE("Unknown integrand type"); 
+    }
+    
+    hep::mpi_vegas_callback<double>(hep::mpi_vegas_verbose_callback<double>);
+    mpi_perform_integration(ms, integrand, params, Temperature, niterations, npoints, m, q);
+}
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+

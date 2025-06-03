@@ -1,5 +1,5 @@
-#ifndef HAWAII_HEP_
-#define HAWAII_HEP_
+#ifndef HAWAII_HEP_HPP_
+#define HAWAII_HEP_HPP_
 
 #include "hawaii.h"
 
@@ -18,5 +18,4 @@ double integrand_pf(hep::mc_point<double> const& x);
 
 void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q);
 
-
-#endif // HAWAII_HEP_
+#endif // HAWAII_HEP_HPP_

@@ -2253,6 +2253,7 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
     }
 }
 
+#include "hep_hawaii.h"
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
@@ -2302,6 +2303,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     size_t frequency_array_length = (int) (params->ApproximateFrequencyMax / frequency_step) + 1; 
     double max_frequency = frequency_step * (frequency_array_length - 1);
+
 
     PRINT0("\n\n");
     PRINT0("------------------------------------------------------------------------\n");
@@ -2489,6 +2491,24 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     int cvode_status = 0; 
     double t, tout;
+    
+    if (params->partial_partition_function_ratio == 0) {
+        PRINT0("INFO: no value of the ratio of partial partition function (ppf) to full partition function is provided\n");
+        PRINT0("Invoking estimation of ppf using adaptive Monte Carlo integration\n");
+    
+        double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
+        PRINT0("Full partition function Q/V = %.12lf\n", pf_analytic);
+
+        double hep_ppf, hep_ppf_err;
+        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, 15, 2e6, &hep_ppf, &hep_ppf_err);
+
+        PRINT0("Partial partition function Qp/V = %.12lf\n", hep_ppf);
+        
+        double ppf_ratio = hep_ppf / pf_analytic;
+        PRINT0("Ratio of partial partition to full partition function: %.5e\n\n", ppf_ratio);
+    
+        params->partial_partition_function_ratio = ppf_ratio; 
+    }
 
     PRINT0("\n\n"); 
     PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
@@ -3128,7 +3148,8 @@ void write_histogram(FILE *fp, gsl_histogram *h, int count)
         fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
                 timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
                 timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-              
+        fprintf(fp, "# count = %d\n", count);
+
         for (size_t i = 0; i < h->n; ++i) {
             fprintf(fp, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
         }
@@ -3679,6 +3700,10 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
         pf_analytic = pow(2.0*M_PI*ms->mu*Temperature/HkT, 1.5);
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+    } else if ((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) && (ms->m2.t == ATOM)) {
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+    } else if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) && (ms->m2.t == ATOM)) {
         pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
         pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/HkT, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];

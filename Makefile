@@ -64,7 +64,7 @@ build/mpi_hawaii.o: hawaii.c | build
 	$(MPICC) $(FLAGS) $(INC) -DUSE_MPI -c -MD $< -o $@ 
 
 build/hep_hawaii.o: hep_hawaii.cpp | build
-	$(MPICC) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@ 
 
 build/array.o: array.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
@@ -235,7 +235,7 @@ examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.
 examples/prmu_calculation_co_ar_requantized.exe: examples/prmu_calculation_co_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
-examples/prmu_calculation_h2_ar_requantized.exe: examples/prmu_calculation_h2_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(H2_AR) 
+examples/prmu_calculation_h2_ar_requantized.exe: examples/prmu_calculation_h2_ar_requantized.cpp build/trajectory.o build/hep_hawaii.o $(MPI_OBJ) $(H2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
 examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 
