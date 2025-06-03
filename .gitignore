@@ -3,6 +3,7 @@
 *.exe
 *.bak
 *.out
+*.dat
 docs/*.aux
 docs/*.log
 docs/*.toc

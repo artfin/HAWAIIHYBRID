@@ -14,6 +14,14 @@ Array create_array(size_t n) {
     return a;
 }
 
+Array arena_create_array(Arena *a, size_t n) {
+    Array arr = {0};
+    arr.data = (double*) arena_alloc(a, n * sizeof(double));
+    assert(arr.data != NULL);
+    arr.n = n;
+    return arr;
+}
+
 void free_array(Array *a) {
     free(a->data);
 }

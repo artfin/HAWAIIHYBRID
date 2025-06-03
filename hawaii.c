@@ -1,6 +1,4 @@
 #define ARENA_REGION_DEFAULT_CAPACITY (32*1024*1024)
-#define ARENA_IMPLEMENTATION
-#include "hawaii.h"
 
 #define HISTOGRAM_MAX_TPS 50
 
@@ -18,6 +16,11 @@
 #define DEFAULT_NSWITCH_HISTOGRAM_FILENAME "nswitch.dat"
 #define DEFAULT_NSWITCH_HISTOGRAM_BINS 20
 #define DEFAULT_NSWITCH_HISTOGRAM_MAX 20.0
+
+#include "hawaii.h"
+
+#define ARENA_IMPLEMENTATION
+#include "arena.h"
 
 dipolePtr dipole = NULL;
 
@@ -2274,9 +2277,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         assert(params->torque_cache_len > 0);
         assert(params->torque_limit > 0);
 
-        torque_cache = (double*) arena_alloc(&a, params->torque_cache_len*sizeof(double));
-        memset(torque_cache, 0, params->torque_cache_len*sizeof(double));
-
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
     }
@@ -2332,13 +2332,13 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         double nswitch_histogram_max = (params->nswitch_histogram_max > 0) ? params->nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
         const char *nswitch_histogram_filename = (params->nswitch_histogram_filename != NULL) ? params->nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME;
         PRINT0("    Initializing histogram to store number of requantization switches on individual trajectories within the range"
-               " [%.1e -- %.1e] using %zu bins\n\n", 0.0, nswitch_histogram_max, nswitch_histogram_bins);
+               " [%.1e -- %.1e] using %zu bins\n", 0.0, nswitch_histogram_max, nswitch_histogram_bins);
 
         if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n");
+            PRINT0("    Outputting the histogram to standard output\n\n");
             fp_nswitch_histogram = stdout;
         } else {
-            PRINT0("    Writing the histogram to %s\n", nswitch_histogram_filename);
+            PRINT0("    Writing the histogram to %s\n\n", nswitch_histogram_filename);
             fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
         }
 
@@ -2355,10 +2355,10 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
    
     FILE *fp_jini_histogram = NULL; 
     if (strcmp(jini_histogram_filename, "stdout") == 0) {
-        PRINT0("    Outputting the histogram to standard output\n");
+        PRINT0("    Outputting the histogram to standard output\n\n");
         fp_jini_histogram = stdout;
     } else {
-        PRINT0("    Writing the histogram to %s\n", jini_histogram_filename);
+        PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
         fp_jini_histogram = fopen(jini_histogram_filename, "w");
     }
 
@@ -2375,10 +2375,10 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
    
     FILE *fp_jfin_histogram = NULL;
     if (strcmp(jfin_histogram_filename, "stdout") == 0) {
-        PRINT0("    Outputting the histogram to standard output\n");
+        PRINT0("    Outputting the histogram to standard output\n\n");
         fp_jfin_histogram = stdout;
     } else {
-        PRINT0("    Writing the histogram to %s\n", jini_histogram_filename);
+        PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
         fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
     }
 
@@ -2449,8 +2449,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
 
-    double dipt[3]; 
-
     // These arrays can become quite large and are allocated only once per calculation,
     // so it's likely not beneficial to allocate them within the arena
     double *dipx = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
@@ -2492,8 +2490,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     int cvode_status = 0; 
     double t, tout;
 
-    Array qp0 = create_array(ms->QP_SIZE);
-   
     PRINT0("\n\n"); 
     PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
     PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints); 
@@ -2527,7 +2523,8 @@ if (_wrank > 0) {
             }
 
             double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
-            
+           
+            Array qp0 = arena_create_array(&a, ms->QP_SIZE);
             get_qp_from_ms(ms, &qp0);
             set_initial_condition(&traj, qp0);
 
@@ -2537,6 +2534,7 @@ if (_wrank > 0) {
             int req_switch_counter = 0;
 
             if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                torque_cache = (double*) arena_alloc(&a, params->torque_cache_len*sizeof(double));
                 memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
             }
 
@@ -2659,8 +2657,24 @@ if (_wrank > 0) {
                     }
                 }
 
+                double dipt[3];
                 extract_q_and_write_into_ms(ms);
                 (*dipole)(ms->intermediate_q, dipt);
+                
+                if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+                    printf("ERROR: one of the components of the dipole is corrupted!\n");
+                    printf("The initial phase-point for broken trajectory is:\n");
+
+                    Array qp = {0};
+                    get_qp_from_ms(ms, &qp);
+                    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                        printf("%.10e ", qp.data[i]);
+                    }
+                    printf("\n");
+                    free_array(&qp);
+
+                    continue; 
+                }
 
                 dipx[step_counter] = dipt[0];
                 dipy[step_counter] = dipt[1];

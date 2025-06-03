@@ -1,10 +1,12 @@
 #ifndef ARRAY_H_
-#define  ARRAY_H_
+#define ARRAY_H_
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+
+#include "arena.h"
 
 typedef struct {
     double *data;
@@ -16,6 +18,7 @@ extern "C" {
 #endif
 
 Array create_array(size_t n);
+Array arena_create_array(Arena *a, size_t n);
 void free_array(Array *a);
 
 void init_array(Array *a, double *data, size_t n);
