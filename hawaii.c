@@ -2591,6 +2591,9 @@ if (_wrank > 0) {
                 if (trajectory_apply_requantization(&traj)) {
                     trajectory_reinit(&traj);
                 }
+                
+                j_monomer(*m, jini);
+                jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
 
                 if (jini_histogram != NULL) {
                     if (jini_len > jini_histogram->range[jini_histogram->n]) {
@@ -2604,12 +2607,19 @@ if (_wrank > 0) {
             
                 trajectory_weight = 1.0;
                 {
-                    if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
-                        int j_int = round(jini_len - 1.5);
-                        //printf("jini_len = %.5f, j_int = %d\n", jini_len, j_int);
-                        trajectory_weight = (j_int % 2 == 0) ? params->para_state_weight : params->ortho_state_weight;
-                    } else if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
-                        assert(false);
+                    if ((params->para_state_weight > 0) || (params->ortho_state_weight > 0)) {
+                        switch (ms->m1.t) {
+                            case LINEAR_MOLECULE_REQ_HALFINTEGER: {
+                              int j_int = round(jini_len - 1.5);
+                              trajectory_weight = (j_int % 2 == 0) ? params->para_state_weight : params->ortho_state_weight;
+                              //printf("jini_len = %.5f, j_int = %d\n", jini_len, j_int);
+                              break;
+                            }
+                            case LINEAR_MOLECULE_REQ_INTEGER: {
+                              assert(false);
+                            }
+                            default: UNREACHABLE("trajectory weight assignment"); 
+                        }
                     }
                 }
             }

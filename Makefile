@@ -36,6 +36,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/correlation_array_ch4_co2.exe           \
 			examples/prmu_calculation_co2_ar.exe             \
 			examples/prmu_calculation_co_ar_requantized.exe  \
+			examples/prmu_calculation_line_test.exe          \
 			examples/prmu_calculation_h2_ar_requantized.exe  \
 			examples/prmu_calculation_d2_ar_requantized.exe  \
 			examples/fftrump.exe                             \
@@ -175,7 +176,7 @@ build/ai_ids_n2_ar_pip_nn.o: ./PES-IDS/ai_ids_n2_ar_pip_nn.cpp | build
 ###########################################################
 
 OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
-MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
+MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o build/hep_hawaii.o
 CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
 N2_AR   := build/cnpy.o -lz build/ai_pes_n2_ar_pip_nn.o build/ai_ids_n2_ar_pip_nn.o \
 		   build/c_basis_2_1_4_purify.o build/c_jac_2_1_4_purify.o \
@@ -236,10 +237,13 @@ examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.
 examples/prmu_calculation_co_ar_requantized.exe: examples/prmu_calculation_co_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
-examples/prmu_calculation_h2_ar_requantized.exe: examples/prmu_calculation_h2_ar_requantized.cpp build/trajectory.o build/hep_hawaii.o $(MPI_OBJ) $(H2_AR) 
+examples/prmu_calculation_h2_ar_requantized.exe: examples/prmu_calculation_h2_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(H2_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
-examples/prmu_calculation_d2_ar_requantized.exe: examples/prmu_calculation_d2_ar_requantized.cpp build/trajectory.o build/hep_hawaii.o $(MPI_OBJ) $(H2_AR) 
+examples/prmu_calculation_d2_ar_requantized.exe: examples/prmu_calculation_d2_ar_requantized.cpp build/trajectory.o $(MPI_OBJ) $(H2_AR) 
+	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
+
+examples/prmu_calculation_line_test.exe: examples/prmu_calculation_line_test.cpp build/trajectory.o $(MPI_OBJ)
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
 
 examples/correlation_ch4_co2.exe: examples/correlation_ch4_co2.cpp build/trajectory.o $(MPI_OBJ) $(CH4_CO2) 
