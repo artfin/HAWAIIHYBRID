@@ -47,13 +47,23 @@ typedef struct {
     size_t count;
 } Block_Names; 
 
-const char* MONOMER_TYPES[] = {
-    "ATOM",
-    "LINEAR_MOLECULE",
-    "LINEAR_MOLECULE_REQ_INTEGER",
-    "LINEAR_MOLECULE_REQ_HALFINTEGER",
-    "ROTOR",
+static_assert(MONOMER_COUNT == 6);
+MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
+    ATOM, LINEAR_MOLECULE, LINEAR_MOLECULE_REQ_INTEGER, LINEAR_MOLECULE_REQ_HALFINTEGER, ROTOR, ROTOR_REQUANTIZED_ROTATION,
 };
+
+const char* display_monomer_type(MonomerType t) {
+    switch (t) {
+        case ATOM:                            return "ATOM";
+        case LINEAR_MOLECULE:                 return "LINEAR_MOLECULE";
+        case LINEAR_MOLECULE_REQ_INTEGER:     return "LINEAR_MOLECULE_REQ_INTEGER";
+        case LINEAR_MOLECULE_REQ_HALFINTEGER: return "LINEAR_MOLECULE_REQ_HALFINTEGER";
+        case ROTOR:                           return "ROTOR";
+        case ROTOR_REQUANTIZED_ROTATION:      return "ROTOR_REQUANTIZED_ROTATION";
+    }
+
+    return NULL;
+}
 
 typedef struct {
     MonomerType t;
@@ -118,6 +128,7 @@ typedef struct {
 } Token; 
 
 typedef enum {
+    /* INPUT BLOCK */
     KEYWORD_CALCULATION_TYPE,
     KEYWORD_PAIR_STATE,
     KEYWORD_REDUCED_MASS,
@@ -140,6 +151,10 @@ typedef enum {
     KEYWORD_JFIN_HISTOGRAM_MAX,
     KEYWORD_ORTHO_STATE_WEIGHT,
     KEYWORD_PARA_STATE_WEIGHT,
+    /* MONOMER BLOCK */
+    KEYWORD_MONOMER_TYPE,
+    KEYWORD_DJ,
+    KEYWORD_II,
     KEYWORD_COUNT,
 } Keyword;
 
@@ -166,15 +181,18 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]      = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_ORTHO_STATE_WEIGHT]      = "ORTHO_STATE_WEIGHT",
     [KEYWORD_PARA_STATE_WEIGHT]       = "PARA_STATE_WEIGHT",
+    [KEYWORD_MONOMER_TYPE]            = "MONOMER_TYPE",
+    [KEYWORD_DJ]                      = "DJ",
+    [KEYWORD_II]                      = "II",
 }; 
-static_assert(KEYWORD_COUNT == 22);
+static_assert(KEYWORD_COUNT == 25);
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
-    [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING, 
-    [KEYWORD_PAIR_STATE]              = TOKEN_STRING, 
+    [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING,
+    [KEYWORD_PAIR_STATE]              = TOKEN_STRING,
     [KEYWORD_REDUCED_MASS]            = TOKEN_FLOAT,
-    [KEYWORD_SO_POTENTIAL]            = TOKEN_DQSTRING, 
-    [KEYWORD_SO_DIPOLE]               = TOKEN_DQSTRING, 
+    [KEYWORD_SO_POTENTIAL]            = TOKEN_DQSTRING,
+    [KEYWORD_SO_DIPOLE]               = TOKEN_DQSTRING,
     [KEYWORD_NITERATIONS]             = TOKEN_INTEGER,
     [KEYWORD_TOTAL_TRAJECTORIES]      = TOKEN_INTEGER,
     [KEYWORD_CVODE_TOLERANCE]         = TOKEN_FLOAT,
@@ -186,12 +204,15 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_APPROXIMATEFREQUENCYMAX] = TOKEN_FLOAT,
     [KEYWORD_TORQUE_CACHE_LEN]        = TOKEN_INTEGER,
     [KEYWORD_TORQUE_LIMIT]            = TOKEN_FLOAT,
-    [KEYWORD_JINI_HISTOGRAM_BINS]     = TOKEN_INTEGER, 
-    [KEYWORD_JINI_HISTOGRAM_MAX]      = TOKEN_FLOAT, 
-    [KEYWORD_JFIN_HISTOGRAM_BINS]     = TOKEN_INTEGER, 
-    [KEYWORD_JFIN_HISTOGRAM_MAX]      = TOKEN_FLOAT, 
-    [KEYWORD_ORTHO_STATE_WEIGHT]      = TOKEN_FLOAT, 
-    [KEYWORD_PARA_STATE_WEIGHT]       = TOKEN_FLOAT, 
+    [KEYWORD_JINI_HISTOGRAM_BINS]     = TOKEN_INTEGER,
+    [KEYWORD_JINI_HISTOGRAM_MAX]      = TOKEN_FLOAT,
+    [KEYWORD_JFIN_HISTOGRAM_BINS]     = TOKEN_INTEGER,
+    [KEYWORD_JFIN_HISTOGRAM_MAX]      = TOKEN_FLOAT,
+    [KEYWORD_ORTHO_STATE_WEIGHT]      = TOKEN_FLOAT,
+    [KEYWORD_PARA_STATE_WEIGHT]       = TOKEN_FLOAT,
+    [KEYWORD_MONOMER_TYPE]            = TOKEN_STRING,
+    [KEYWORD_DJ]                      = TOKEN_FLOAT,
+    [KEYWORD_II]                      = TOKEN_OCURLY,
 };
 
 /*
@@ -811,16 +832,21 @@ void parse_params_from_file(const char *filename, InputBlock *input_block, Monom
 }
 */
 
-void print_input_block(InputBlock *input_block) 
-{
+void print_input_block(InputBlock *input_block) {
     printf("Input Block:\n");
     printf("  reduced_mass = %.5e\n", input_block->reduced_mass);
     printf("  so_potential = %s\n", input_block->so_potential);
     printf("  so_dipole    = %s\n", input_block->so_dipole);
 }
 
-void print_params(CalcParams *params) 
-{
+void print_monomer(MonomerBlock *monomer_block) {
+    printf("Monomer Block:\n");
+    printf("  t = %s\n", display_monomer_type(monomer_block->t));
+    printf("  I = {%.5e, %.5e, %.5e}\n", monomer_block->II[0], monomer_block->II[1], monomer_block->II[2]);
+    printf("  DJ = %.5e\n", monomer_block->DJ);  
+}
+
+void print_params(CalcParams *params) {
     printf("Params:\n");
     printf("  pair state              = %s\n", PAIR_STATES[params->ps]);
     printf("  niterations             = %zu\n", params->niterations);
@@ -931,12 +957,8 @@ void get_and_expect_token(Lexer *l, Token_Type token) {
     expect_token(l, token);
 }
 
-
-
-void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
+void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
 {
-    get_and_expect_token(l, TOKEN_BLOCK);
-
     while (true) {
         get_token(l);
         if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
@@ -990,6 +1012,9 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
 
                 break;
             }
+            case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
+            case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
+            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
             case KEYWORD_NITERATIONS:             params->niterations = l->int_number; break;
             case KEYWORD_TOTAL_TRAJECTORIES:      params->total_trajectories = l->int_number; break;
             case KEYWORD_CVODE_TOLERANCE:         params->cvode_tolerance = l->double_number; break;
@@ -1001,10 +1026,80 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
             case KEYWORD_TORQUE_CACHE_LEN:        params->torque_cache_len = l->int_number; break;
             case KEYWORD_TORQUE_LIMIT:            params->torque_limit = l->double_number; break;
-            case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
-            case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
-            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
+            case KEYWORD_JINI_HISTOGRAM_BINS:     params->jini_histogram_bins = l->int_number; break;
+            case KEYWORD_JINI_HISTOGRAM_MAX:      params->jini_histogram_max = l->double_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_BINS:     params->jfin_histogram_bins = l->int_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_MAX:      params->jfin_histogram_max = l->double_number; break;
+            case KEYWORD_ORTHO_STATE_WEIGHT:      params->ortho_state_weight = l->double_number; break;
+            case KEYWORD_PARA_STATE_WEIGHT:       params->para_state_weight = l->double_number; break;
             default: assert(false); 
+        }
+    }
+}
+            
+void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
+    while (true) {
+        get_token(l);
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
+            print_lexeme(l);
+            return;
+        }
+
+        expect_token(l, TOKEN_KEYWORD);
+        Keyword keyword_type = l->keyword_type;
+        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+
+        get_and_expect_token(l, TOKEN_EQ);
+        get_and_expect_token(l, expect_token);
+
+        switch (keyword_type) {
+            case KEYWORD_MONOMER_TYPE: {
+                if (strcasecmp(l->string_storage.items, "ATOM") == 0) {
+                    monomer_block->t = ATOM;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_INTEGER") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE_REQ_INTEGER;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_HALFINTEGER") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
+                } else if (strcasecmp(l->string_storage.items, "ROTOR") == 0) {
+                    monomer_block->t = ROTOR;
+                } else {
+                    printf("ERROR: %s:%d:%d: unknown monomer type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    printf("Available monomer_block types:\n");
+                    for (size_t i = 0; i < sizeof(MONOMER_TYPES)/sizeof(MONOMER_TYPES[0]); ++i) {
+                        printf(" %s\n", display_monomer_type(MONOMER_TYPES[i])); 
+                    }
+                    exit(1);
+                }
+                
+                break;
+            }
+            case KEYWORD_DJ: monomer_block->DJ = l->double_number; break; 
+            case KEYWORD_II: assert(false); break;
+            default: assert(false);
+        }
+
+    }
+} 
+
+void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
+{
+    while (true) { 
+        get_token(l);
+        if (is_eof(l)) return;
+
+        expect_token(l, TOKEN_BLOCK);
+
+        MonomerBlock *monomer_block = monomer1_block;
+
+        if (strcasecmp(l->string_storage.items, "END") == 0) {
+            printf("ERROR: %s:%d:%d: found '%s' without corresponding block beginning\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+            exit(1);
+        } else if (strcasecmp(l->string_storage.items, "INPUT") == 0) {
+            parse_input_block(l, input_block, params);
+        } else if (strcasecmp(l->string_storage.items, "MONOMER") == 0) {
+            parse_monomer_block(l, monomer_block); 
         }
     }
 }
@@ -1032,6 +1127,7 @@ int main(int argc, char* argv[])
 
     print_params(&params); 
     print_input_block(&input_block);
+    print_monomer(&monomer1);
 
     return 0; 
 }
