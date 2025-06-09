@@ -119,6 +119,7 @@ typedef struct {
 
 typedef enum {
     KEYWORD_CALCULATION_TYPE,
+    KEYWORD_PAIR_STATE,
     KEYWORD_REDUCED_MASS,
     KEYWORD_SO_POTENTIAL,
     KEYWORD_SO_DIPOLE,
@@ -144,6 +145,7 @@ typedef enum {
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]        = "CALCULATION_TYPE",
+    [KEYWORD_PAIR_STATE]              = "PAIR_STATE",
     [KEYWORD_REDUCED_MASS]            = "REDUCED_MASS",
     [KEYWORD_SO_POTENTIAL]            = "SO_POTENTIAL",
     [KEYWORD_SO_DIPOLE]               = "SO_DIPOLE",
@@ -165,13 +167,14 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_ORTHO_STATE_WEIGHT]      = "ORTHO_STATE_WEIGHT",
     [KEYWORD_PARA_STATE_WEIGHT]       = "PARA_STATE_WEIGHT",
 }; 
-static_assert(KEYWORD_COUNT == 21);
+static_assert(KEYWORD_COUNT == 22);
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING, 
+    [KEYWORD_PAIR_STATE]              = TOKEN_STRING, 
     [KEYWORD_REDUCED_MASS]            = TOKEN_FLOAT,
     [KEYWORD_SO_POTENTIAL]            = TOKEN_DQSTRING, 
-    //[KEYWORD_SO_DIPOLE]               = TOKEN_STRING, 
+    [KEYWORD_SO_DIPOLE]               = TOKEN_DQSTRING, 
     [KEYWORD_NITERATIONS]             = TOKEN_INTEGER,
     [KEYWORD_TOTAL_TRAJECTORIES]      = TOKEN_INTEGER,
     [KEYWORD_CVODE_TOLERANCE]         = TOKEN_FLOAT,
@@ -191,6 +194,7 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_PARA_STATE_WEIGHT]       = TOKEN_FLOAT, 
 };
 
+/*
 int trim_whitespace(char *s)
 {
     if (!s) return 0;
@@ -354,8 +358,6 @@ void parse_monomer_block_line(char *line, MonomerBlock *monomer, Loc loc)
     }
 }
 
-
-/*
 void parse_input_block_line(char *line, InputBlock *input_block, CalcParams *params, Loc loc)
 {
     Token key = {
@@ -950,6 +952,44 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
         get_and_expect_token(l, expect_token);
         
         switch (keyword_type) {
+            case KEYWORD_CALCULATION_TYPE: {
+                if (strcasecmp(l->string_storage.items, "PR_MU") == 0) {
+                    params->calculation_type = PR_MU;
+                } else if (strcasecmp(l->string_storage.items, "CORRELATION_SINGLE") == 0) {
+                    params->calculation_type = CORRELATION_SINGLE;
+                } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
+                    params->calculation_type = CORRELATION_ARRAY;
+                } else {
+                    printf("ERROR: %s:%d:%d: unknown calculation type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    printf("Available calculation types:\n");
+                    
+                    for (size_t i = 0; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
+                        printf("  %s\n", CALCULATION_TYPES[i]);
+                    }
+
+                    exit(1);
+                }
+
+                break;
+            }
+            case KEYWORD_PAIR_STATE: {
+                if (strcasecmp(l->string_storage.items, "FREE_AND_METASTABLE") == 0) {
+                    params->ps = FREE_AND_METASTABLE;
+                } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
+                    params->ps = BOUND;
+                } else {
+                    printf("ERROR: %s:%d:%d: unknown pair state '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    printf("Available pair states:\n");
+
+                    for (size_t i = 0; i < sizeof(PAIR_STATES)/sizeof(PAIR_STATES[0]); ++i) {
+                        printf("  %s\n", PAIR_STATES[i]);
+                    }
+
+                    exit(1);
+                }
+
+                break;
+            }
             case KEYWORD_NITERATIONS:             params->niterations = l->int_number; break;
             case KEYWORD_TOTAL_TRAJECTORIES:      params->total_trajectories = l->int_number; break;
             case KEYWORD_CVODE_TOLERANCE:         params->cvode_tolerance = l->double_number; break;
@@ -963,6 +1003,7 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
             case KEYWORD_TORQUE_LIMIT:            params->torque_limit = l->double_number; break;
             case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
             case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
+            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
             default: assert(false); 
         }
     }
