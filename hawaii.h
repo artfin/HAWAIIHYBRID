@@ -170,8 +170,15 @@ typedef enum {
     BOUND,
 } PairState;
 
+typedef enum {
+    PR_MU,
+    CORRELATION_SINGLE,
+    CORRELATION_ARRAY,
+} CalculationType;
+
 typedef struct {
     PairState ps;
+    CalculationType calculation_type;
 
     /* sampling */
     double sampler_Rmin; // a.u.
@@ -230,11 +237,6 @@ typedef struct {
 } CalcParams;
 
 
-typedef enum {
-    PRMU,
-    CORRELATION_SINGLE,
-    CORRELATION_ARRAY,
-} CalculationType;
 
 typedef enum {
     REJECT,
@@ -406,6 +408,7 @@ typedef struct {
     size_t capacity;
 } String_Builder;
 
+void sb_reserve(String_Builder *sb, size_t n);
 void sb_append(String_Builder *sb, const char *line, size_t n);
 void sb_append_cstring(String_Builder *sb, const char *line);
 void sb_append_format(String_Builder *sb, const char *format, ...);

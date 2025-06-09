@@ -3243,6 +3243,26 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
     }
 }
 
+void sb_reserve(String_Builder *sb, size_t n)
+/*
+ * Ensures sufficient capacity in a String_Builder to accommodate `n` additional characters.
+ *
+ * This function guarantees that the String_Builder has enough memory allocated to hold at least
+ * `sb->count + n` characters. If the current capacity is insufficient, it extends the buffer 
+ * until the capacity meets or exceeds the required size.*
+ */
+{
+    size_t new_count = sb->count + n;
+
+    if (new_count > sb->capacity) {
+        size_t new_capacity = (sb->capacity == 0) ? INIT_SB_CAPACITY : 2*sb->capacity;
+        for ( ; new_count > new_capacity; new_capacity *= 2);
+
+        sb->items = (char*) realloc(sb->items, new_capacity);
+        assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+        sb->capacity = new_capacity;
+    } 
+}
 
 void sb_append(String_Builder *sb, const char *line, size_t n)
 /* Appends a sequence of characters to the String_Builder.
