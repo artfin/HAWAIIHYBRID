@@ -43,7 +43,7 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "CORRELATION_ARRAY",
 };
 
-static_assert(MONOMER_COUNT == 6);
+static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
     ATOM, 
     LINEAR_MOLECULE, 

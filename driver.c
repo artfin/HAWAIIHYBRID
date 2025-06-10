@@ -61,7 +61,7 @@ const char *TOKEN_TYPES[TOKEN_COUNT] = {
       [TOKEN_EQ]       = "=",
 }; 
 
-static_assert(TOKEN_COUNT == 11);
+static_assert(TOKEN_COUNT == 11, "");
 
 const char *PUNCTS[TOKEN_COUNT] = {
     [TOKEN_COMMA]  = ",",
@@ -144,7 +144,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_DJ]                      = "DJ",
     [KEYWORD_II]                      = "II",
 }; 
-static_assert(KEYWORD_COUNT == 30);
+static_assert(KEYWORD_COUNT == 30, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING,
@@ -837,6 +837,9 @@ int main(int argc, char* argv[])
     setup_pes(&input_block);
 
     MoleculeSystem ms = init_ms(input_block.reduced_mass, monomer1.t, monomer2.t, monomer1.II, monomer2.II, 0);
+
+    ms.m1.DJ = monomer1.DJ; 
+    ms.m2.DJ = monomer2.DJ; 
 
     /*
     double *q = malloc(ms.Q_SIZE*sizeof(double));
