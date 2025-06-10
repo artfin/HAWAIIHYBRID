@@ -23,8 +23,35 @@
 #include "arena.h"
 
 dipolePtr dipole = NULL;
+pesPtr pes       = NULL;
+dpesPtr dpes     = NULL;
+
+int _wrank = 0;
+int _wsize = 1;
 
 static size_t INIT_SB_CAPACITY = 256;
+
+const char *PAIR_STATES[] = {
+    "FREE_AND_METASTABLE",
+    "BOUND",
+};
+
+const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
+    "NONE",
+    "PR_MU",
+    "CORRELTION_SINGLE",
+    "CORRELATION_ARRAY",
+};
+
+static_assert(MONOMER_COUNT == 6);
+MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
+    ATOM, 
+    LINEAR_MOLECULE, 
+    LINEAR_MOLECULE_REQ_INTEGER, 
+    LINEAR_MOLECULE_REQ_HALFINTEGER, 
+    ROTOR, 
+    ROTOR_REQUANTIZED_ROTATION,
+};
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
 {
@@ -32,6 +59,10 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
 
     MoleculeSystem ms = {0};
     ms.mu = mu;
+    if (ms.mu <= 0) {
+        PRINT0("ERROR: invalid reduced mass (%.5e) -- must be positive  \n", ms.mu);
+        exit(1);
+    }
 
     ms.m1.t = t1;
 
@@ -103,10 +134,10 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
            init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
            init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
 
-    PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", monomer_type_name(t1), monomer_type_name(t2));
+    PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(t1), display_monomer_type(t2));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
 
-    PRINT0("1st monomer inertia tensor [%s]: ", monomer_type_name(t1));
+    PRINT0("1st monomer inertia tensor [%s]: ", display_monomer_type(t1));
     switch (t1) {
         case ATOM: {
             PRINT0("\n"); break;
@@ -125,7 +156,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
 
     }
     
-    PRINT0("2nd monomer inertia tensor [%s]: ", monomer_type_name(t2));
+    PRINT0("2nd monomer inertia tensor [%s]: ", display_monomer_type(t2));
     switch (t2) {
         case ATOM: {
             PRINT0("\n"); 
@@ -149,7 +180,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
 
     PRINT0("Length of Q vector:  3 + %d + %d = %zu\n", (t1 % MODULO_BASE)/2, (t2 % MODULO_BASE)/2, ms.Q_SIZE); 
     PRINT0("Length of QP vector: 6 + %d + %d = %zu\n", (t1 % MODULO_BASE), (t2 % MODULO_BASE), ms.QP_SIZE);
-    PRINT0("Generator seed is set to %zu\n", seed);
+    PRINT0("Generator seed is set to %zu\n", ms.seed);
     PRINT0("-------------------------------------------------------------------\n");
 
     return ms;
@@ -165,26 +196,18 @@ void free_ms(MoleculeSystem *ms) {
     free(ms->dVdq);
 }
 
-const char* monomer_type_name(MonomerType t) {
+const char* display_monomer_type(MonomerType t) {
     switch (t) {
         case ATOM:                            return "ATOM";
-        case LINEAR_MOLECULE:                 return "LINEAR MOLECULE";
-        case ROTOR:                           return "ROTOR";
+        case LINEAR_MOLECULE:                 return "LINEAR_MOLECULE";
         case LINEAR_MOLECULE_REQ_INTEGER:     return "LINEAR_MOLECULE_REQ_INTEGER";
         case LINEAR_MOLECULE_REQ_HALFINTEGER: return "LINEAR_MOLECULE_REQ_HALFINTEGER";
+        case ROTOR:                           return "ROTOR";
         case ROTOR_REQUANTIZED_ROTATION:      return "ROTOR_REQUANTIZED_ROTATION";
     }
 
-    UNREACHABLE("monomer_type_name");
-}
-
-const char* pair_state_name(PairState ps) {
-    switch (ps) {
-        case FREE_AND_METASTABLE: return "FREE_AND_METASTABLE";
-        case BOUND:               return "BOUND";
-    }
-
-    UNREACHABLE("pair_state_name");
+    UNREACHABLE("display_monomer_type");
+    return NULL;
 }
 
 //void make_qp_odd(double *q, double *qp, size_t QP_SIZE) {
@@ -1156,6 +1179,7 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_COUNT: UNREACHABLE("calculate_M0"); 
     } 
    
     while (integral_counter < params->initialM0_npoints) {
@@ -1249,6 +1273,7 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
         case BOUND:               print_every_nth_iteration = 1000; break;
+        case PAIR_STATE_COUNT: UNREACHABLE("calculate_M2"); 
     } 
 
     while (integral_counter < params->initialM2_npoints) {
@@ -1321,9 +1346,6 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
     assert(fabs(params->pesmin) > 1e-15);
     assert(params->partial_partition_function_ratio > 0);
 
-    INIT_WRANK;
-    INIT_WSIZE;
-
     size_t counter = 0;
     size_t desired_dist = 0;
     size_t integral_counter = 0;
@@ -1335,6 +1357,7 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M0"); 
     } 
     
     size_t local_npoints = params->initialM0_npoints / _wsize;
@@ -1391,9 +1414,6 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
     assert(fabs(params->pesmin) > 1e-15);
     assert(params->partial_partition_function_ratio > 0);
 
-    INIT_WRANK;
-    INIT_WSIZE;
-    
     double h = 1.0e-3;
 
     gsl_matrix *D           = gsl_matrix_alloc(ms->Q_SIZE, 3);
@@ -1408,6 +1428,7 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M2"); 
     } 
     
     size_t local_npoints = params->initialM2_npoints / _wsize;
@@ -1747,9 +1768,6 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     assert(params->satellite_temperatures != NULL); 
     assert(params->cf_filenames != NULL);
     
-    INIT_WRANK;
-    INIT_WSIZE;
-   
     FILE **fps = malloc(params->num_satellite_temperatures * sizeof(FILE*)); 
     if (_wrank == 0) {
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -1828,7 +1846,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     sb_reset(&sb);
 
 
-    PRINT0("    pair state (pair_state):                                             %s\n",  pair_state_name(params->ps));
+    PRINT0("    pair state (pair_state):                                             %s\n",  PAIR_STATES[params->ps]);
     PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n", params->total_trajectories);
     PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n", params->niterations);
     PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n", params->MaxTrajectoryLength);
@@ -1931,6 +1949,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                           }
                           break;
                         }
+                        case PAIR_STATE_COUNT: UNREACHABLE("calculate_correlation_array_and_save");
                     }
 
                     weight = exp(-energy*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature)) / WTT;
@@ -2042,9 +2061,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
-    INIT_WRANK;
-    INIT_WSIZE;
-  
     FILE *fp = NULL; 
     if (_wrank == 0) {
         fp = fopen(params->cf_filename, "w");
@@ -2101,7 +2117,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("\n\n"); 
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    pair state (pair_state):                                             %s\n",     pair_state_name(params->ps));
+    PRINT0("    pair state (pair_state):                                             %s\n",     PAIR_STATES[params->ps]);
     PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",    params->total_trajectories);
     PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",    params->niterations);
     PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",    params->MaxTrajectoryLength);
@@ -2257,9 +2273,6 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
-    INIT_WRANK;
-    INIT_WSIZE;
-
     // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
     assert(dipole != NULL);
 
@@ -2268,6 +2281,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     assert(params->cvode_tolerance > 0);
     assert(params->total_trajectories > 0);
     assert(params->niterations >= 1);
+    assert(params->R0 > 0);
     assert(params->ApproximateFrequencyMax > 0);
     assert(params->sf_filename != NULL);
     
@@ -2423,18 +2437,16 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
                "The following value D for first monomer is provided: %.5e cm-1\n", ms->m1.DJ);
     }
 
-
-    // TODO: rename ortho/para to even/odd-valued J
-    if (params->ortho_state_weight > 0) {
+    if (params->odd_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
         
-        PRINT0("  Ortho-state trajectories are assigned a weight of %.3e\n", params->ortho_state_weight);
+        PRINT0("  Trajectories with odd j-values are assigned a spin weight of %.3e\n", params->odd_j_spin_weight);
     }
 
-    if (params->para_state_weight > 0) {
+    if (params->even_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
 
-        PRINT0("  Para-state trajectories are assigned a weight of %.3e\n", params->para_state_weight); 
+        PRINT0("  Trajectories with even j-values are assigned a spin weight of %.3e\n", params->even_j_spin_weight); 
     }
 
     PRINT0("------------------------------------------------------------------------\n");
@@ -2494,11 +2506,15 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     double t, tout;
     
     if (params->partial_partition_function_ratio == 0) {
+        PRINT0("\n\n");
         PRINT0("INFO: no value of the ratio of partial partition function (ppf) to full partition function is provided\n");
         PRINT0("Invoking estimation of ppf using adaptive Monte Carlo integration\n");
     
         double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
         PRINT0("Full partition function Q/V = %.12lf\n", pf_analytic);
+
+        assert(params->sampler_Rmin > 0);
+        assert(params->sampler_Rmax > 0);
 
         double hep_ppf, hep_ppf_err;
         c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, 15, 2e6, &hep_ppf, &hep_ppf_err);
@@ -2607,11 +2623,15 @@ if (_wrank > 0) {
             
                 trajectory_weight = 1.0;
                 {
-                    if ((params->para_state_weight > 0) || (params->ortho_state_weight > 0)) {
+                    if ((params->even_j_spin_weight > 0) || (params->odd_j_spin_weight > 0)) {
                         switch (ms->m1.t) {
+                            case ATOM: assert(false);
+                            case LINEAR_MOLECULE: assert(false);
+                            case ROTOR: assert(false);
+                            case ROTOR_REQUANTIZED_ROTATION: assert(false);
                             case LINEAR_MOLECULE_REQ_HALFINTEGER: {
                               int j_int = round(jini_len - 1.5);
-                              trajectory_weight = (j_int % 2 == 0) ? params->para_state_weight : params->ortho_state_weight;
+                              trajectory_weight = (j_int % 2 == 0) ? params->even_j_spin_weight : params->odd_j_spin_weight;
                               //printf("jini_len = %.5f, j_int = %d\n", jini_len, j_int);
                               break;
                             }
@@ -3001,9 +3021,6 @@ if (_wrank > 0) {
 #endif // USE_MPI
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {
-    INIT_WRANK;
-    INIT_WSIZE;
-
     if ((estimate > (true_value - abs_tolerance)) && (estimate < (true_value + abs_tolerance))) {
         PRINT0("\033[32mASSERTION PASSED:\033[0m Estimate lies within expected bounds from true value!\n");
         return 0; 

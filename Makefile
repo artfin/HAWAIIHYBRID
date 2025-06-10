@@ -42,7 +42,8 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/fftrump.exe                             \
 			examples/test_sb.exe                             \
 			examples/test_loess.exe                          \
-			examples/test_fft.exe
+			examples/test_fft.exe                            \
+			driver.exe
 
 all: $(EXAMPLES) 
 
@@ -78,7 +79,7 @@ build/mtwist.o: mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
 
 build/angles_handler.o: angles_handler.cpp | build
-	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ 
+	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD -fPIC $< -o $@
 
 build/loess.o: loess.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ -fopenmp  
@@ -97,19 +98,27 @@ build/ai_ids_co2_ar.o: ./PES-IDS/ai_ids_co2ar.cpp | build
 ###################### H2-Ar ##############################
 ###########################################################
 build/c_basis_2_2_1_3_intermolecular.o: ./PES-IDS/c_basis_2_2_1_3_intermolecular.cc | build
-	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
 build/c_basis_2_1_1_1_3_intermolecular.o: ./PES-IDS/c_basis_2_1_1_1_3_intermolecular.cc | build
-	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
 build/c_basis_1_1_2_1_3_intermolecular.o: ./PES-IDS/c_basis_1_1_2_1_3_intermolecular.cc | build
-	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
 build/ai_pes_h2ar_leroy.o: ./PES-IDS/ai_pes_h2ar_leroy.c | build
-	$(CC) $(FLAGS) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm
 
 build/ai_ids_h2_ar_pip_nn.o: ./PES-IDS/ai_ids_h2_ar_pip_nn.cpp | build
-	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_ids_h2_ar_pip_nn.so: build/ai_ids_h2_ar_pip_nn.o \
+							  build/c_basis_2_2_1_3_intermolecular.o build/c_basis_2_1_1_1_3_intermolecular.o build/c_basis_1_1_2_1_3_intermolecular.o \
+							  build/angles_handler.o build/cnpy.o
+	$(CC) -shared -o $@ $^ -lm -lstdc++
+
+build/ai_pes_h2_ar_leroy.so: build/ai_pes_h2ar_leroy.o build/angles_handler.o
+	$(CC) -shared -o $@ $^ -lm
 ###########################################################
 
 ###########################################################
@@ -141,7 +150,7 @@ build/c_basis_1_1_2_1_3_purify.o: ./PES-IDS/c_basis_1_1_2_1_3_purify.cc | build
 	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
 
 build/cnpy.o: ./PES-IDS/cnpy.cpp | build
-	$(CC) $(FLAGS) -c -MD ./ $< -o $@ -lm
+	$(CC) $(FLAGS) -c -MD -fPIC ./ $< -o $@ -lm
 
 build/ai_pes_n2_ar_pip_nn.o: ./PES-IDS/ai_pes_n2_ar_pip_nn.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
@@ -263,6 +272,9 @@ examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o b
 
 examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
 	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
+
+driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -lmpi_cxx 
 
 
 build:

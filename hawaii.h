@@ -102,13 +102,14 @@ int syncfs(int);
         (da)->count++; \
     } while(0)
 
+extern int _wrank;
+extern int _wsize;
+
 #ifdef USE_MPI
 #define INIT_WRANK                          \
-    int _wrank;                             \
     MPI_Comm_rank(MPI_COMM_WORLD, &_wrank); \
 
 #define INIT_WSIZE                          \
-    int _wsize;                             \
     MPI_Comm_size(MPI_COMM_WORLD, &_wsize); \
 
 #define PRINT0(...) if (_wrank == 0) printf(__VA_ARGS__); 
@@ -125,6 +126,7 @@ extern "C" {
 // This enum allows us to both differentiate between the systems of different type
 // as well as to store the size of phase point: 
 //   size(phase_point) = MonomerType%MODULO_BASE
+#define MONOMER_COUNT 6 
 #define MODULO_BASE 100
 typedef enum {
     ATOM                                 = 0,
@@ -134,6 +136,8 @@ typedef enum {
     ROTOR                                = 6,
     ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,
 } MonomerType;
+
+extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
 
 // 17.01.2025 NOTE: changed 'double I[3]' -> 'double II[3]' to avoid collision when including <complex.h> 
 typedef struct { 
@@ -168,13 +172,20 @@ typedef struct {
 typedef enum {
     FREE_AND_METASTABLE, // автоматически отделяем вклады
     BOUND,
+    PAIR_STATE_COUNT,
 } PairState;
 
+extern const char *PAIR_STATES[PAIR_STATE_COUNT]; 
+
 typedef enum {
-    PR_MU,
-    CORRELATION_SINGLE,
-    CORRELATION_ARRAY,
+    CALCULATION_NONE,
+    CALCULATION_PR_MU,
+    CALCULATION_CORRELATION_SINGLE,
+    CALCULATION_CORRELATION_ARRAY,
+    CALCULATION_TYPES_COUNT,
 } CalculationType;
+
+extern const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT];
 
 typedef struct {
     PairState ps;
@@ -206,8 +217,8 @@ typedef struct {
     const char *nswitch_histogram_filename;
 
     /* weights to factor in spin statistics */
-    double ortho_state_weight;
-    double para_state_weight;
+    double odd_j_spin_weight;
+    double even_j_spin_weight;
 
     /* trajectory */
     double sampling_time; // a.t.u.
@@ -318,15 +329,17 @@ typedef struct {
 typedef void (*dipolePtr)(double*, double[3]);
 extern dipolePtr dipole;
 
-extern double pes(double *q);
-extern void dpes(double *q, double *dVdq);
+typedef double (*pesPtr)(double*);
+extern pesPtr pes;
+
+typedef void (*dpesPtr)(double*, double*);
+extern dpesPtr dpes;
 /* ------------------------------*/
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed); 
 void free_ms(MoleculeSystem *ms);
 
-const char* monomer_type_name(MonomerType t);
-const char* pair_state_name(PairState ps);
+const char* display_monomer_type(MonomerType t);
 
 void put_qp_into_ms(MoleculeSystem *ms, Array qp);
 void get_qp_from_ms(MoleculeSystem *ms, Array *qp);

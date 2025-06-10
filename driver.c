@@ -6,64 +6,12 @@
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <dlfcn.h>
 
+#define USE_MPI
 #include "hawaii.h"
 
 #define BUFF_SIZE 256
-
-// TODO: define those as function pointers in 'hawaii.h'
-double pes(double *q) {
-    UNUSED(q);
-    assert(false);
-}
-
-void dpes(double *q, double *dVdq) {
-    UNUSED(q);
-    UNUSED(dVdq);
-    assert(false);
-}
-
-const char *PAIR_STATES[] = {
-    "FREE_AND_METASTABLE",
-    "BOUND",
-};
-
-
-const char* CALCULATION_TYPES[] = {
-    "PR_MU",
-    "CORRELTION_SINGLE",
-    "CORRELATION_ARRAY",
-};
-
-#define BLOCKS_MAX 16
-typedef enum {
-    BLOCK_NONE,
-    BLOCK_INPUT,
-    BLOCK_MONOMER,
-} Block_Name;
-
-typedef struct {
-    Block_Name items[BLOCKS_MAX];
-    size_t count;
-} Block_Names; 
-
-static_assert(MONOMER_COUNT == 6);
-MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
-    ATOM, LINEAR_MOLECULE, LINEAR_MOLECULE_REQ_INTEGER, LINEAR_MOLECULE_REQ_HALFINTEGER, ROTOR, ROTOR_REQUANTIZED_ROTATION,
-};
-
-const char* display_monomer_type(MonomerType t) {
-    switch (t) {
-        case ATOM:                            return "ATOM";
-        case LINEAR_MOLECULE:                 return "LINEAR_MOLECULE";
-        case LINEAR_MOLECULE_REQ_INTEGER:     return "LINEAR_MOLECULE_REQ_INTEGER";
-        case LINEAR_MOLECULE_REQ_HALFINTEGER: return "LINEAR_MOLECULE_REQ_HALFINTEGER";
-        case ROTOR:                           return "ROTOR";
-        case ROTOR_REQUANTIZED_ROTATION:      return "ROTOR_REQUANTIZED_ROTATION";
-    }
-
-    return NULL;
-}
 
 typedef struct {
     MonomerType t;
@@ -73,6 +21,7 @@ typedef struct {
 
 typedef struct {
     double reduced_mass;
+    double Temperature;
     const char* so_potential;
     const char* so_dipole;
 } InputBlock;
@@ -134,13 +83,18 @@ typedef enum {
     KEYWORD_REDUCED_MASS,
     KEYWORD_SO_POTENTIAL,
     KEYWORD_SO_DIPOLE,
+    KEYWORD_TEMPERATURE,
     KEYWORD_NITERATIONS,
     KEYWORD_TOTAL_TRAJECTORIES,
     KEYWORD_CVODE_TOLERANCE,
     KEYWORD_SAMPLING_TIME,
     KEYWORD_MAXTRAJECTORYLENGTH,
+    KEYWORD_SAMPLER_RMIN,
+    KEYWORD_SAMPLER_RMAX,
+    KEYWORD_PESMIN,
     KEYWORD_INITIALM0_NPOINTS,
     KEYWORD_INITIALM2_NPOINTS,
+    KEYWORD_SF_FILENAME,
     KEYWORD_R0,
     KEYWORD_APPROXIMATEFREQUENCYMAX,
     KEYWORD_TORQUE_CACHE_LEN,
@@ -149,8 +103,8 @@ typedef enum {
     KEYWORD_JINI_HISTOGRAM_MAX,
     KEYWORD_JFIN_HISTOGRAM_BINS,
     KEYWORD_JFIN_HISTOGRAM_MAX,
-    KEYWORD_ORTHO_STATE_WEIGHT,
-    KEYWORD_PARA_STATE_WEIGHT,
+    KEYWORD_ODD_J_SPIN_WEIGHT,
+    KEYWORD_EVEN_J_SPIN_WEIGHT,
     /* MONOMER BLOCK */
     KEYWORD_MONOMER_TYPE,
     KEYWORD_DJ,
@@ -164,13 +118,18 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_REDUCED_MASS]            = "REDUCED_MASS",
     [KEYWORD_SO_POTENTIAL]            = "SO_POTENTIAL",
     [KEYWORD_SO_DIPOLE]               = "SO_DIPOLE",
+    [KEYWORD_TEMPERATURE]             = "TEMPERATURE",
     [KEYWORD_NITERATIONS]             = "NITERATIONS",
     [KEYWORD_TOTAL_TRAJECTORIES]      = "TOTAL_TRAJECTORIES",
     [KEYWORD_CVODE_TOLERANCE]         = "CVODE_TOLERANCE",
     [KEYWORD_SAMPLING_TIME]           = "SAMPLING_TIME",
     [KEYWORD_MAXTRAJECTORYLENGTH]     = "MAXTRAJECTORYLENGTH",
+    [KEYWORD_SAMPLER_RMIN]            = "SAMPLER_RMIN",
+    [KEYWORD_SAMPLER_RMAX]            = "SAMPLER_RMAX",
+    [KEYWORD_PESMIN]                  = "PESMIN",
     [KEYWORD_INITIALM0_NPOINTS]       = "INITIALM0_NPOINTS",
     [KEYWORD_INITIALM2_NPOINTS]       = "INITIALM2_NPOINTS",
+    [KEYWORD_SF_FILENAME]             = "SF_FILENAME",
     [KEYWORD_R0]                      = "R0",
     [KEYWORD_APPROXIMATEFREQUENCYMAX] = "APPROXIMATEFREQUENCYMAX",
     [KEYWORD_TORQUE_CACHE_LEN]        = "TORQUE_CACHE_LEN",
@@ -179,13 +138,13 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JINI_HISTOGRAM_MAX]      = "JINI_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_BINS]     = "JFIN_HISTOGRAM_BINS",
     [KEYWORD_JFIN_HISTOGRAM_MAX]      = "JFIN_HISTOGRAM_MAX",
-    [KEYWORD_ORTHO_STATE_WEIGHT]      = "ORTHO_STATE_WEIGHT",
-    [KEYWORD_PARA_STATE_WEIGHT]       = "PARA_STATE_WEIGHT",
+    [KEYWORD_ODD_J_SPIN_WEIGHT]       = "ODD_J_SPIN_WEIGHT",
+    [KEYWORD_EVEN_J_SPIN_WEIGHT]      = "EVEN_J_SPIN_WEIGHT",
     [KEYWORD_MONOMER_TYPE]            = "MONOMER_TYPE",
     [KEYWORD_DJ]                      = "DJ",
     [KEYWORD_II]                      = "II",
 }; 
-static_assert(KEYWORD_COUNT == 25);
+static_assert(KEYWORD_COUNT == 30);
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING,
@@ -193,13 +152,18 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_REDUCED_MASS]            = TOKEN_FLOAT,
     [KEYWORD_SO_POTENTIAL]            = TOKEN_DQSTRING,
     [KEYWORD_SO_DIPOLE]               = TOKEN_DQSTRING,
+    [KEYWORD_TEMPERATURE]             = TOKEN_FLOAT,
     [KEYWORD_NITERATIONS]             = TOKEN_INTEGER,
     [KEYWORD_TOTAL_TRAJECTORIES]      = TOKEN_INTEGER,
     [KEYWORD_CVODE_TOLERANCE]         = TOKEN_FLOAT,
     [KEYWORD_SAMPLING_TIME]           = TOKEN_FLOAT,
     [KEYWORD_MAXTRAJECTORYLENGTH]     = TOKEN_INTEGER,
+    [KEYWORD_SAMPLER_RMIN]            = TOKEN_FLOAT,
+    [KEYWORD_SAMPLER_RMAX]            = TOKEN_FLOAT,
+    [KEYWORD_PESMIN]                  = TOKEN_FLOAT,
     [KEYWORD_INITIALM0_NPOINTS]       = TOKEN_INTEGER,
     [KEYWORD_INITIALM2_NPOINTS]       = TOKEN_INTEGER,
+    [KEYWORD_SF_FILENAME]             = TOKEN_DQSTRING,
     [KEYWORD_R0]                      = TOKEN_FLOAT,
     [KEYWORD_APPROXIMATEFREQUENCYMAX] = TOKEN_FLOAT,
     [KEYWORD_TORQUE_CACHE_LEN]        = TOKEN_INTEGER,
@@ -208,14 +172,719 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_JINI_HISTOGRAM_MAX]      = TOKEN_FLOAT,
     [KEYWORD_JFIN_HISTOGRAM_BINS]     = TOKEN_INTEGER,
     [KEYWORD_JFIN_HISTOGRAM_MAX]      = TOKEN_FLOAT,
-    [KEYWORD_ORTHO_STATE_WEIGHT]      = TOKEN_FLOAT,
-    [KEYWORD_PARA_STATE_WEIGHT]       = TOKEN_FLOAT,
+    [KEYWORD_ODD_J_SPIN_WEIGHT]       = TOKEN_FLOAT,
+    [KEYWORD_EVEN_J_SPIN_WEIGHT]      = TOKEN_FLOAT,
     [KEYWORD_MONOMER_TYPE]            = TOKEN_STRING,
     [KEYWORD_DJ]                      = TOKEN_FLOAT,
     [KEYWORD_II]                      = TOKEN_OCURLY,
 };
 
+
+typedef struct {
+    char *input_stream;
+    char *parse_point;
+    char *eof;
+    Token_Type token_type;
+    String_Builder string_storage;
+    int64_t int_number;
+    double double_number;
+    Keyword keyword_type;
+    Loc loc;
+} Lexer;
+
+Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
+{
+    Lexer l = {0};
+    
+    l.input_stream = (char*) input_stream;
+    l.eof = eof;
+    l.parse_point = (char*) input_stream;
+    l.loc.line_number = 1;
+    l.loc.line_offset = 1;
+    l.loc.input_path = input_path;
+    memset(&l.string_storage, 0, sizeof(l.string_storage));
+
+    return l;
+}
+
+bool is_eof(Lexer *l) {
+    return l->parse_point >= l->eof;
+}
+
+char peek_char(Lexer *l) {
+    if (is_eof(l)) return '\0';
+    return *l->parse_point;
+}
+
+void skip_char(Lexer *l)
+{
+    assert(!is_eof(l));
+    
+    char c = *l->parse_point;
+    l->parse_point++;
+
+    l->loc.line_offset++;
+
+    if (c == '\n') {
+        l->loc.line_offset = 0;
+        l->loc.line_number++;
+    } 
+}
+
+void skip_whitespaces(Lexer *l) {
+    char c;
+    while ((c = peek_char(l)) != '\0') {
+        if (isspace(c)) {
+            skip_char(l);
+        } else {
+            break;
+        }
+    }
+}
+
+bool skip_prefix(Lexer *l, const char *prefix) {
+    if (!prefix) return false;
+
+    char *saved_point = (*l).parse_point;
+
+    while (*prefix) {
+        char c = peek_char(l);
+        if (c == '\0') {
+            (*l).parse_point = saved_point;
+            return false;
+        }
+        if (c != *prefix) {
+            (*l).parse_point = saved_point;
+            return false;
+        }
+        skip_char(l);
+        prefix++;
+    }
+
+    return true;
+}
+
+void skip_until(Lexer *l, const char *prefix) {
+    while (!is_eof(l) && !skip_prefix(l, prefix)) {
+        skip_char(l);
+    }
+}
+
+bool is_identifier_begin(char c) {
+    return isalpha(c) || c == '_';
+}
+
+bool is_identifier(char c) {
+    return isalnum(c) || c == '_';
+}
+
+bool get_token(Lexer *l) {
+    while (true) {
+        skip_whitespaces(l);
+
+        if (skip_prefix(l, "!")) {
+            skip_until(l, "\n");
+            continue; 
+        }
+
+        break;
+    }
+
+    char c = peek_char(l);;
+    if (c == '\0') {
+        l->token_type = TOKEN_EOF;
+        return false; 
+    }
+
+    for (size_t i = 0; i < sizeof(PUNCTS)/sizeof(PUNCTS[0]); ++i) {
+        const char *prefix = PUNCTS[i];
+        if (skip_prefix(l, prefix)) {
+            l->token_type = (Token_Type) i; 
+        } 
+    } 
+
+    if (c == '&') { // block begin
+        (*l).token_type = TOKEN_BLOCK;
+        (*l).string_storage.count = 0;
+        skip_char(l); // consume '&'
+
+        for ( c = peek_char(l); c != '\0'; c = peek_char(l)) {
+            if (is_identifier(c)) {
+                da_append(&(*l).string_storage, c);
+                skip_char(l);
+            } else {
+                break;
+            }
+        }
+
+        da_append(&(*l).string_storage, 0);
+    }
+
+    if (is_identifier_begin(c)) {
+        (*l).token_type = TOKEN_STRING;
+        (*l).string_storage.count = 0;
+        
+        for (c = peek_char(l); is_identifier(c); c = peek_char(l)) {
+            da_append(&(*l).string_storage, c);
+            skip_char(l);
+        }
+
+        da_append(&(*l).string_storage, 0);
+
+        for (size_t i = 0; i < sizeof(KEYWORDS)/sizeof(KEYWORDS[0]); ++i) {
+            if (strcasecmp(l->string_storage.items, KEYWORDS[i]) == 0) {
+                l->token_type = TOKEN_KEYWORD;
+                l->keyword_type = i; 
+            }
+        }
+    }
+
+    if ((isdigit(c) != 0) || c == '-' || c == '+') {
+        bool is_float = false;
+        l->int_number = 0;
+        l->double_number = 0;
+
+        int sign = 1;
+        if (c == '+') {
+            skip_char(l);
+        } else if (c == '-') {
+            sign = -1;
+            skip_char(l); 
+        }
+
+        for (c = peek_char(l); c != '\0'; c = peek_char(l)) {
+            // TODO: check for overflow
+            if (isdigit(c)) {
+                l->int_number = l->int_number * 10 + (int)(c - '0');
+                skip_char(l);
+            } else if (c == '.' || c == 'e' || c == 'E') {
+                is_float = true;
+                break;
+            } else {
+                break;
+            }
+        }
+
+        l->int_number = sign * l->int_number;
+
+        if (!is_float) {        
+            l->token_type = TOKEN_INTEGER;
+        } else {
+            l->token_type = TOKEN_FLOAT;
+            l->double_number = (double) l->int_number;
+            if (peek_char(l) == '.') {
+                skip_char(l); // consume '.'
+                double fraction = 0.0;
+                double divisor = 1.0;
+
+                for (c = peek_char(l); isdigit(c); c = peek_char(l)) {
+                    fraction = fraction*10.0 + (int)(c - '0');
+                    divisor *= 10.0;
+                    skip_char(l);
+                } 
+            
+                l->double_number += fraction/divisor;
+            } 
+            
+            if (peek_char(l) == 'e' || peek_char(l) == 'E') {
+                skip_char(l); // consume 'e' or 'E'
+
+                int exp_sign = 1;
+                c = peek_char(l);
+
+                if (c == '+') {
+                    skip_char(l);
+                } else if (c == '-') {
+                    exp_sign = -1;
+                    skip_char(l);
+                }
+
+                int exponent_value = 0;
+                for (c = peek_char(l); isdigit(c); c = peek_char(l)) {
+                    exponent_value = exponent_value*10 + (c - '0');
+                    skip_char(l);
+                }
+                
+                l->double_number *= pow(10, exp_sign*exponent_value);
+            }
+        }
+    }
+
+    if (c == '"') {
+        l->token_type = TOKEN_DQSTRING;
+        skip_char(l); // consume beginning '"'
+        
+        (*l).string_storage.count = 0;
+       
+        // NOTE: this allows only for one-line strings
+        // do not see the use for multi-line strings for now 
+        for (c = peek_char(l); (c != '\0') && (c != '"') && !isspace(c); c = peek_char(l)) {
+            da_append(&(*l).string_storage, c);
+            skip_char(l);
+        }
+        
+        if (c != '"') {
+            PRINT0("ERROR: %s:%d:%d: unfinished string literal\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
+            exit(1);
+        }
+        skip_char(l); // consume finishing '"'
+        da_append(&(*l).string_storage, 0);
+    }
+
+    // c = peek_char(l);
+    // printf("UNKNOWN symbol: %c\n", c); 
+    // UNREACHABLE("get_token");
+
+    return true; 
+}
+
+
+void print_input_block(InputBlock *input_block) {
+    printf("Input Block:\n");
+    printf("  reduced_mass = %.5e\n", input_block->reduced_mass);
+    printf("  so_potential = %s\n", input_block->so_potential);
+    printf("  so_dipole    = %s\n", input_block->so_dipole);
+}
+
+void print_monomer(MonomerBlock *monomer_block) {
+    printf("Monomer Block:\n");
+    printf("  t = %s\n", display_monomer_type(monomer_block->t));
+    printf("  I = {%.5e, %.5e, %.5e}\n", monomer_block->II[0], monomer_block->II[1], monomer_block->II[2]);
+    printf("  DJ = %.5e\n", monomer_block->DJ);  
+}
+
+void print_params(CalcParams *params) {
+    printf("Params:\n");
+    printf("  pair state              = %s\n", PAIR_STATES[params->ps]);
+    printf("  niterations             = %zu\n", params->niterations);
+    printf("  total_trajectories      = %zu\n", params->total_trajectories); 
+    printf("  cvode_tolerance         = %.5e\n", params->cvode_tolerance);         
+    printf("  sampling_time           = %.5e\n", params->sampling_time);
+    printf("  MaxTrajectoryLength     = %zu\n", params->MaxTrajectoryLength);
+    printf("  initialM0_npoints       = %zu\n", params->initialM0_npoints);
+    printf("  initialM2_npoints       = %zu\n", params->initialM2_npoints);
+    printf("  R0                      = %.5e\n", params->R0);
+    printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
+    printf("  torque_cache_len        = %zu\n", params->torque_cache_len);
+    printf("  torque_limit            = %.5e\n", params->torque_limit);
+    printf("  jini_histogram_bins     = %zu\n", params->jini_histogram_bins);
+    printf("  jini_histogram_max      = %.5e\n", params->jini_histogram_max);
+    printf("  jfin_histogram_bins     = %zu\n", params->jfin_histogram_bins);
+    printf("  jfin_histogram_max      = %.5e\n", params->jfin_histogram_max);
+    printf("  odd_j_spin_weight       = %.5e\n", params->odd_j_spin_weight);
+    printf("  even_j_spin_weight      = %.5e\n", params->even_j_spin_weight);
+}
+
+bool read_entire_file(const char *path, String_Builder *sb)
+{
+    bool result = true;
+
+    FILE *fp = fopen(path, "rb");
+    if (fp == NULL)                 return_defer(false);
+    if (fseek(fp, 0, SEEK_END) < 0) return_defer(false);
+    long m = ftell(fp);
+    
+    if (m < 0)                      return_defer(false);
+    if (fseek(fp, 0, SEEK_SET) < 0) return_defer(false);
+
+    sb_reserve(sb, m + 1);
+    fread(sb->items + sb->count, m, 1, fp);
+    sb->count += m;
+    sb->items[sb->count] = '\0';
+
+    if (ferror(fp)) {
+       return_defer(false);
+    }
+
+defer:
+    if (!result) PRINT0("ERROR: Could not read file %s: %s", path, strerror(errno));
+    if (fp) fclose(fp);
+    return result;
+}
+
+void print_lexeme(Lexer *l) {
+    switch (l->token_type) {
+      case TOKEN_KEYWORD:  PRINT0("KEYWORD: %s\n", l->string_storage.items); break;
+      case TOKEN_STRING:   PRINT0("%s: '%s'\n", TOKEN_TYPES[l->token_type], l->string_storage.items); break;
+      case TOKEN_BLOCK:    PRINT0("%s: %s\n", TOKEN_TYPES[l->token_type], l->string_storage.items); break;
+      case TOKEN_INTEGER:  PRINT0("%s: %"PRId64"\n", TOKEN_TYPES[l->token_type], l->int_number); break;
+      case TOKEN_FLOAT:    PRINT0("%s: %.16e\n", TOKEN_TYPES[l->token_type], l->double_number); break;
+      case TOKEN_DQSTRING: PRINT0("%s: \"%s\"\n", TOKEN_TYPES[l->token_type], l->string_storage.items); break;
+      case TOKEN_EOF:      PRINT0("EOF\n"); break;
+      case TOKEN_OCURLY:   PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
+      case TOKEN_CCURLY:   PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
+      case TOKEN_COMMA:    PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
+      case TOKEN_EQ:       PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
+      case TOKEN_COUNT:    UNREACHABLE("print_lexeme");
+      default: {
+        PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]);
+        break;
+      }
+    }
+}
+
+void print_lexemes(Lexer *l)
+{
+    for (; get_token(l); ) {
+       print_lexeme(l); 
+    } 
+
+    assert(get_token(l) == TOKEN_EOF);
+}
+
+void expect_token(Lexer *l, Token_Type expected) {
+    Token_Type t = l->token_type;
+
+    if (t != expected) {
+        PRINT0("ERROR: %s:%d:%d: expected '%s' but got type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, 
+               TOKEN_TYPES[expected], TOKEN_TYPES[t]);
+        exit(1);
+    }
+}
+
+void get_and_expect_token(Lexer *l, Token_Type token) {
+    get_token(l);
+    expect_token(l, token);
+}
+
+void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
+{
+    while (true) {
+        get_token(l);
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
+            //print_lexeme(l);
+            return;
+        }
+
+        expect_token(l, TOKEN_KEYWORD);
+        Keyword keyword_type = l->keyword_type;
+        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+
+        get_and_expect_token(l, TOKEN_EQ);
+        get_and_expect_token(l, expect_token);
+        
+        switch (keyword_type) {
+            case KEYWORD_CALCULATION_TYPE: {
+                if (strcasecmp(l->string_storage.items, "PR_MU") == 0) {
+                    params->calculation_type = CALCULATION_PR_MU;
+                } else if (strcasecmp(l->string_storage.items, "CORRELATION_SINGLE") == 0) {
+                    params->calculation_type = CALCULATION_CORRELATION_SINGLE;
+                } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
+                    params->calculation_type = CALCULATION_CORRELATION_ARRAY;
+                } else {
+                    PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("Available calculation types:\n");
+                    
+                    for (size_t i = 0; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
+                        PRINT0("  %s\n", CALCULATION_TYPES[i]);
+                    }
+
+                    exit(1);
+                }
+
+                break;
+            }
+            case KEYWORD_PAIR_STATE: {
+                if (strcasecmp(l->string_storage.items, "FREE_AND_METASTABLE") == 0) {
+                    params->ps = FREE_AND_METASTABLE;
+                } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
+                    params->ps = BOUND;
+                } else {
+                    PRINT0("ERROR: %s:%d:%d: unknown pair state '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("Available pair states:\n");
+
+                    for (size_t i = 0; i < sizeof(PAIR_STATES)/sizeof(PAIR_STATES[0]); ++i) {
+                        PRINT0("  %s\n", PAIR_STATES[i]);
+                    }
+
+                    exit(1);
+                }
+
+                break;
+            }
+            case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
+            case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
+            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
+            case KEYWORD_TEMPERATURE:             input_block->Temperature = l->double_number; break;
+            case KEYWORD_NITERATIONS:             params->niterations = l->int_number; break;
+            case KEYWORD_TOTAL_TRAJECTORIES:      params->total_trajectories = l->int_number; break;
+            case KEYWORD_CVODE_TOLERANCE:         params->cvode_tolerance = l->double_number; break;
+            case KEYWORD_SAMPLING_TIME:           params->sampling_time = l->double_number; break;
+            case KEYWORD_MAXTRAJECTORYLENGTH:     params->MaxTrajectoryLength = l->int_number; break;
+            case KEYWORD_SAMPLER_RMIN:            params->sampler_Rmin = l->double_number; break;
+            case KEYWORD_SAMPLER_RMAX:            params->sampler_Rmax = l->double_number; break;
+            case KEYWORD_PESMIN:                  params->pesmin = l->double_number; break;
+            case KEYWORD_INITIALM0_NPOINTS:       params->initialM0_npoints = l->int_number; break;
+            case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
+            case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_R0:                      params->R0 = l->double_number; break;
+            case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
+            case KEYWORD_TORQUE_CACHE_LEN:        params->torque_cache_len = l->int_number; break;
+            case KEYWORD_TORQUE_LIMIT:            params->torque_limit = l->double_number; break;
+            case KEYWORD_JINI_HISTOGRAM_BINS:     params->jini_histogram_bins = l->int_number; break;
+            case KEYWORD_JINI_HISTOGRAM_MAX:      params->jini_histogram_max = l->double_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_BINS:     params->jfin_histogram_bins = l->int_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_MAX:      params->jfin_histogram_max = l->double_number; break;
+            case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
+            case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
+            default: {
+              PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &INPUT block\n",
+                     l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+              exit(1);
+            } 
+        }
+    }
+}
+            
+void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
+    while (true) {
+        get_token(l);
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
+            //print_lexeme(l);
+            return;
+        }
+
+        expect_token(l, TOKEN_KEYWORD);
+        Keyword keyword_type = l->keyword_type;
+        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+
+        get_and_expect_token(l, TOKEN_EQ);
+        get_and_expect_token(l, expect_token);
+
+        switch (keyword_type) {
+            case KEYWORD_MONOMER_TYPE: {
+                if (strcasecmp(l->string_storage.items, "ATOM") == 0) {
+                    monomer_block->t = ATOM;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_INTEGER") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE_REQ_INTEGER;
+                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_HALFINTEGER") == 0) {
+                    monomer_block->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
+                } else if (strcasecmp(l->string_storage.items, "ROTOR") == 0) {
+                    monomer_block->t = ROTOR;
+                } else {
+                    PRINT0("ERROR: %s:%d:%d: unknown monomer type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("Available monomer_block types:\n");
+                    for (size_t i = 0; i < sizeof(MONOMER_TYPES)/sizeof(MONOMER_TYPES[0]); ++i) {
+                        PRINT0(" %s\n", display_monomer_type(MONOMER_TYPES[i])); 
+                    }
+                    exit(1);
+                }
+                
+                break;
+            }
+            case KEYWORD_DJ: monomer_block->DJ = l->double_number; break; 
+            case KEYWORD_II: {
+               get_and_expect_token(l, TOKEN_FLOAT);
+               monomer_block->II[0] = l->double_number;
+               get_and_expect_token(l, TOKEN_COMMA);
+               
+               get_and_expect_token(l, TOKEN_FLOAT);
+               monomer_block->II[1] = l->double_number;
+               get_and_expect_token(l, TOKEN_COMMA);
+               
+               get_and_expect_token(l, TOKEN_FLOAT);
+               monomer_block->II[2] = l->double_number;
+
+               get_and_expect_token(l, TOKEN_CCURLY);
+               break;
+            } 
+            default: {
+              PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &MONOMER block\n",
+                     l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+              exit(1);
+            } 
+        }
+    }
+} 
+
+void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
+{
+    size_t monomer_blocks_count = 0;
+    MonomerBlock *monomer_block = monomer1_block;
+
+    while (true) { 
+        get_token(l);
+        if (is_eof(l)) break;
+
+        expect_token(l, TOKEN_BLOCK);
+
+        if (strcasecmp(l->string_storage.items, "END") == 0) {
+            PRINT0("ERROR: %s:%d:%d: found '%s' without corresponding block beginning\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+            exit(1);
+        } else if (strcasecmp(l->string_storage.items, "INPUT") == 0) {
+            parse_input_block(l, input_block, params);
+        } else if (strcasecmp(l->string_storage.items, "MONOMER") == 0) {
+            if (monomer_blocks_count >= 2) {
+                PRINT0("ERROR: %s:%d:%d: only two &MONOMER blocks could be defined\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
+                exit(1);
+            }
+
+            parse_monomer_block(l, monomer_block);
+
+            monomer_block = monomer2_block;
+            monomer_blocks_count++; 
+        }
+    }
+
+    if (params->calculation_type == CALCULATION_NONE) {
+        PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_CALCULATION_TYPE]);
+        exit(1); 
+    }
+
+    if (input_block->Temperature <= 0.0) {
+        PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_TEMPERATURE]);
+        exit(1);
+    }
+}
+
+void *load_symbol(void *handle, const char *symbol_name) 
+{
+    void *symbol = dlsym(handle, symbol_name);
+
+    char *err = dlerror();
+    if (err != NULL) {
+        PRINT0("ERROR: could not load '%s': %s\n", symbol_name, err);
+        dlclose(handle);
+        exit(1);
+    }
+
+    return symbol;
+}
+
+void setup_dipole(InputBlock *input_block)
+{
+    PRINT0("\n\n");
+    PRINT0("*****************************************************\n");
+    PRINT0("Loading dipole from shared library: %s\n", input_block->so_dipole);
+
+    void *so_handle = dlopen(input_block->so_dipole, RTLD_LAZY);
+    if (!so_handle) {
+        PRINT0("ERROR: dlopen: %s\n", dlerror());
+        exit(1);
+    }
+
+    dlerror(); // clear error log
+    
+    void (*dipole_init)(bool);
+    dipole_init = load_symbol(so_handle, "dipole_init");
+
+    bool log = true;
+    dipole_init(log); 
+    
+    dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab");
+
+    PRINT0("Successfully loaded\n");
+    PRINT0("*****************************************************\n");
+    PRINT0("\n");
+}
+
+void setup_pes(InputBlock *input_block) 
+{
+    PRINT0("\n");
+    PRINT0("*****************************************************\n");
+    PRINT0("Loading potential from shared library: %s\n", input_block->so_potential);
+
+    void *so_handle = dlopen(input_block->so_potential, RTLD_LAZY);
+    if (!so_handle) {
+        PRINT0("ERROR: dlopen: %s\n", dlerror());
+        exit(1);
+    }
+
+    dlerror();
+
+    pes = (pesPtr) load_symbol(so_handle, "pes_lab");
+    dpes = (dpesPtr) load_symbol(so_handle, "dpes_lab");
+    
+    PRINT0("Successfully loaded\n");
+    PRINT0("*****************************************************\n");
+    PRINT0("\n\n");
+}
+
+int main(int argc, char* argv[]) 
+{
+    UNUSED(argc);
+    UNUSED(argv);
+
+    MPI_Init(&argc, &argv);
+    
+    INIT_WRANK;
+    INIT_WSIZE;
+
+    const char *filename = "params.conf"; 
+    String_Builder sb = {0};
+    if (!read_entire_file(filename, &sb)) {
+        exit(1);
+    }
+
+    PRINT0("*****************************************************\n");
+    PRINT0("*********** HAWAII HYBRID v0.1 **********************\n");
+    PRINT0("*****************************************************\n");
+    PRINT0("Loaded configuration file: %s\n", filename);
+    PRINT0("%s\n", sb.items);
+
+    Lexer l = lexer_new(filename, sb.items, sb.items + sb.count);
+    //print_lexemes(&l);
+
+    InputBlock input_block = {0}; 
+    MonomerBlock monomer1  = {0};
+    MonomerBlock monomer2  = {0};
+    CalcParams params      = {0};
+    parse_params(&l, &params, &input_block, &monomer1, &monomer2);
+    
+    setup_dipole(&input_block);
+    setup_pes(&input_block);
+
+    MoleculeSystem ms = init_ms(input_block.reduced_mass, monomer1.t, monomer2.t, monomer1.II, monomer2.II, 0);
+
+    /*
+    double *q = malloc(ms.Q_SIZE*sizeof(double));
+    q[2] = 6.0;
+    q[0] = 0.1;
+    q[1] = 0.2;
+    q[3] = 0.3;
+    q[4] = 0.4;
+    double dip[3];
+    dipole(q, dip);  
+    printf("DIPOLE VALUE: %.5e %.5e %.5e\n", dip[0], dip[1], dip[2]);
+    */
+
+    switch (params.calculation_type) {
+        case CALCULATION_PR_MU: {
+            SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, input_block.Temperature);
+            break; 
+        }
+        default: {
+          assert(false);
+        }
+    } 
+
+    /*
+    print_params(&params); 
+    print_input_block(&input_block);
+    print_monomer(&monomer1);
+    print_monomer(&monomer2);
+    */
+    
+    MPI_Finalize();
+
+    return 0; 
+}
+
 /*
+#define BLOCKS_MAX 16
+typedef enum {
+    BLOCK_NONE,
+    BLOCK_INPUT,
+    BLOCK_MONOMER,
+} Block_Name;
+
+typedef struct {
+    Block_Name items[BLOCKS_MAX];
+    size_t count;
+} Block_Names; 
+
 int trim_whitespace(char *s)
 {
     if (!s) return 0;
@@ -473,267 +1142,7 @@ void parse_input_block_line(char *line, InputBlock *input_block, CalcParams *par
         exit(1);
     } 
 }
-*/
 
-typedef struct {
-    char *input_stream;
-    char *parse_point;
-    char *eof;
-    Token_Type token_type;
-    String_Builder string_storage;
-    int64_t int_number;
-    double double_number;
-    Keyword keyword_type;
-    Loc loc;
-} Lexer;
-
-Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
-{
-    Lexer l = {0};
-    
-    l.input_stream = (char*) input_stream;
-    l.eof = eof;
-    l.parse_point = (char*) input_stream;
-    l.loc.line_number = 1;
-    l.loc.line_offset = 1;
-    l.loc.input_path = input_path;
-    memset(&l.string_storage, 0, sizeof(l.string_storage));
-
-    return l;
-}
-
-bool is_eof(Lexer *l) {
-    return l->parse_point >= l->eof;
-}
-
-char peek_char(Lexer *l) {
-    if (is_eof(l)) return '\0';
-    return *l->parse_point;
-}
-
-void skip_char(Lexer *l)
-{
-    assert(!is_eof(l));
-    
-    char c = *l->parse_point;
-    l->parse_point++;
-
-    l->loc.line_offset++;
-
-    if (c == '\n') {
-        l->loc.line_offset = 0;
-        l->loc.line_number++;
-    } 
-}
-
-void skip_whitespaces(Lexer *l) {
-    char c;
-    while ((c = peek_char(l)) != '\0') {
-        if (isspace(c)) {
-            skip_char(l);
-        } else {
-            break;
-        }
-    }
-}
-
-bool skip_prefix(Lexer *l, const char *prefix) {
-    if (!prefix) return false;
-
-    char *saved_point = (*l).parse_point;
-
-    while (*prefix) {
-        char c = peek_char(l);
-        if (c == '\0') {
-            (*l).parse_point = saved_point;
-            return false;
-        }
-        if (c != *prefix) {
-            (*l).parse_point = saved_point;
-            return false;
-        }
-        skip_char(l);
-        prefix++;
-    }
-
-    return true;
-}
-
-void skip_until(Lexer *l, const char *prefix) {
-    while (!is_eof(l) && !skip_prefix(l, prefix)) {
-        skip_char(l);
-    }
-}
-
-bool is_identifier_begin(char c) {
-    return isalpha(c) || c == '_';
-}
-
-bool is_identifier(char c) {
-    return isalnum(c) || c == '_';
-}
-
-bool get_token(Lexer *l) {
-    while (true) {
-        skip_whitespaces(l);
-
-        if (skip_prefix(l, "!")) {
-            skip_until(l, "\n");
-            continue; 
-        }
-
-        break;
-    }
-
-    char c = peek_char(l);;
-    if (c == '\0') {
-        l->token_type = TOKEN_EOF;
-        return false; 
-    }
-
-    for (size_t i = 0; i < sizeof(PUNCTS)/sizeof(PUNCTS[0]); ++i) {
-        const char *prefix = PUNCTS[i];
-        if (skip_prefix(l, prefix)) {
-            l->token_type = (Token_Type) i; 
-        } 
-    } 
-
-    if (c == '&') { // block begin
-        (*l).token_type = TOKEN_BLOCK;
-        (*l).string_storage.count = 0;
-        skip_char(l); // consume '&'
-
-        for ( c = peek_char(l); c != '\0'; c = peek_char(l)) {
-            if (is_identifier(c)) {
-                da_append(&(*l).string_storage, c);
-                skip_char(l);
-            } else {
-                break;
-            }
-        }
-
-        da_append(&(*l).string_storage, 0);
-    }
-
-    if (is_identifier_begin(c)) {
-        (*l).token_type = TOKEN_STRING;
-        (*l).string_storage.count = 0;
-        
-        for (c = peek_char(l); is_identifier(c); c = peek_char(l)) {
-            da_append(&(*l).string_storage, c);
-            skip_char(l);
-        }
-
-        da_append(&(*l).string_storage, 0);
-
-        for (size_t i = 0; i < sizeof(KEYWORDS)/sizeof(KEYWORDS[0]); ++i) {
-            if (strcasecmp(l->string_storage.items, KEYWORDS[i]) == 0) {
-                l->token_type = TOKEN_KEYWORD;
-                l->keyword_type = i; 
-            }
-        }
-    }
-
-    if ((isdigit(c) != 0) || c == '-' || c == '+') {
-        bool is_float = false;
-        l->int_number = 0;
-        l->double_number = 0;
-
-        int sign = 1;
-        if (c == '+') {
-            skip_char(l);
-        } else if (c == '-') {
-            sign = -1;
-            skip_char(l); 
-        }
-
-        for (c = peek_char(l); c != '\0'; c = peek_char(l)) {
-            // TODO: check for overflow
-            if (isdigit(c)) {
-                l->int_number = l->int_number * 10 + (int)(c - '0');
-                skip_char(l);
-            } else if (c == '.' || c == 'e' || c == 'E') {
-                is_float = true;
-                break;
-            } else {
-                break;
-            }
-        }
-
-        l->int_number = sign * l->int_number;
-
-        if (!is_float) {        
-            l->token_type = TOKEN_INTEGER;
-        } else {
-            l->token_type = TOKEN_FLOAT;
-            l->double_number = (double) l->int_number;
-            if (peek_char(l) == '.') {
-                skip_char(l); // consume '.'
-                double fraction = 0.0;
-                double divisor = 1.0;
-
-                for (c = peek_char(l); isdigit(c); c = peek_char(l)) {
-                    fraction = fraction*10.0 + (int)(c - '0');
-                    divisor *= 10.0;
-                    skip_char(l);
-                } 
-            
-                l->double_number += fraction/divisor;
-            } 
-            
-            if (peek_char(l) == 'e' || peek_char(l) == 'E') {
-                skip_char(l); // consume 'e' or 'E'
-
-                int exp_sign = 1;
-                c = peek_char(l);
-
-                if (c == '+') {
-                    skip_char(l);
-                } else if (c == '-') {
-                    exp_sign = -1;
-                    skip_char(l);
-                }
-
-                int exponent_value = 0;
-                for (c = peek_char(l); isdigit(c); c = peek_char(l)) {
-                    exponent_value = exponent_value*10 + (c - '0');
-                    skip_char(l);
-                }
-                
-                l->double_number *= pow(10, exp_sign*exponent_value);
-            }
-        }
-    }
-
-    if (c == '"') {
-        l->token_type = TOKEN_DQSTRING;
-        skip_char(l); // consume beginning '"'
-        
-        (*l).string_storage.count = 0;
-       
-        // NOTE: this allows only for one-line strings
-        // do not see the use for multi-line strings for now 
-        for (c = peek_char(l); (c != '\0') && (c != '"') && !isspace(c); c = peek_char(l)) {
-            da_append(&(*l).string_storage, c);
-            skip_char(l);
-        }
-        
-        if (c != '"') {
-            printf("ERROR: %s:%d:%d: unfinished string literal\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
-            exit(1);
-        }
-        skip_char(l); // consume finishing '"'
-        da_append(&(*l).string_storage, 0);
-    }
-
-    // c = peek_char(l);
-    // printf("UNKNOWN symbol: %c\n", c); 
-    // UNREACHABLE("get_token");
-
-    return true; 
-}
-
-/*
 void parse_params_from_file(const char *filename, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block, CalcParams *params)
 {
     FILE *fp = fopen(filename, "r");
@@ -832,323 +1241,4 @@ void parse_params_from_file(const char *filename, InputBlock *input_block, Monom
 }
 */
 
-void print_input_block(InputBlock *input_block) {
-    printf("Input Block:\n");
-    printf("  reduced_mass = %.5e\n", input_block->reduced_mass);
-    printf("  so_potential = %s\n", input_block->so_potential);
-    printf("  so_dipole    = %s\n", input_block->so_dipole);
-}
 
-void print_monomer(MonomerBlock *monomer_block) {
-    printf("Monomer Block:\n");
-    printf("  t = %s\n", display_monomer_type(monomer_block->t));
-    printf("  I = {%.5e, %.5e, %.5e}\n", monomer_block->II[0], monomer_block->II[1], monomer_block->II[2]);
-    printf("  DJ = %.5e\n", monomer_block->DJ);  
-}
-
-void print_params(CalcParams *params) {
-    printf("Params:\n");
-    printf("  pair state              = %s\n", PAIR_STATES[params->ps]);
-    printf("  niterations             = %zu\n", params->niterations);
-    printf("  total_trajectories      = %zu\n", params->total_trajectories); 
-    printf("  cvode_tolerance         = %.5e\n", params->cvode_tolerance);         
-    printf("  sampling_time           = %.5e\n", params->sampling_time);
-    printf("  MaxTrajectoryLength     = %zu\n", params->MaxTrajectoryLength);
-    printf("  initialM0_npoints       = %zu\n", params->initialM0_npoints);
-    printf("  initialM2_npoints       = %zu\n", params->initialM2_npoints);
-    printf("  R0                      = %.5e\n", params->R0);
-    printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
-    printf("  torque_cache_len        = %zu\n", params->torque_cache_len);
-    printf("  torque_limit            = %.5e\n", params->torque_limit);
-    printf("  jini_histogram_bins     = %zu\n", params->jini_histogram_bins);
-    printf("  jini_histogram_max      = %.5e\n", params->jini_histogram_max);
-    printf("  jfin_histogram_bins     = %zu\n", params->jfin_histogram_bins);
-    printf("  jfin_histogram_max      = %.5e\n", params->jfin_histogram_max);
-    printf("  ortho_state_weight      = %.5e\n", params->ortho_state_weight);
-    printf("  para_state_weight       = %.5e\n", params->para_state_weight);
-}
-
-bool read_entire_file(const char *path, String_Builder *sb)
-{
-    bool result = true;
-
-    FILE *fp = fopen(path, "rb");
-    if (fp == NULL)                 return_defer(false);
-    if (fseek(fp, 0, SEEK_END) < 0) return_defer(false);
-    long m = ftell(fp);
-    
-    if (m < 0)                      return_defer(false);
-    if (fseek(fp, 0, SEEK_SET) < 0) return_defer(false);
-
-    sb_reserve(sb, m);
-    fread(sb->items + sb->count, m, 1, fp);
-    sb->count += m;
-
-    if (ferror(fp)) {
-       return_defer(false);
-    }
-
-defer:
-    if (!result) printf("ERROR: Could not read file %s: %s", path, strerror(errno));
-    if (fp) fclose(fp);
-    return result;
-}
-
-void print_lexeme(Lexer *l) {
-    switch (l->token_type) {
-      case TOKEN_KEYWORD: {
-        printf("KEYWORD: %s\n", l->string_storage.items);
-        break;
-      }
-      case TOKEN_STRING: { 
-        printf("%s: '%s'\n", TOKEN_TYPES[l->token_type], l->string_storage.items);
-        break;
-      }
-      case TOKEN_BLOCK: {
-        printf("%s: %s\n", TOKEN_TYPES[l->token_type], l->string_storage.items);
-        break;
-      }
-      case TOKEN_INTEGER: {
-        printf("%s: %"PRId64"\n", TOKEN_TYPES[l->token_type], l->int_number);
-        break;
-      }
-      case TOKEN_FLOAT: {
-        printf("%s: %.16e\n", TOKEN_TYPES[l->token_type], l->double_number);
-        break;
-      }
-      case TOKEN_DQSTRING: {
-        printf("%s: \"%s\"\n", TOKEN_TYPES[l->token_type], l->string_storage.items); 
-        break;
-      }
-      case TOKEN_EOF: {
-        printf("EOF\n");
-        break;
-      }
-      default: {
-        printf("TOKEN: %s\n", TOKEN_TYPES[l->token_type]);
-        break;
-      }
-    }
-}
-
-void print_lexemes(Lexer *l)
-{
-    for (; get_token(l); ) {
-       print_lexeme(l); 
-    } 
-
-    assert(get_token(l) == TOKEN_EOF);
-}
-
-void expect_token(Lexer *l, Token_Type expected) {
-    Token_Type t = l->token_type;
-    print_lexeme(l);
-
-    // TODO: use display_token
-    if (t != expected) {
-        printf("ERROR: %s:%d:%d: expected '%s' but got type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, 
-               TOKEN_TYPES[expected], TOKEN_TYPES[t]);
-        exit(1);
-    }
-}
-
-void get_and_expect_token(Lexer *l, Token_Type token) {
-    get_token(l);
-    expect_token(l, token);
-}
-
-void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
-{
-    while (true) {
-        get_token(l);
-        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
-            print_lexeme(l);
-            return;
-        }
-
-        expect_token(l, TOKEN_KEYWORD);
-        Keyword keyword_type = l->keyword_type;
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
-
-        get_and_expect_token(l, TOKEN_EQ);
-        get_and_expect_token(l, expect_token);
-        
-        switch (keyword_type) {
-            case KEYWORD_CALCULATION_TYPE: {
-                if (strcasecmp(l->string_storage.items, "PR_MU") == 0) {
-                    params->calculation_type = PR_MU;
-                } else if (strcasecmp(l->string_storage.items, "CORRELATION_SINGLE") == 0) {
-                    params->calculation_type = CORRELATION_SINGLE;
-                } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
-                    params->calculation_type = CORRELATION_ARRAY;
-                } else {
-                    printf("ERROR: %s:%d:%d: unknown calculation type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
-                    printf("Available calculation types:\n");
-                    
-                    for (size_t i = 0; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
-                        printf("  %s\n", CALCULATION_TYPES[i]);
-                    }
-
-                    exit(1);
-                }
-
-                break;
-            }
-            case KEYWORD_PAIR_STATE: {
-                if (strcasecmp(l->string_storage.items, "FREE_AND_METASTABLE") == 0) {
-                    params->ps = FREE_AND_METASTABLE;
-                } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
-                    params->ps = BOUND;
-                } else {
-                    printf("ERROR: %s:%d:%d: unknown pair state '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
-                    printf("Available pair states:\n");
-
-                    for (size_t i = 0; i < sizeof(PAIR_STATES)/sizeof(PAIR_STATES[0]); ++i) {
-                        printf("  %s\n", PAIR_STATES[i]);
-                    }
-
-                    exit(1);
-                }
-
-                break;
-            }
-            case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
-            case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
-            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
-            case KEYWORD_NITERATIONS:             params->niterations = l->int_number; break;
-            case KEYWORD_TOTAL_TRAJECTORIES:      params->total_trajectories = l->int_number; break;
-            case KEYWORD_CVODE_TOLERANCE:         params->cvode_tolerance = l->double_number; break;
-            case KEYWORD_SAMPLING_TIME:           params->sampling_time = l->double_number; break;
-            case KEYWORD_MAXTRAJECTORYLENGTH:     params->MaxTrajectoryLength = l->int_number; break;
-            case KEYWORD_INITIALM0_NPOINTS:       params->initialM0_npoints = l->int_number; break;
-            case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
-            case KEYWORD_R0:                      params->R0 = l->double_number; break;
-            case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
-            case KEYWORD_TORQUE_CACHE_LEN:        params->torque_cache_len = l->int_number; break;
-            case KEYWORD_TORQUE_LIMIT:            params->torque_limit = l->double_number; break;
-            case KEYWORD_JINI_HISTOGRAM_BINS:     params->jini_histogram_bins = l->int_number; break;
-            case KEYWORD_JINI_HISTOGRAM_MAX:      params->jini_histogram_max = l->double_number; break;
-            case KEYWORD_JFIN_HISTOGRAM_BINS:     params->jfin_histogram_bins = l->int_number; break;
-            case KEYWORD_JFIN_HISTOGRAM_MAX:      params->jfin_histogram_max = l->double_number; break;
-            case KEYWORD_ORTHO_STATE_WEIGHT:      params->ortho_state_weight = l->double_number; break;
-            case KEYWORD_PARA_STATE_WEIGHT:       params->para_state_weight = l->double_number; break;
-            default: assert(false); 
-        }
-    }
-}
-            
-void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
-    while (true) {
-        get_token(l);
-        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
-            print_lexeme(l);
-            return;
-        }
-
-        expect_token(l, TOKEN_KEYWORD);
-        Keyword keyword_type = l->keyword_type;
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
-
-        get_and_expect_token(l, TOKEN_EQ);
-        get_and_expect_token(l, expect_token);
-
-        switch (keyword_type) {
-            case KEYWORD_MONOMER_TYPE: {
-                if (strcasecmp(l->string_storage.items, "ATOM") == 0) {
-                    monomer_block->t = ATOM;
-                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE;
-                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_INTEGER") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE_REQ_INTEGER;
-                } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_HALFINTEGER") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
-                } else if (strcasecmp(l->string_storage.items, "ROTOR") == 0) {
-                    monomer_block->t = ROTOR;
-                } else {
-                    printf("ERROR: %s:%d:%d: unknown monomer type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
-                    printf("Available monomer_block types:\n");
-                    for (size_t i = 0; i < sizeof(MONOMER_TYPES)/sizeof(MONOMER_TYPES[0]); ++i) {
-                        printf(" %s\n", display_monomer_type(MONOMER_TYPES[i])); 
-                    }
-                    exit(1);
-                }
-                
-                break;
-            }
-            case KEYWORD_DJ: monomer_block->DJ = l->double_number; break; 
-            case KEYWORD_II: assert(false); break;
-            default: assert(false);
-        }
-
-    }
-} 
-
-void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
-{
-    while (true) { 
-        get_token(l);
-        if (is_eof(l)) return;
-
-        expect_token(l, TOKEN_BLOCK);
-
-        MonomerBlock *monomer_block = monomer1_block;
-
-        if (strcasecmp(l->string_storage.items, "END") == 0) {
-            printf("ERROR: %s:%d:%d: found '%s' without corresponding block beginning\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
-            exit(1);
-        } else if (strcasecmp(l->string_storage.items, "INPUT") == 0) {
-            parse_input_block(l, input_block, params);
-        } else if (strcasecmp(l->string_storage.items, "MONOMER") == 0) {
-            parse_monomer_block(l, monomer_block); 
-        }
-    }
-}
-
-int main(int argc, char* argv[]) 
-{
-    UNUSED(argc);
-    UNUSED(argv);
-
-    const char *filename = "params.conf"; 
-    String_Builder sb = {0};
-    if (!read_entire_file(filename, &sb)) {
-        exit(1);
-    }
-
-    Lexer l = lexer_new(filename, sb.items, sb.items + sb.count);
-    //print_lexemes(&l);
-
-    InputBlock input_block = {0}; 
-    MonomerBlock monomer1  = {0};
-    MonomerBlock monomer2  = {0};
-    CalcParams params      = {0};
-
-    parse_params(&l, &params,  &input_block, &monomer1, &monomer2);
-
-    print_params(&params); 
-    print_input_block(&input_block);
-    print_monomer(&monomer1);
-
-    return 0; 
-}
-
-/*
-int main2(int argc, char* argv[])
-{
-    InputBlock input_block = {0};
-    MonomerBlock monomer1  = {0};
-    MonomerBlock monomer2  = {0};
-    CalcParams params      = {0};
-    parse_params_from_file("params.conf", &input_block, &monomer1, &monomer2, &params);
-    
-    print_input_block(&input_block);
-    print_params(&params);
-
-
-    // IDEA:
-    // #embed directive в &INPUT, которая позволяет написать несколько строчек кода на С, который будет помещен во временный файл, скомпилирован в динамическую библиотеку
-    // и мог быть вызван исполняемым файлом. 
-
-    return 0;
-}
-*/

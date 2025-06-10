@@ -15,59 +15,27 @@
 #include "ai_pes_h2ar_leroy.h"
 #include "ai_ids_h2_ar_pip_nn.hpp"
 
-double pes(double *q) {
-    static double qmol[5];
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    return pes_h2ar(qmol[0], qmol[4]);
-} 
-
-void dpes(double *q, double *dpesdq) {
-    static Eigen::Matrix<double, 5, 5> jac;
-    static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
-    static double qmol[5];
-    
-    jac.setZero();
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    linear_molecule_atom_Jacobi_mol_by_lab(jac, q, qmol);  
-    
-    double dR, dTheta;
-    dpes_h2ar(qmol[0], qmol[4], &dR, &dTheta); // [R, THETAM] -> [dpes_dR, dpes_dTheta]
-
-    // [dpes_dR, 0, 0, 0, dpes_dTheta]
-    derivatives_mol(0) = dR; 
-    derivatives_mol(4) = dTheta; 
-    
-    derivatives_lab = jac * derivatives_mol;
-    Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
-}
-
-void dipole_lab(double *q, double diplab[3]) {
-    double qmol[5];
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    
-    Eigen::Vector3d dipmol = dipole_bf(qmol[0], qmol[4]); 
-    
-    double sinphiem, cosphiem;
-    double sinthetaem, costhetaem;
-    double sinpsiem, cospsiem;
-
-    sincos(qmol[1], &sinphiem, &cosphiem);
-    sincos(qmol[2], &sinthetaem, &costhetaem);
-    sincos(qmol[3], &sinpsiem, &cospsiem);
-
-    Sz_filler(Sphiem, sinphiem, cosphiem);
-    Sx_filler(Sthetaem, sinthetaem, costhetaem);
-    Sz_filler(Spsiem, sinpsiem, cospsiem);
-       
-    Eigen::Vector3d diplab_eig = Sphiem.transpose() * Sthetaem.transpose() * Spsiem.transpose() * dipmol; 
-   
-    diplab[0] = diplab_eig(0); 
-    diplab[1] = diplab_eig(1); 
-    diplab[2] = diplab_eig(2); 
-}
-
-int main2()
+int main(int argc, char *argv[])
 {
+    MPI_Init(&argc, &argv);
+
+    Arena a = {};
+    
+    double MU = m_H2 * m_Ar / (m_H2 + m_Ar); 
+    double I1[2] = {II_H2, II_H2};
+    MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_HALFINTEGER, ATOM, I1, NULL, 0);
+
+    printf("II_H2: %.15e\n", II_H2);
+    printf("MU: %.15e\n", MU);
+    printf("D_H2: %.15e\n", D_H2);
+
+    Array qp0 = arena_create_array(&a, ms.QP_SIZE);
+    get_qp_from_ms(&ms, &qp0);
+
+    for (size_t i = 0; i < ms.QP_SIZE; ++i) {
+        printf("%.5e\n", qp0.data[i]);
+    }
+    
     double l = l_H2*sqrt(5.6919435017e+01 / 60.8530119); 
     double II = (m_H/2.0*l*l); 
     double B_cm = Planck/(8.0*M_PI*M_PI*II*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
@@ -75,10 +43,12 @@ int main2()
     printf("B_cm = %.10e\n", B_cm);
     printf("l = %.10e\n", l);
 
+    MPI_Finalize();
+
     return 0;
 }
 
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
@@ -120,8 +90,8 @@ int main(int argc, char *argv[])
     params.jini_histogram_max               = 10.0;
     params.jfin_histogram_bins              = 101;
     params.jfin_histogram_max               = 10.0;
-    params.ortho_state_weight               = 0.75;
-    params.para_state_weight                = 0.25;
+    params.odd_j_spin_weight                = 0.75;
+    params.even_j_spin_weight               = 0.25;
     
     double Temperature = 300.0;
 
