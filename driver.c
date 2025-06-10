@@ -11,8 +11,13 @@
 #define USE_MPI
 #include "hawaii.h"
 
-#define BUFF_SIZE 256
 
+// TODO: we may want to have some predefined constants like 'l_H2' or 'm_H2'
+// and have a library of them (constants.h) instead of specifying them in raw
+// form in the configuration file
+
+// TODO: set up requantization parameters per monomer
+// for example we may want to conduct requantizations of two linear molecules with different parameters
 typedef struct {
     MonomerType t;
     double II[3];
@@ -797,7 +802,7 @@ void setup_dipole(InputBlock *input_block)
     void (*dipole_init)(bool);
     dipole_init = load_symbol(so_handle, "dipole_init");
 
-    bool log = true;
+    bool log = false;
     dipole_init(log); 
     
     dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab");
@@ -829,17 +834,39 @@ void setup_pes(InputBlock *input_block)
     PRINT0("\n\n");
 }
 
+char* shift(int *argc, char ***argv)
+{
+    assert(*argc > 0);
+    char *result = *argv[0];
+
+    *argc -= 1;
+    *argv += 1;
+
+    return result; 
+}
+
+void usage(const char *program_path)
+{
+    PRINT0("Usage: %s <configuration-file>\n", program_path);
+}
+
 int main(int argc, char* argv[]) 
 {
-    UNUSED(argc);
-    UNUSED(argv);
-
     MPI_Init(&argc, &argv);
     
     INIT_WRANK;
     INIT_WSIZE;
 
-    const char *filename = "params.conf"; 
+    char *program_path = shift(&argc, &argv);
+
+    if (argc <= 0) {
+        usage(program_path);
+        PRINT0("ERROR: a configuration file must be provided\n");
+        exit(1); 
+    }
+
+    const char *filename = shift(&argc, &argv);
+
     String_Builder sb = {0};
     if (!read_entire_file(filename, &sb)) {
         exit(1);
@@ -1172,6 +1199,8 @@ void parse_input_block_line(char *line, InputBlock *input_block, CalcParams *par
         exit(1);
     } 
 }
+
+#define BUFF_SIZE 256
 
 void parse_params_from_file(const char *filename, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block, CalcParams *params)
 {
