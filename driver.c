@@ -40,6 +40,7 @@ typedef enum {
     TOKEN_DQSTRING,
     TOKEN_INTEGER,
     TOKEN_FLOAT,
+    TOKEN_BOOLEAN,
     TOKEN_OCURLY,
     TOKEN_CCURLY,
     TOKEN_COMMA,
@@ -55,13 +56,14 @@ const char *TOKEN_TYPES[TOKEN_COUNT] = {
       [TOKEN_DQSTRING] = "DOUBLE-QUOTED STRING",
       [TOKEN_INTEGER]  = "INTEGER",
       [TOKEN_FLOAT]    = "FLOAT",
+      [TOKEN_BOOLEAN]  = "BOOLEAN",
       [TOKEN_OCURLY]   = "{",
       [TOKEN_CCURLY]   = "}",
       [TOKEN_COMMA]    = ",",
       [TOKEN_EQ]       = "=",
 }; 
 
-static_assert(TOKEN_COUNT == 11, "");
+static_assert(TOKEN_COUNT == 12, "");
 
 const char *PUNCTS[TOKEN_COUNT] = {
     [TOKEN_COMMA]  = ",",
@@ -105,6 +107,7 @@ typedef enum {
     KEYWORD_JFIN_HISTOGRAM_MAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
+    KEYWORD_USE_ZIMMERMANN_TRICK,
     /* MONOMER BLOCK */
     KEYWORD_MONOMER_TYPE,
     KEYWORD_DJ,
@@ -140,11 +143,13 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]      = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]       = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]      = "EVEN_J_SPIN_WEIGHT",
+    [KEYWORD_USE_ZIMMERMANN_TRICK]    = "USE_ZIMMERMANN_TRICK", 
+    /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]            = "MONOMER_TYPE",
     [KEYWORD_DJ]                      = "DJ",
     [KEYWORD_II]                      = "II",
 }; 
-static_assert(KEYWORD_COUNT == 30, "");
+static_assert(KEYWORD_COUNT == 31, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]        = TOKEN_STRING,
@@ -174,6 +179,8 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]      = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]       = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]      = TOKEN_FLOAT,
+    [KEYWORD_USE_ZIMMERMANN_TRICK]    = TOKEN_BOOLEAN, 
+    /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]            = TOKEN_STRING,
     [KEYWORD_DJ]                      = TOKEN_FLOAT,
     [KEYWORD_II]                      = TOKEN_OCURLY,
@@ -186,6 +193,7 @@ typedef struct {
     char *eof;
     Token_Type token_type;
     String_Builder string_storage;
+    bool boolean_value;
     int64_t int_number;
     double double_number;
     Keyword keyword_type;
@@ -300,7 +308,7 @@ bool get_token(Lexer *l) {
         const char *prefix = PUNCTS[i];
         if (skip_prefix(l, prefix)) {
             l->token_type = (Token_Type) i; 
-        } 
+        }
     } 
 
     if (c == '&') { // block begin
@@ -310,7 +318,7 @@ bool get_token(Lexer *l) {
 
         for ( c = peek_char(l); c != '\0'; c = peek_char(l)) {
             if (is_identifier(c)) {
-                da_append(&(*l).string_storage, c);
+                da_append(&l->string_storage, c);
                 skip_char(l);
             } else {
                 break;
@@ -325,11 +333,19 @@ bool get_token(Lexer *l) {
         (*l).string_storage.count = 0;
         
         for (c = peek_char(l); is_identifier(c); c = peek_char(l)) {
-            da_append(&(*l).string_storage, c);
+            da_append(&l->string_storage, c);
             skip_char(l);
         }
 
-        da_append(&(*l).string_storage, 0);
+        da_append(&l->string_storage, 0);
+        
+        if (strcasecmp(l->string_storage.items, "true") == 0) {
+            l->token_type = TOKEN_BOOLEAN;
+            l->boolean_value = true;
+        } else if (strcasecmp(l->string_storage.items, "false") == 0) {
+            l->token_type = TOKEN_BOOLEAN;
+            l->boolean_value = false;
+        }
 
         for (size_t i = 0; i < sizeof(KEYWORDS)/sizeof(KEYWORDS[0]); ++i) {
             if (strcasecmp(l->string_storage.items, KEYWORDS[i]) == 0) {
@@ -538,6 +554,11 @@ void expect_token(Lexer *l, Token_Type expected) {
     if (t != expected) {
         PRINT0("ERROR: %s:%d:%d: expected '%s' but got type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, 
                TOKEN_TYPES[expected], TOKEN_TYPES[t]);
+
+        if (expected == TOKEN_BOOLEAN) {
+            PRINT0("Use TRUE and FALSE for boolean values\n");
+        }
+
         exit(1);
     }
 }
@@ -627,6 +648,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_JFIN_HISTOGRAM_MAX:      params->jfin_histogram_max = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
+            case KEYWORD_USE_ZIMMERMANN_TRICK:    params->use_zimmermann_trick = l->boolean_value; break;
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &INPUT block\n",
                      l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
@@ -837,7 +859,7 @@ int main(int argc, char* argv[])
     MonomerBlock monomer2  = {0};
     CalcParams params      = {0};
     parse_params(&l, &params, &input_block, &monomer1, &monomer2);
-    
+
     setup_dipole(&input_block);
     setup_pes(&input_block);
 

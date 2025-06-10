@@ -230,10 +230,11 @@ typedef struct {
     /* applicable to both correlation function AND spectral function calculations */ 
     size_t niterations; // the accumulation of the total_trajectories is split into this number of iterations
     size_t total_trajectories; // the total number of accumulated trajectories (ALL iterations) 
-    
+
     /* correlation calculation ONLY */
     const char* cf_filename;
     double Rcut; // distance at which the trajectory is forcefully stopped, a.u. 
+    bool use_zimmermann_trick;
 
     /* pr/mu calculation ONLY */   
     const char *sf_filename;
