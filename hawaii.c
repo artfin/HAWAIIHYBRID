@@ -1177,9 +1177,10 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
-        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
-        case BOUND:               print_every_nth_iteration = 1000;    break;
-        case PAIR_STATE_COUNT: UNREACHABLE("calculate_M0"); 
+        case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_NONE: UNREACHABLE("calculate_M0");
+        case PAIR_STATE_COUNT: UNREACHABLE("calculate_M0");
     } 
    
     while (integral_counter < params->initialM0_npoints) {
@@ -1192,11 +1193,11 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
         if (!reject(ms, Temperature, params->pesmin)) {
             ++desired_dist;
 
-            if (params->ps == FREE_AND_METASTABLE) {
+            if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                 if (energy < 0.0) continue; 
             }
 
-            if (params->ps == BOUND) {
+            if (params->ps == PAIR_STATE_BOUND) {
                 if (energy > 0.0) continue;
             }
     
@@ -1271,8 +1272,9 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
-        case FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
-        case BOUND:               print_every_nth_iteration = 1000; break;
+        case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
+        case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000; break;
+        case PAIR_STATE_NONE: UNREACHABLE("calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("calculate_M2"); 
     } 
 
@@ -1286,11 +1288,11 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
         if (!reject(ms, Temperature, params->pesmin)) {
             ++desired_dist;
 
-            if (params->ps == FREE_AND_METASTABLE) {
+            if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                 if (energy < 0.0) continue; 
             }
 
-            if (params->ps == BOUND) {
+            if (params->ps == PAIR_STATE_BOUND) {
                 if (energy > 0.0) continue;
             }
             
@@ -1355,8 +1357,9 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
 
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
-        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
-        case BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M0"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M0"); 
     } 
     
@@ -1376,11 +1379,11 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
         if (!reject(ms, Temperature, params->pesmin)) {
             ++desired_dist;
 
-            if (params->ps == FREE_AND_METASTABLE) {
+            if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                 if (energy < 0.0) continue; 
             }
 
-            if (params->ps == BOUND) {
+            if (params->ps == PAIR_STATE_BOUND) {
                 if (energy > 0.0) continue;
             }
     
@@ -1426,8 +1429,9 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
 
     size_t print_every_nth_iteration = 1;
     switch (params->ps) {
-        case FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
-        case BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
+        case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M2"); 
     } 
     
@@ -1447,11 +1451,11 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
         if (!reject(ms, Temperature, params->pesmin)) {
             ++desired_dist;
 
-            if (params->ps == FREE_AND_METASTABLE) {
+            if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                 if (energy < 0.0) continue; 
             }
 
-            if (params->ps == BOUND) {
+            if (params->ps == PAIR_STATE_BOUND) {
                 if (energy > 0.0) continue;
             }
     
@@ -1913,11 +1917,11 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             if (!reject(ms, base_temperature, params->pesmin)) {
                 ++desired_dist;
 
-                if (params->ps == FREE_AND_METASTABLE) {
+                if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     if (energy < 0.0) continue; 
                 }
 
-                if (params->ps == BOUND) {
+                if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
 
@@ -1937,11 +1941,11 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                     double satellite_temperature = params->satellite_temperatures[st];
 
                     switch (params->ps) {
-                        case FREE_AND_METASTABLE: {
+                        case PAIR_STATE_FREE_AND_METASTABLE: {
                           WTT = 1.0;
                           break;
                         }
-                        case BOUND: {
+                        case PAIR_STATE_BOUND: {
                           if (satellite_temperature < base_temperature) {
                               WTT = exp(-params->pesmin*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature));
                           } else {
@@ -1949,12 +1953,13 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                           }
                           break;
                         }
+                        case PAIR_STATE_NONE: UNREACHABLE("calculate_correlation_array_and_save");
                         case PAIR_STATE_COUNT: UNREACHABLE("calculate_correlation_array_and_save");
                     }
 
                     weight = exp(-energy*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature)) / WTT;
                     
-                    if (params->ps == FREE_AND_METASTABLE) {
+                    if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                         if (satellite_temperature > base_temperature) {
                             weight = 0.0;
                             continue;
@@ -2108,7 +2113,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     // TODO: we should probably save it to a file at the end of the iteration if 
     //       some variable is set in the 'params' structure.
     gsl_histogram *tps_hist = NULL;
-    if (params->ps == FREE_AND_METASTABLE) {
+    if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
         size_t nbins = HISTOGRAM_MAX_TPS;
         tps_hist = gsl_histogram_alloc(nbins);
         gsl_histogram_set_ranges_uniform(tps_hist, 0, HISTOGRAM_MAX_TPS);
@@ -2159,18 +2164,18 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             if (!reject(ms, Temperature, params->pesmin)) {
                 ++desired_dist;
 
-                if (params->ps == FREE_AND_METASTABLE) {
+                if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     if (energy < 0.0) continue; 
                 }
 
-                if (params->ps == BOUND) {
+                if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
 
                 int status = correlation_eval(ms, &traj, params, crln, &tps); 
                 if (status == -1) continue;
 
-                if (params->ps == FREE_AND_METASTABLE) {
+                if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
 

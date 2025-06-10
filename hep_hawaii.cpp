@@ -129,11 +129,11 @@ double integrand_pf(hep::mc_point<double> const& x)
     
     double energy = Hamiltonian(gms); 
     
-    if (gparams->ps == FREE_AND_METASTABLE) {
+    if (gparams->ps == PAIR_STATE_FREE_AND_METASTABLE) {
         if (energy < 0.0) return 0.0; 
     }
 
-    if (gparams->ps == BOUND) {
+    if (gparams->ps == PAIR_STATE_BOUND) {
         if (energy > 0.0) return 0.0; 
     }
     
@@ -159,11 +159,11 @@ double integrand_M0(hep::mc_point<double> const& x)
 
     double energy = Hamiltonian(gms); 
     
-    if (gparams->ps == FREE_AND_METASTABLE) {
+    if (gparams->ps == PAIR_STATE_FREE_AND_METASTABLE) {
         if (energy < 0.0) return 0.0; 
     }
 
-    if (gparams->ps == BOUND) {
+    if (gparams->ps == PAIR_STATE_BOUND) {
         if (energy > 0.0) return 0.0; 
     }
     
@@ -204,11 +204,11 @@ double integrand_M2(hep::mc_point<double> const& x)
 
     double energy = Hamiltonian(gms); 
     
-    if (gparams->ps == FREE_AND_METASTABLE) {
+    if (gparams->ps == PAIR_STATE_FREE_AND_METASTABLE) {
         if (energy < 0.0) return 0.0; 
     }
 
-    if (gparams->ps == BOUND) {
+    if (gparams->ps == PAIR_STATE_BOUND) {
         if (energy > 0.0) return 0.0; 
     }
             

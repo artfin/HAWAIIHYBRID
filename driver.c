@@ -575,7 +575,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
                     PRINT0("Available calculation types:\n");
                     
-                    for (size_t i = 0; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
+                    for (size_t i = 1; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
                         PRINT0("  %s\n", CALCULATION_TYPES[i]);
                     }
 
@@ -586,9 +586,9 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             }
             case KEYWORD_PAIR_STATE: {
                 if (strcasecmp(l->string_storage.items, "FREE_AND_METASTABLE") == 0) {
-                    params->ps = FREE_AND_METASTABLE;
+                    params->ps = PAIR_STATE_FREE_AND_METASTABLE;
                 } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
-                    params->ps = BOUND;
+                    params->ps = PAIR_STATE_BOUND;
                 } else {
                     PRINT0("ERROR: %s:%d:%d: unknown pair state '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
                     PRINT0("Available pair states:\n");
@@ -726,6 +726,11 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
             monomer_block = monomer2_block;
             monomer_blocks_count++; 
         }
+    }
+
+    if (params->ps == PAIR_STATE_NONE) {
+        PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_PAIR_STATE]);
+        exit(1);
     }
 
     if (params->calculation_type == CALCULATION_NONE) {

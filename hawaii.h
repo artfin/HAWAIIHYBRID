@@ -170,8 +170,9 @@ typedef struct {
 } MoleculeSystem;
 
 typedef enum {
-    FREE_AND_METASTABLE, // автоматически отделяем вклады
-    BOUND,
+    PAIR_STATE_NONE,
+    PAIR_STATE_FREE_AND_METASTABLE, // автоматически отделяем вклады
+    PAIR_STATE_BOUND,
     PAIR_STATE_COUNT,
 } PairState;
 
