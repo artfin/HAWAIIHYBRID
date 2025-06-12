@@ -148,6 +148,7 @@ typedef struct {
     double *dVdq;
     // TODO: should this be a monomer field or a bool[2] in MoleculeSystem?
     bool apply_requantization;
+    double initial_j;
 } Monomer; 
 
 typedef struct {
