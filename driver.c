@@ -771,12 +771,12 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
     }
 }
 
-void *load_symbol(void *handle, const char *symbol_name) 
+void *load_symbol(void *handle, const char *symbol_name, bool allow_undefined) 
 {
     void *symbol = dlsym(handle, symbol_name);
 
     char *err = dlerror();
-    if (err != NULL) {
+    if (!allow_undefined && err != NULL) {
         PRINT0("ERROR: could not load '%s': %s\n", symbol_name, err);
         dlclose(handle);
         exit(1);
@@ -798,14 +798,27 @@ void setup_dipole(InputBlock *input_block)
     }
 
     dlerror(); // clear error log
-    
-    void (*dipole_init)(bool);
-    dipole_init = load_symbol(so_handle, "dipole_init");
+               
+    bool allow_undefined = true;
+    bool must_be_defined = false;
 
-    bool log = false;
-    dipole_init(log); 
+    void (*dipole_init)(bool);
+    dipole_init = load_symbol(so_handle, "dipole_init", allow_undefined);
+
+    if (dipole_init != NULL) {
+        if (_wrank == 0) {
+            bool log = true;
+            printf("INFO: found init function for dipole. Initializing...\n");
+            dipole_init(log); 
+        } else {
+            bool log = false;
+            dipole_init(log);
+        }
+    } else {
+        PRINT0("INFO: no init function for dipole found\n");
+    }
     
-    dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab");
+    dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab", must_be_defined);
 
     PRINT0("Successfully loaded\n");
     PRINT0("*****************************************************\n");
@@ -826,8 +839,9 @@ void setup_pes(InputBlock *input_block)
 
     dlerror();
 
-    pes = (pesPtr) load_symbol(so_handle, "pes_lab");
-    dpes = (dpesPtr) load_symbol(so_handle, "dpes_lab");
+    bool must_be_defined = false;
+    pes = (pesPtr) load_symbol(so_handle, "pes_lab", must_be_defined);
+    dpes = (dpesPtr) load_symbol(so_handle, "dpes_lab", must_be_defined);
     
     PRINT0("Successfully loaded\n");
     PRINT0("*****************************************************\n");
