@@ -2429,6 +2429,12 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("    The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
     }
 
+    if (ms->m1.initial_j >= 0) {
+        PRINT0("\n");
+        PRINT0("    The initial conditions for 1st monomer will use fixed J = %.3e\n", ms->m1.initial_j);
+        PRINT0("\n");
+    }
+
     // These are the 'default' inertia tensor values, corresponding to centrifugal distortion correction equal to zero 
     // for J = 0. When inertia tensor values are corrected to account for centrifugal distortion, the rotational constant B 
     // is calculated using these saved inertia tensor values.
@@ -2562,6 +2568,22 @@ if (_wrank > 0) {
 
             if (ms->intermolecular_qp[IPR] > 0.0) {
                 ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
+            }
+
+            if (ms->m1.initial_j >= 0) {
+                assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
+
+                double j[3];
+                j_monomer(ms->m1, j);
+                double jl = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+                double scale = (jl > 1e-15) ? ms->m1.initial_j / jl : 0.0;
+
+                ms->m1.qp[IPPHI] *= scale;
+                ms->m1.qp[IPTHETA] *= scale; 
+            } 
+
+            if (ms->m2.initial_j >= 0) {
+                assert(false);
             }
 
             double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;

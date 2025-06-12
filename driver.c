@@ -22,6 +22,7 @@ typedef struct {
     MonomerType t;
     double II[3];
     double DJ;
+    double initial_j;
 } MonomerBlock;
 
 typedef struct {
@@ -118,6 +119,7 @@ typedef enum {
     KEYWORD_MONOMER_TYPE,
     KEYWORD_DJ,
     KEYWORD_II,
+    KEYWORD_INITIAL_J,
     KEYWORD_COUNT,
 } Keyword;
 
@@ -155,8 +157,9 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_MONOMER_TYPE]                    = "MONOMER_TYPE",
     [KEYWORD_DJ]                              = "DJ",
     [KEYWORD_II]                              = "II",
+    [KEYWORD_INITIAL_J]                       = "INITIAL_J",
 }; 
-static_assert(KEYWORD_COUNT == 32, "");
+static_assert(KEYWORD_COUNT == 33, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -192,6 +195,7 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_MONOMER_TYPE]                    = TOKEN_STRING,
     [KEYWORD_DJ]                              = TOKEN_FLOAT,
     [KEYWORD_II]                              = TOKEN_OCURLY,
+    [KEYWORD_INITIAL_J]                       = TOKEN_FLOAT,
 };
 
 
@@ -721,6 +725,8 @@ void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
                get_and_expect_token(l, TOKEN_CCURLY);
                break;
             } 
+            case KEYWORD_INITIAL_J: monomer_block->initial_j = l->double_number; break; 
+
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &MONOMER block\n",
                      l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
@@ -732,6 +738,9 @@ void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
 
 void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
 {
+    monomer1_block->initial_j = -1.0;
+    monomer2_block->initial_j = -1.0;
+
     size_t monomer_blocks_count = 0;
     MonomerBlock *monomer_block = monomer1_block;
 
@@ -912,6 +921,9 @@ int main(int argc, char* argv[])
 
     ms.m1.DJ = monomer1.DJ; 
     ms.m2.DJ = monomer2.DJ; 
+
+    ms.m1.initial_j = (monomer1.initial_j >= 0) ? monomer1.initial_j : -1.0;
+    ms.m2.initial_j = (monomer2.initial_j >= 0) ? monomer2.initial_j : -1.0;
 
     /*
     double *q = malloc(ms.Q_SIZE*sizeof(double));
