@@ -13,6 +13,7 @@ FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb
 FLAGS := $(FLAGS_DEBUG)
 
 INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
+
 INC_EIGEN    := -I/usr/local/include/eigen3
 INC_HEP      := -I/home/artfin/Desktop/lib/hep-mc-0.7/include/
 INC          := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) 
@@ -125,10 +126,16 @@ build/ai_pes_h2_ar_leroy.so: build/ai_pes_h2ar_leroy.o build/angles_handler.o
 ###################### CO-Ar ##############################
 ###########################################################
 build/potv.o: ./PES-IDS/potv.f | build
-	$(F) -c $< -o $@ 
+	$(F) -c -fPIC $< -o $@ 
 
 build/potv_d.o: ./PES-IDS/potv_d.f03 | build
-	$(F) -c $< -o $@
+	$(F) -c -fPIC $< -o $@
+
+build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handler.o | build
+	$(CXX) $(INC_EIGEN) -shared -I ./ -o $@ $^
+
+build/perm_dipole_coar.so: ./PES-IDS/perm_dipole_coar.c | build
+	$(CC) $(CFLAGS) -shared -I./ -o $@ $^ -lm
 ###########################################################
 
 ###########################################################
@@ -150,7 +157,7 @@ build/c_basis_1_1_2_1_3_purify.o: ./PES-IDS/c_basis_1_1_2_1_3_purify.cc | build
 	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
 
 build/cnpy.o: ./PES-IDS/cnpy.cpp | build
-	$(CC) $(FLAGS) -c -MD -fPIC ./ $< -o $@ -lm
+	$(CC) $(FLAGS) -c -MD -fPIC $< -o $@ -lm
 
 build/ai_pes_n2_ar_pip_nn.o: ./PES-IDS/ai_pes_n2_ar_pip_nn.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
