@@ -103,7 +103,7 @@ build/ai_pes_co2ar.so: ./build/ai_pes_co2ar_lib.o build/ai_pes_co2_ar.o build/an
 build/ai_ids_co2ar_lib.o: ./PES-IDS/ai_ids_co2ar_lib.cpp
 	$(CXX) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
-build/ai_ids_co2ar.so: ./build-IDS/ai_ids_co2ar_lib.o build/ai_ids_co2_ar.o build/angles_handler.o | build
+build/ai_ids_co2ar.so: ./build/ai_ids_co2ar_lib.o build/ai_ids_co2_ar.o build/angles_handler.o | build
 	$(CC) -shared -o $@ $^ -lm -lstdc++
 ###########################################################
 
