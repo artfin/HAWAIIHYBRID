@@ -94,7 +94,10 @@ typedef enum {
     KEYWORD_INITIALM0_NPOINTS,
     KEYWORD_INITIALM2_NPOINTS,
     KEYWORD_SF_FILENAME,
+    KEYWORD_CF_FILENAME,
     KEYWORD_R0,
+    KEYWORD_RCUT,
+    KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO,
     KEYWORD_APPROXIMATEFREQUENCYMAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
@@ -143,7 +146,10 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM0_NPOINTS]               = "INITIALM0_NPOINTS",
     [KEYWORD_INITIALM2_NPOINTS]               = "INITIALM2_NPOINTS",
     [KEYWORD_SF_FILENAME]                     = "SF_FILENAME",
+    [KEYWORD_CF_FILENAME]                     = "CF_FILENAME",
     [KEYWORD_R0]                              = "R0",
+    [KEYWORD_RCUT]                            = "RCUT",
+    [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO] = "PARTIAL_PARTITION_FUNCTION_RATIO",
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = "APPROXIMATEFREQUENCYMAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
@@ -166,7 +172,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
 }; 
-static_assert(KEYWORD_COUNT == 38, "");
+static_assert(KEYWORD_COUNT == 41, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -186,7 +192,10 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM0_NPOINTS]               = TOKEN_INTEGER,
     [KEYWORD_INITIALM2_NPOINTS]               = TOKEN_INTEGER,
     [KEYWORD_SF_FILENAME]                     = TOKEN_DQSTRING,
+    [KEYWORD_CF_FILENAME]                     = TOKEN_DQSTRING,
     [KEYWORD_R0]                              = TOKEN_FLOAT,
+    [KEYWORD_RCUT]                            = TOKEN_FLOAT,
+    [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO] = TOKEN_FLOAT,
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
@@ -663,7 +672,10 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_INITIALM0_NPOINTS:       params->initialM0_npoints = l->int_number; break;
             case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
             case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_CF_FILENAME:             params->cf_filename = strdup(l->string_storage.items); break;
             case KEYWORD_R0:                      params->R0 = l->double_number; break;
+            case KEYWORD_RCUT:                    params->Rcut = l->double_number; break;
+            case KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO: params->partial_partition_function_ratio = l->double_number; break;
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
@@ -869,6 +881,23 @@ void setup_pes(InputBlock *input_block)
     }
 
     dlerror();
+    
+    bool allow_undefined = true;
+    
+    void (*pes_init)(void);
+    pes_init = load_symbol(so_handle, "pes_init", allow_undefined);
+    
+    if (pes_init != NULL) {
+        if (_wrank == 0) {
+            printf("INFO: found init function for pes. Initializing...\n");
+            pes_init(); 
+        } else {
+            pes_init();
+        }
+    } else {
+        PRINT0("INFO: no init function for dipole found\n");
+    }
+    
 
     bool must_be_defined = false;
     pes = (pesPtr) load_symbol(so_handle, "pes_lab", must_be_defined);
@@ -962,7 +991,10 @@ int main(int argc, char* argv[])
             SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, input_block.Temperature);
             break; 
         }
-        case CALCULATION_CORRELATION_SINGLE: assert(false);
+        case CALCULATION_CORRELATION_SINGLE: {
+            CFnc cf = calculate_correlation_and_save(&ms, &params, input_block.Temperature);
+            break;
+        } 
         case CALCULATION_CORRELATION_ARRAY: assert(false);
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 

@@ -89,10 +89,16 @@ build/loess.o: loess.cpp | build
 ###################### CO2-Ar #############################
 ###########################################################
 build/ai_pes_co2_ar.o: ./PES-IDS/ai_pes_co2ar.c | build
-	$(CC) $(FLAGS) $(INC) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_ids_co2_ar.o: ./PES-IDS/ai_ids_co2ar.cpp | build
-	$(CC) $(FLAGS) $(INC) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm
+
+build/ai_pes_co2ar.so: ./PES-IDS/ai_pes_co2ar.cpp build/ai_pes_co2_ar.o build/angles_handler.o | build
+	$(CC) -I./ $(INC_EIGEN) -shared -o $@ $^ -lm -lstdc++
+
+build/ai_ids_co2ar.so: ./PES-IDS/ai_ids_co2ar_lib.cpp build/ai_ids_co2_ar.o build/angles_handler.o | build
+	$(CC) -fPIC -I./ $(INC_EIGEN) -shared -o $@ $^ -lm -lstdc++
 ###########################################################
 
 ###########################################################
@@ -132,7 +138,7 @@ build/potv_d.o: ./PES-IDS/potv_d.f03 | build
 	$(F) -c -fPIC $< -o $@
 
 build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handler.o | build
-	$(CXX) $(INC_EIGEN) -shared -I ./ -o $@ $^
+	$(CXX) $(INC_EIGEN) -shared -fPIC -I ./ -o $@ $^
 
 build/perm_dipole_coar.so: ./PES-IDS/perm_dipole_coar.c | build
 	$(CC) $(CFLAGS) -shared -I./ -o $@ $^ -lm

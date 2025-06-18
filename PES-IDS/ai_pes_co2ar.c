@@ -3,7 +3,7 @@
 static double* legP = NULL;
 static int lmax = 10;
 
-void init_pes()
+void pes_init()
 {
     legP = malloc((lmax + 1) * sizeof(double));
 }
