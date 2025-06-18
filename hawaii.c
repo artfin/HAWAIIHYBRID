@@ -5,15 +5,17 @@
 #define R_HISTOGRAM_BINS 100
 #define R_HISTOGRAM_MAX  10000000.0
 
-#define DEFAULT_JINI_HISTOGRAM_FILENAME "jini.dat"
+#define DEFAULT_JINI_HISTOGRAM_FILENAME1 "jini.dat.1"
+#define DEFAULT_JINI_HISTOGRAM_FILENAME2 "jini.dat.2"
 #define DEFAULT_JINI_HISTOGRAM_BINS 352
 #define DEFAULT_JINI_HISTOGRAM_MAX 35.0 
 
-#define DEFAULT_JFIN_HISTOGRAM_FILENAME "jfin.dat"
+#define DEFAULT_JFIN_HISTOGRAM_FILENAME1 "jfin.dat.1"
+#define DEFAULT_JFIN_HISTOGRAM_FILENAME2 "jfin.dat.2"
 #define DEFAULT_JFIN_HISTOGRAM_BINS 352
 #define DEFAULT_JFIN_HISTOGRAM_MAX  35.0
 
-#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME "nswitch.dat"
+#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME1 "nswitch.dat.1"
 #define DEFAULT_NSWITCH_HISTOGRAM_BINS 20
 #define DEFAULT_NSWITCH_HISTOGRAM_MAX 20.0
 
@@ -52,6 +54,97 @@ MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
     ROTOR, 
     ROTOR_REQUANTIZED_ROTATION,
 };
+
+MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t seed)
+{
+    INIT_WRANK;
+    
+    MoleculeSystem ms = {0};
+    ms.mu = mu;
+    if (ms.mu <= 0) {
+        PRINT0("ERROR: invalid reduced mass (%.5e) -- must be positive  \n", ms.mu);
+        exit(1);
+    }
+    
+    time(&ms.init_rawtime);
+    struct tm *init_timeinfo;
+    init_timeinfo = localtime(&ms.init_rawtime);
+     
+    PRINT0("-------------------------------------------------------------------\n");
+    PRINT0("CURRENT TIME: %04d-%02d-%02d %02d:%02d:%02d\n\n",  
+           init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
+           init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
+
+    PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(ms.m1.t), display_monomer_type(ms.m2.t));
+    PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
+    
+    { 
+        memcpy(&ms.m1, m1, sizeof(Monomer));
+        ms.m1.qp   = malloc((ms.m1.t%MODULO_BASE)   * sizeof(double));
+        ms.m1.dVdq = malloc((ms.m1.t%MODULO_BASE)/2 * sizeof(double));
+
+        if (m1->nswitch_histogram_filename != NULL) ms.m1.nswitch_histogram_filename = strdup(m1->nswitch_histogram_filename); 
+        if (m1->jini_histogram_filename != NULL) ms.m1.jini_histogram_filename = strdup(m1->jini_histogram_filename); 
+        if (m1->jfin_histogram_filename != NULL) ms.m1.jfin_histogram_filename = strdup(m1->jfin_histogram_filename); 
+
+        PRINT0("1st monomer inertia tensor [%s]: ", display_monomer_type(ms.m1.t));
+        switch (ms.m1.t) {
+            case ATOM: PRINT0("(null)\n"); break;
+            
+            case LINEAR_MOLECULE_REQ_HALFINTEGER:
+            case LINEAR_MOLECULE_REQ_INTEGER:
+            case LINEAR_MOLECULE: PRINT0("%.3e %.3e\n", ms.m1.II[0], ms.m1.II[1]); break;
+            
+            case ROTOR_REQUANTIZED_ROTATION:
+            case ROTOR: PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
+        }
+    }
+
+    {
+        memcpy(&ms.m2, m2, sizeof(Monomer));
+        ms.m2.qp   = malloc((ms.m2.t%MODULO_BASE)   * sizeof(double));
+        ms.m2.dVdq = malloc((ms.m2.t%MODULO_BASE)/2 * sizeof(double));
+        
+        if (m2->nswitch_histogram_filename != NULL) ms.m2.nswitch_histogram_filename = strdup(m2->nswitch_histogram_filename); 
+        if (m2->jini_histogram_filename != NULL) ms.m2.jini_histogram_filename = strdup(m2->jini_histogram_filename); 
+        if (m2->jfin_histogram_filename != NULL) ms.m2.jfin_histogram_filename = strdup(m2->jfin_histogram_filename); 
+    
+        PRINT0("2nd monomer inertia tensor [%s]: ", display_monomer_type(ms.m2.t));
+        switch (ms.m2.t) {
+            case ATOM: PRINT0("(null)\n"); break;
+
+            case LINEAR_MOLECULE_REQ_HALFINTEGER:
+            case LINEAR_MOLECULE_REQ_INTEGER:
+            case LINEAR_MOLECULE: PRINT0("%.3e %.3e\n", ms.m2.II[0], ms.m2.II[1]); break;
+
+            case ROTOR:                      PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
+            case ROTOR_REQUANTIZED_ROTATION: PRINT0("%.3e %.3e %.3e\n", ms.m2.II[0], ms.m2.II[1], ms.m2.II[2]); break;
+        }
+    }
+   
+    ms.QP_SIZE = (ms.m1.t%MODULO_BASE) + (ms.m2.t%MODULO_BASE) + 6;
+    ms.Q_SIZE  = ms.QP_SIZE / 2;
+
+    ms.dVdq = malloc(ms.Q_SIZE * sizeof(double));
+    ms.intermediate_q = malloc(ms.Q_SIZE * sizeof(double));
+    
+    memset(ms.intermolecular_qp, 0.0, 6 * sizeof(double));
+
+    if (seed > 0) {
+        ms.seed = seed; 
+        mt_seed32(seed);
+    } else {
+        ms.seed = mt_goodseed();
+        mt_seed32(ms.seed);
+    }
+
+    PRINT0("Length of Q vector:  3 + %d + %d = %zu\n", (ms.m1.t % MODULO_BASE)/2, (ms.m2.t % MODULO_BASE)/2, ms.Q_SIZE); 
+    PRINT0("Length of QP vector: 6 + %d + %d = %zu\n", (ms.m1.t % MODULO_BASE), (ms.m2.t % MODULO_BASE), ms.QP_SIZE);
+    PRINT0("Generator seed is set to %zu\n", ms.seed);
+    PRINT0("-------------------------------------------------------------------\n");
+
+    return ms;
+}
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
 {
@@ -191,6 +284,14 @@ void free_ms(MoleculeSystem *ms) {
     free(ms->m2.qp);
     free(ms->m1.dVdq);
     free(ms->m2.dVdq);
+
+    if (ms->m1.jini_histogram != NULL)    gsl_histogram_free(ms->m1.jini_histogram);
+    if (ms->m1.jfin_histogram != NULL)    gsl_histogram_free(ms->m1.jfin_histogram);
+    if (ms->m1.nswitch_histogram != NULL) gsl_histogram_free(ms->m1.nswitch_histogram);
+
+    if (ms->m2.jini_histogram != NULL)    gsl_histogram_free(ms->m2.jini_histogram);
+    if (ms->m2.jfin_histogram != NULL)    gsl_histogram_free(ms->m2.jfin_histogram);
+    if (ms->m2.nswitch_histogram != NULL) gsl_histogram_free(ms->m2.nswitch_histogram);
 
     free(ms->intermediate_q);
     free(ms->dVdq);
@@ -2292,10 +2393,9 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     
     Arena a = {0};
     
-    double* torque_cache = NULL;
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-        assert(params->torque_cache_len > 0);
-        assert(params->torque_limit > 0);
+        assert(ms->m1.torque_cache_len > 0);
+        assert(ms->m1.torque_limit > 0);
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
@@ -2335,84 +2435,122 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("    CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
     PRINT0("    approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
     
-    gsl_histogram *nswitch_histogram = NULL;
-    FILE *fp_nswitch_histogram = NULL;
+    ms->m1.nswitch_histogram = NULL;
+    ms->m2.nswitch_histogram = NULL;
 
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         PRINT0("\n");
 
         if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
-            PRINT0("  Applying requantization to nearest integer for the first monomer\n");
+            PRINT0("  Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
         } else if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
-            PRINT0("  Applying requantization to nearest half-integer for the first monomer\n");
+            PRINT0("  Applying requantization to nearest half-integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
         }
-        PRINT0("    limiting value of torque (torque_limit):                                  %.3e a.u.\n", params->torque_limit);
-        PRINT0("    torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", params->torque_cache_len);
+        PRINT0("    limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
+        PRINT0("    torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
 
-        size_t nswitch_histogram_bins = (params->nswitch_histogram_bins > 0) ? params->nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
-        double nswitch_histogram_max = (params->nswitch_histogram_max > 0) ? params->nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
-        const char *nswitch_histogram_filename = (params->nswitch_histogram_filename != NULL) ? params->nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME;
+        size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
+        double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
+        const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
         PRINT0("    Initializing histogram to store number of requantization switches on individual trajectories within the range"
                " [%.1e -- %.1e] using %zu bins\n", 0.0, nswitch_histogram_max, nswitch_histogram_bins);
 
         if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
             PRINT0("    Outputting the histogram to standard output\n\n");
-            fp_nswitch_histogram = stdout;
+            ms->m1.fp_nswitch_histogram = stdout;
         } else {
             PRINT0("    Writing the histogram to %s\n\n", nswitch_histogram_filename);
-            fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
+            ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
         }
 
-        nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
-        gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, nswitch_histogram_max);
+        ms->m1.nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
+        gsl_histogram_set_ranges_uniform(ms->m1.nswitch_histogram, 0.0, nswitch_histogram_max);
+    }
+    
+    if ((ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        assert(false);
     }
 
+    if ((ms->m1.t == LINEAR_MOLECULE) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        size_t jini_histogram_bins = (ms->m1.jini_histogram_bins > 0) ? ms->m1.jini_histogram_bins : DEFAULT_JINI_HISTOGRAM_BINS;
+        double jini_histogram_max = (ms->m1.jini_histogram_max > 0) ? ms->m1.jini_histogram_max : DEFAULT_JINI_HISTOGRAM_MAX;
+        const char *jini_histogram_filename = (ms->m1.jini_histogram_filename != NULL) ? arena_strdup(&a, ms->m1.jini_histogram_filename) : DEFAULT_JINI_HISTOGRAM_FILENAME1;
+        PRINT0("    Initializing histogram to store initial angular momenta values for 1st monomer (%s) within the range [%.3e...%.3e] using %zu bins\n",
+               display_monomer_type(ms->m1.t), 0.0, jini_histogram_max, jini_histogram_bins);
    
-    size_t jini_histogram_bins = (params->jini_histogram_bins > 0) ? params->jini_histogram_bins : DEFAULT_JINI_HISTOGRAM_BINS;
-    double jini_histogram_max = (params->jini_histogram_max > 0) ? params->jini_histogram_max : DEFAULT_JINI_HISTOGRAM_MAX;
-    const char *jini_histogram_filename = (params->jini_histogram_filename != NULL) ? arena_strdup(&a, params->jini_histogram_filename) : DEFAULT_JINI_HISTOGRAM_FILENAME;
-    PRINT0("    Initializing histogram to store initial angular momenta values within the range [%.3e...%.3e] using %zu bins\n",
-           0.0, jini_histogram_max, jini_histogram_bins);
+        if (strcmp(jini_histogram_filename, "stdout") == 0) {
+            PRINT0("    Outputting the histogram to standard output\n\n");
+            ms->m1.fp_jini_histogram = stdout;
+        } else {
+            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
+            ms->m1.fp_jini_histogram = fopen(jini_histogram_filename, "w");
+        }
+
+        ms->m1.jini_histogram = gsl_histogram_alloc(jini_histogram_bins);
+        gsl_histogram_set_ranges_uniform(ms->m1.jini_histogram, 0, jini_histogram_max);
+         
+        size_t jfin_histogram_bins = (ms->m1.jfin_histogram_bins > 0) ? ms->m1.jfin_histogram_bins : DEFAULT_JFIN_HISTOGRAM_BINS;
+        double jfin_histogram_max = (ms->m1.jfin_histogram_max > 0) ? ms->m1.jfin_histogram_max : DEFAULT_JFIN_HISTOGRAM_MAX;
+        const char *jfin_histogram_filename = (ms->m1.jfin_histogram_filename != NULL) ? arena_strdup(&a, ms->m1.jfin_histogram_filename) : DEFAULT_JFIN_HISTOGRAM_FILENAME1;
+
+        PRINT0("    Initializing histogram to store final angular momenta values for 1st monomer (%s) within the range [%.3e...%.3e] using %zu bins\n",
+               display_monomer_type(ms->m1.t), 0.0, jfin_histogram_max, jfin_histogram_bins);
    
-    FILE *fp_jini_histogram = NULL; 
-    if (strcmp(jini_histogram_filename, "stdout") == 0) {
-        PRINT0("    Outputting the histogram to standard output\n\n");
-        fp_jini_histogram = stdout;
-    } else {
-        PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-        fp_jini_histogram = fopen(jini_histogram_filename, "w");
+        if (strcmp(jfin_histogram_filename, "stdout") == 0) {
+            PRINT0("    Outputting the histogram to standard output\n\n");
+            ms->m1.fp_jfin_histogram = stdout;
+        } else {
+            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
+            ms->m1.fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
+        }
+
+        ms->m1.jfin_histogram = gsl_histogram_alloc(jfin_histogram_bins);
+        gsl_histogram_set_ranges_uniform(ms->m1.jfin_histogram, 0, jfin_histogram_max);
     }
-
-    gsl_histogram *jini_histogram = gsl_histogram_alloc(jini_histogram_bins);
-    gsl_histogram_set_ranges_uniform(jini_histogram, 0, jini_histogram_max);
-  
-
-    size_t jfin_histogram_bins = (params->jfin_histogram_bins > 0) ? params->jfin_histogram_bins : DEFAULT_JFIN_HISTOGRAM_BINS;
-    double jfin_histogram_max = (params->jfin_histogram_max > 0) ? params->jfin_histogram_max : DEFAULT_JFIN_HISTOGRAM_MAX;
-    const char *jfin_histogram_filename = (params->jfin_histogram_filename != NULL) ? arena_strdup(&a, params->jfin_histogram_filename) : DEFAULT_JFIN_HISTOGRAM_FILENAME;
-
-    PRINT0("    Initializing histogram to store final angular momenta values within the range [%.3e...%.3e] using %zu bins\n",
-           0.0, jfin_histogram_max, jfin_histogram_bins);
+    
+    if ((ms->m2.t == LINEAR_MOLECULE) || (ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        size_t jini_histogram_bins = (ms->m2.jini_histogram_bins > 0) ? ms->m2.jini_histogram_bins : DEFAULT_JINI_HISTOGRAM_BINS;
+        double jini_histogram_max = (ms->m2.jini_histogram_max > 0) ? ms->m2.jini_histogram_max : DEFAULT_JINI_HISTOGRAM_MAX;
+        const char *jini_histogram_filename = (ms->m2.jini_histogram_filename != NULL) ? arena_strdup(&a, ms->m2.jini_histogram_filename) : DEFAULT_JINI_HISTOGRAM_FILENAME2;
+        PRINT0("    Initializing histogram to store initial angular momenta values for 2nd monomer within the range [%.3e...%.3e] using %zu bins\n",
+               0.0, jini_histogram_max, jini_histogram_bins);
    
-    FILE *fp_jfin_histogram = NULL;
-    if (strcmp(jfin_histogram_filename, "stdout") == 0) {
-        PRINT0("    Outputting the histogram to standard output\n\n");
-        fp_jfin_histogram = stdout;
-    } else {
-        PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-        fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
+        if (strcmp(jini_histogram_filename, "stdout") == 0) {
+            PRINT0("    Outputting the histogram to standard output\n\n");
+            ms->m2.fp_jini_histogram = stdout;
+        } else {
+            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
+            ms->m2.fp_jini_histogram = fopen(jini_histogram_filename, "w");
+        }
+
+        ms->m2.jini_histogram = gsl_histogram_alloc(jini_histogram_bins);
+        gsl_histogram_set_ranges_uniform(ms->m2.jini_histogram, 0, jini_histogram_max);
+         
+        size_t jfin_histogram_bins = (ms->m2.jfin_histogram_bins > 0) ? ms->m2.jfin_histogram_bins : DEFAULT_JFIN_HISTOGRAM_BINS;
+        double jfin_histogram_max = (ms->m2.jfin_histogram_max > 0) ? ms->m2.jfin_histogram_max : DEFAULT_JFIN_HISTOGRAM_MAX;
+        const char *jfin_histogram_filename = (ms->m2.jfin_histogram_filename != NULL) ? arena_strdup(&a, ms->m2.jfin_histogram_filename) : DEFAULT_JFIN_HISTOGRAM_FILENAME2;
+
+        PRINT0("    Initializing histogram to store final angular momenta values for 2nd monomer within the range [%.3e...%.3e] using %zu bins\n",
+               0.0, jfin_histogram_max, jfin_histogram_bins);
+   
+        if (strcmp(jfin_histogram_filename, "stdout") == 0) {
+            PRINT0("    Outputting the histogram to standard output\n\n");
+            ms->m2.fp_jfin_histogram = stdout;
+        } else {
+            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
+            ms->m2.fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
+        }
+
+        ms->m2.jfin_histogram = gsl_histogram_alloc(jfin_histogram_bins);
+        gsl_histogram_set_ranges_uniform(ms->m2.jfin_histogram, 0, jfin_histogram_max);
     }
-
-    gsl_histogram *jfin_histogram = gsl_histogram_alloc(jfin_histogram_bins);
-    gsl_histogram_set_ranges_uniform(jfin_histogram, 0, jfin_histogram_max);
-
 
     gsl_rng *gsl_rng_state = NULL;
     gsl_histogram *R_histogram = NULL;
 
     if (params->average_time_between_collisions > 0) {
         PRINT0("    The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
-        PRINT0("    average time between collisions (in Poisson distribution):                %.3e a.t.u. = %.3e ns\n", 
+        PRINT0("    average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n", 
                params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9); 
     
         gsl_rng_env_setup();
@@ -2435,6 +2573,10 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("\n");
     }
 
+    if (ms->m2.initial_j >= 0) {
+        assert(false);
+    }
+
     // These are the 'default' inertia tensor values, corresponding to centrifugal distortion correction equal to zero 
     // for J = 0. When inertia tensor values are corrected to account for centrifugal distortion, the rotational constant B 
     // is calculated using these saved inertia tensor values.
@@ -2445,9 +2587,13 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     if (ms->m1.DJ > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
         PRINT0("    An effective rotational constant (which accounts for centrifugal distortion) will be used. "
-               "The following value D for first monomer is provided: %.5e cm-1\n", ms->m1.DJ);
+               "The following value D for the 1st monomer is provided: %.5e cm-1\n", ms->m1.DJ);
     }
 
+    if (ms->m2.DJ > 0) {
+        assert(false);
+    }
+        
     if (params->odd_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
         
@@ -2513,8 +2659,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
     traj.check_energy_conservation = false;
 
-    int cvode_status = 0; 
-    double t, tout;
     
     if (params->partial_partition_function_ratio == 0) {
         PRINT0("\n\n");
@@ -2558,6 +2702,9 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
 
     for (size_t iter = 0; iter < params->niterations; ++iter) {
         memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
+    
+        int cvode_status = 0; 
+        double t, tout;
             
 if (_wrank > 0) {
         for (size_t traj_counter = 0; traj_counter < local_ntrajectories; ) 
@@ -2595,11 +2742,12 @@ if (_wrank > 0) {
             t    = 0.0;
             tout = params->sampling_time;
 
-            int req_switch_counter = 0;
+            ms->m1.req_switch_counter = 0;
+            ms->m2.req_switch_counter = 0;
 
             if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                torque_cache = (double*) arena_alloc(&a, params->torque_cache_len*sizeof(double));
-                memset(torque_cache, 0, params->torque_cache_len * sizeof(double));
+                ms->m1.torque_cache = (double*) arena_alloc(&a, ms->m1.torque_cache_len*sizeof(double));
+                memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
             }
 
             double poisson_tmax = -1.0;
@@ -2638,14 +2786,14 @@ if (_wrank > 0) {
                 j_monomer(*m, jini);
                 jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
 
-                if (jini_histogram != NULL) {
-                    if (jini_len > jini_histogram->range[jini_histogram->n]) {
-                        jini_histogram = gsl_histogram_extend_right(jini_histogram, jini_len - jini_histogram->range[jini_histogram->n] + 1);
+                if (ms->m1.jini_histogram != NULL) {
+                    if (jini_len > ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
+                        ms->m1.jini_histogram = gsl_histogram_extend_right(ms->m1.jini_histogram, jini_len - ms->m1.jini_histogram->range[ms->m1.jini_histogram->n] + 1);
                         printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
-                               _wrank, jini_histogram->range[0], jini_histogram->range[jini_histogram->n]); 
+                               _wrank, ms->m1.jini_histogram->range[0], ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]); 
                     }
 
-                    gsl_histogram_increment(jini_histogram, jini_len);
+                    gsl_histogram_increment(ms->m1.jini_histogram, jini_len);
                 }
             
                 trajectory_weight = 1.0;
@@ -2674,7 +2822,6 @@ if (_wrank > 0) {
             // flag to update the inertia tensor based on the angular momentum when the requantization is turned on
             bool is_requantization_enabled_this_step = false;
             
-
             size_t step_counter = 0;
             for ( ; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
                 cvode_status = make_step(&traj, tout, &t);
@@ -2707,18 +2854,18 @@ if (_wrank > 0) {
                     }
                     
                     double torq = torque_monomer(ms->m1);
-                    torque_cache[step_counter % params->torque_cache_len] = torq;
+                    ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
                     //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
                     
                     is_requantization_enabled_this_step = false;
 
                     bool all_less_than_limit = true;
                     bool all_more_than_limit = true;
-                    for (size_t i = 0; i < params->torque_cache_len; ++i) {
-                        torq = torque_cache[i];
+                    for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+                        torq = ms->m1.torque_cache[i];
 
-                        if (torq > params->torque_limit) all_less_than_limit = false;
-                        if (torq < params->torque_limit) all_more_than_limit = false;
+                        if (torq > ms->m1.torque_limit) all_less_than_limit = false;
+                        if (torq < ms->m1.torque_limit) all_more_than_limit = false;
 
                         // early exit
                         if (!all_less_than_limit && !all_more_than_limit) break;
@@ -2728,12 +2875,12 @@ if (_wrank > 0) {
                         if (!ms->m1.apply_requantization) {
                             ms->m1.apply_requantization = true;
                             is_requantization_enabled_this_step = true;
-                            req_switch_counter++;
+                            ms->m1.req_switch_counter++;
                         }
                     } else if (all_more_than_limit) {
                         if (ms->m1.apply_requantization) {
                             ms->m1.apply_requantization = false;
-                            req_switch_counter++;
+                            ms->m1.req_switch_counter++;
                         }
                     }
                 }
@@ -2792,24 +2939,24 @@ if (_wrank > 0) {
                 j_monomer(ms->m1, jfin);
                 double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
 
-                if (jfin_histogram != NULL) {
-                    while (jfinl > jfin_histogram->range[jfin_histogram->n]) {
+                if (ms->m1.jfin_histogram != NULL) {
+                    while (jfinl > ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
                         int bins_to_add = 5;
-                        jfin_histogram = gsl_histogram_extend_right(jfin_histogram, bins_to_add);
+                        ms->m1.jfin_histogram = gsl_histogram_extend_right(ms->m1.jfin_histogram, bins_to_add);
                         printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
-                               _wrank, jfin_histogram->range[0], jfin_histogram->range[jfin_histogram->n]); 
+                               _wrank, ms->m1.jfin_histogram->range[0], ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]); 
                     }
 
-                    gsl_histogram_increment(jfin_histogram, jfinl);
+                    gsl_histogram_increment(ms->m1.jfin_histogram, jfinl);
                 }
             }
                             
-            if (nswitch_histogram != NULL) {
-                if (req_switch_counter > nswitch_histogram->range[nswitch_histogram->n]) {
-                    nswitch_histogram = gsl_histogram_extend_right(nswitch_histogram, req_switch_counter - nswitch_histogram->range[nswitch_histogram->n] + 1);
+            if (ms->m1.nswitch_histogram != NULL) {
+                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
+                    ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
                 }
                 
-                gsl_histogram_increment(nswitch_histogram, req_switch_counter);
+                gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
             }
             
             if (poisson_tmax > 0.0) {
@@ -2894,8 +3041,6 @@ if (_wrank > 0) {
             gsl_fft_square(dipy, params->MaxTrajectoryLength);
             gsl_fft_square(dipz, params->MaxTrajectoryLength);
               
-
-
             for (size_t i = 0; i < frequency_array_length; ++i) {
                 sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) * trajectory_weight;
             }
@@ -2912,18 +3057,18 @@ if (_wrank > 0) {
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
               // printf("[%d] sending %lf switch values\n", _wrank, gsl_histogram_sum(nswitch_histogram));
 
-              MPI_Send(&nswitch_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-              MPI_Send(nswitch_histogram->bin, nswitch_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-              gsl_histogram_reset(nswitch_histogram);
+              MPI_Send(&ms->m1.nswitch_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+              MPI_Send(ms->m1.nswitch_histogram->bin, ms->m1.nswitch_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+              gsl_histogram_reset(ms->m1.nswitch_histogram);
           } 
               
-          MPI_Send(&jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-          MPI_Send(jini_histogram->bin, jini_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-          gsl_histogram_reset(jini_histogram);
+          MPI_Send(&ms->m1.jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(ms->m1.jini_histogram->bin, ms->m1.jini_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(ms->m1.jini_histogram);
           
-          MPI_Send(&jfin_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-          MPI_Send(jfin_histogram->bin, jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-          gsl_histogram_reset(jfin_histogram);
+          MPI_Send(&ms->m1.jfin_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(ms->m1.jfin_histogram->bin, ms->m1.jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(ms->m1.jfin_histogram);
 
           if (params->average_time_between_collisions > 0) {
               MPI_Send(&R_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -2931,6 +3076,7 @@ if (_wrank > 0) {
               gsl_histogram_reset(R_histogram);
           }
 } else {
+          /* MASTER CODE */
           assert(_wsize > 1);
 
           MPI_Status status;
@@ -2948,11 +3094,11 @@ if (_wrank > 0) {
               Arena_Mark recv_mark = arena_snapshot(&a);
                   
               if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                  recv_histogram_and_append(&a, status.MPI_SOURCE, &nswitch_histogram);
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram);
               }
                   
-              recv_histogram_and_append(&a, status.MPI_SOURCE, &jini_histogram);
-              recv_histogram_and_append(&a, status.MPI_SOURCE, &jfin_histogram);
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jini_histogram);
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jfin_histogram);
 
               if (params->average_time_between_collisions > 0) {
                   recv_histogram_and_append(&a, status.MPI_SOURCE, &R_histogram);
@@ -2962,21 +3108,31 @@ if (_wrank > 0) {
           }
 
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-              double count = gsl_histogram_sum(nswitch_histogram);
-              printf("INFO: Writing normalized histogram of number of angular momentum switches (# elements = %d):\n", (int) count);
-              write_histogram(fp_nswitch_histogram, nswitch_histogram, count);
+              double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
+              printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
+              write_histogram(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
           }
 
-          { 
-              double count = gsl_histogram_sum(jini_histogram);
-              printf("INFO: Writing normalized histogram of initial angular momenta values: (# elements of %d)\n", (int) count);
-              write_histogram(fp_jini_histogram, jini_histogram, count);
+          if ((ms->m1.t == LINEAR_MOLECULE) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER)) { 
+              double count = gsl_histogram_sum(ms->m1.jini_histogram);
+              printf("INFO: Writing normalized histogram of initial angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              write_histogram(ms->m1.fp_jini_histogram, ms->m1.jini_histogram, count);
+              
+              count = gsl_histogram_sum(ms->m1.jfin_histogram);
+              printf("INFO: Writing normalized histogram of final angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              write_histogram(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
           }
-          { 
-              double count = gsl_histogram_sum(jfin_histogram);
-              printf("INFO: Writing normalized histogram of final angular momenta values: (# elements of %d)\n", (int) count);
-              write_histogram(fp_jfin_histogram, jfin_histogram, count);
+          
+          if ((ms->m2.t == LINEAR_MOLECULE) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER)) { 
+              double count = gsl_histogram_sum(ms->m2.jini_histogram);
+              printf("INFO: Writing normalized histogram of initial angular momenta values for 2nd monomer: (# elements of %d)\n", (int) count);
+              write_histogram(ms->m2.fp_jini_histogram, ms->m2.jini_histogram, count);
+              
+              count = gsl_histogram_sum(ms->m2.jfin_histogram);
+              printf("INFO: Writing normalized histogram of final angular momenta values for 2nd monomer: (# elements of %d)\n", (int) count);
+              write_histogram(ms->m2.fp_jfin_histogram, ms->m2.jfin_histogram, count);
           }
+
 
           if (params->average_time_between_collisions > 0) {
               double count = gsl_histogram_sum(R_histogram);
@@ -3020,7 +3176,7 @@ if (_wrank > 0) {
           printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
           printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
-          save_spectral_function(fp, sf_total, params);
+          save_spectral_function(fp, sf_total, params, ms);
 
           arena_rewind(&a, iter_mark);
       }
@@ -3028,11 +3184,8 @@ if (_wrank > 0) {
 
     sb_free(&sb_datetime);
 
-    if (gsl_rng_state != NULL)     gsl_rng_free(gsl_rng_state);
-    if (R_histogram != NULL)       gsl_histogram_free(R_histogram);
-    if (jini_histogram != NULL)    gsl_histogram_free(jini_histogram);
-    if (jfin_histogram != NULL)    gsl_histogram_free(jfin_histogram);
-    if (nswitch_histogram != NULL) gsl_histogram_free(nswitch_histogram);
+    if (gsl_rng_state != NULL) gsl_rng_free(gsl_rng_state);
+    if (R_histogram != NULL) gsl_histogram_free(R_histogram);
 
     free(dipx);
     free(dipy);
@@ -3229,7 +3382,7 @@ int write_histogram(FILE *fp, gsl_histogram *h, int count)
     return 0;
 }
             
-void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params) 
+void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms) 
 /*
  * Here we assume that values of the spectral function come in unnormalized by the number of trajectories
  * (which is set in sf.ntraj)
@@ -3267,12 +3420,12 @@ void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params)
         fprintf(fp, "# AVERAGE TIME BETWEEN COLLISIONS (POISSON DISTRIBUTION): %.3e\n", params->average_time_between_collisions);
     }
 
-    if (params->torque_limit > 0) {
-        fprintf(fp, "# LIMITING VALUE OF TORQUE: %.5e\n", params->torque_limit); 
+    if (ms->m1.torque_limit > 0) {
+        fprintf(fp, "# MONOMER 1: LIMITING VALUE OF TORQUE: %.5e\n", ms->m1.torque_limit); 
     }
 
-    if (params->torque_cache_len > 0) {
-        fprintf(fp, "# TORQUE CACHE LENGTH TO TURN ON/OFF REQUANTIZATION: %zu\n", params->torque_cache_len);
+    if (ms->m1.torque_cache_len > 0) {
+        fprintf(fp, "# MONOMER 1: TORQUE CACHE LENGTH TO TURN ON/OFF REQUANTIZATION: %zu\n", ms->m1.torque_cache_len);
     }
 
     for (size_t i = 0; i < sf.len; ++i) {
@@ -4365,7 +4518,8 @@ CFnc dct_sf_to_cf(SFnc sf)
 SFnc idct_cf_to_sf(CFnc cf)
 {
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0;
-    double Yscale = ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0) / LightSpeed_cm * M_PI / 2.0;
+    // double Yscale = ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0) / LightSpeed_cm * M_PI / 2.0;
+    double Yscale = ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0) / LightSpeed_cm;
 
     SFnc sf = {
         .nu   = NULL, 

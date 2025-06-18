@@ -144,11 +144,38 @@ typedef struct {
     MonomerType t;
     double II[3];
     double DJ;
+    
     double *qp;
     double *dVdq;
-    // TODO: should this be a monomer field or a bool[2] in MoleculeSystem?
+   
+    // Should this be a monomer field or a bool[2] in MoleculeSystem?
     bool apply_requantization;
+   
+    size_t req_switch_counter; 
+    size_t torque_cache_len;
+    double torque_limit;
+    double *torque_cache;
+    
+    size_t nswitch_histogram_bins; 
+    double nswitch_histogram_max;
+    const char *nswitch_histogram_filename;
+    gsl_histogram *nswitch_histogram;
+    FILE *fp_nswitch_histogram;
+
     double initial_j;
+    
+    /* histograms */
+    size_t jini_histogram_bins;
+    double jini_histogram_max;
+    const char *jini_histogram_filename; 
+    gsl_histogram *jini_histogram;
+    FILE *fp_jini_histogram; 
+   
+    size_t jfin_histogram_bins;
+    double jfin_histogram_max;
+    const char *jfin_histogram_filename;
+    gsl_histogram *jfin_histogram;
+    FILE *fp_jfin_histogram;
 } Monomer; 
 
 typedef struct {
@@ -203,21 +230,6 @@ typedef struct {
     size_t initialM2_npoints;
     double partial_partition_function_ratio;
    
-    /* requantization */ 
-    size_t torque_cache_len;
-    double torque_limit;
-
-    /* histograms */
-    size_t jini_histogram_bins;
-    double jini_histogram_max;
-    const char *jini_histogram_filename; 
-    size_t jfin_histogram_bins;
-    double jfin_histogram_max;
-    const char *jfin_histogram_filename;
-    size_t nswitch_histogram_bins; 
-    double nswitch_histogram_max;
-    const char *nswitch_histogram_filename;
-
     /* weights to factor in spin statistics */
     double odd_j_spin_weight;
     double even_j_spin_weight;
@@ -326,9 +338,9 @@ typedef struct {
 } Tracker;
 
 
-/* ----------------------------- */
-/*    User-Supplied Functions    */
-/* ------------------------------*/
+/* ----------------------------------------------------  */
+/*    User-Supplied Functions: loaded from dynamic libs  */
+/* ----------------------------------------------------  */
 typedef void (*dipolePtr)(double*, double[3]);
 extern dipolePtr dipole;
 
@@ -337,9 +349,10 @@ extern pesPtr pes;
 
 typedef void (*dpesPtr)(double*, double*);
 extern dpesPtr dpes;
-/* ------------------------------*/
+/* ----------------------------------------------------  */
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed); 
+MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t seed);
 void free_ms(MoleculeSystem *ms);
 
 const char* display_monomer_type(MonomerType t);
@@ -440,7 +453,7 @@ void sb_free(String_Builder *sb);
 int write_histogram(FILE *fp, gsl_histogram *h, int count);
 
 int save_correlation_function(FILE *fp, CFnc cf);
-void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params);
+void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms); 
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 

@@ -16,15 +16,6 @@
 // and have a library of them (constants.h) instead of specifying them in raw
 // form in the configuration file
 
-// TODO: set up requantization parameters per monomer
-// for example we may want to conduct requantizations of two linear molecules with different parameters
-typedef struct {
-    MonomerType t;
-    double II[3];
-    double DJ;
-    double initial_j;
-} MonomerBlock;
-
 typedef struct {
     double reduced_mass;
     double Temperature;
@@ -88,7 +79,7 @@ typedef enum {
     /* INPUT BLOCK */
     KEYWORD_CALCULATION_TYPE,
     KEYWORD_PAIR_STATE,
-    KEYWORD_REDUCED_MASS,
+    KEYWORD_PAIR_REDUCED_MASS,
     KEYWORD_SO_POTENTIAL,
     KEYWORD_SO_DIPOLE,
     KEYWORD_TEMPERATURE,
@@ -105,28 +96,39 @@ typedef enum {
     KEYWORD_SF_FILENAME,
     KEYWORD_R0,
     KEYWORD_APPROXIMATEFREQUENCYMAX,
-    KEYWORD_TORQUE_CACHE_LEN,
-    KEYWORD_TORQUE_LIMIT,
-    KEYWORD_JINI_HISTOGRAM_BINS,
-    KEYWORD_JINI_HISTOGRAM_MAX,
-    KEYWORD_JFIN_HISTOGRAM_BINS,
-    KEYWORD_JFIN_HISTOGRAM_MAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
     KEYWORD_USE_ZIMMERMANN_TRICK,
     KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS,
+
     /* MONOMER BLOCK */
     KEYWORD_MONOMER_TYPE,
     KEYWORD_DJ,
     KEYWORD_II,
+
     KEYWORD_INITIAL_J,
+    
+    KEYWORD_TORQUE_CACHE_LEN,
+    KEYWORD_TORQUE_LIMIT,
+    
+    KEYWORD_NSWITCH_HISTOGRAM_BINS, 
+    KEYWORD_NSWITCH_HISTOGRAM_MAX,
+    KEYWORD_NSWITCH_HISTOGRAM_FILENAME,
+    
+    KEYWORD_JINI_HISTOGRAM_BINS,
+    KEYWORD_JINI_HISTOGRAM_MAX,
+    KEYWORD_JINI_HISTOGRAM_FILENAME,
+    
+    KEYWORD_JFIN_HISTOGRAM_BINS,
+    KEYWORD_JFIN_HISTOGRAM_MAX,
+    KEYWORD_JFIN_HISTOGRAM_FILENAME,
     KEYWORD_COUNT,
 } Keyword;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
     [KEYWORD_PAIR_STATE]                      = "PAIR_STATE",
-    [KEYWORD_REDUCED_MASS]                    = "REDUCED_MASS",
+    [KEYWORD_PAIR_REDUCED_MASS]               = "PAIR_REDUCED_MASS",
     [KEYWORD_SO_POTENTIAL]                    = "SO_POTENTIAL",
     [KEYWORD_SO_DIPOLE]                       = "SO_DIPOLE",
     [KEYWORD_TEMPERATURE]                     = "TEMPERATURE",
@@ -143,12 +145,6 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_SF_FILENAME]                     = "SF_FILENAME",
     [KEYWORD_R0]                              = "R0",
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = "APPROXIMATEFREQUENCYMAX",
-    [KEYWORD_TORQUE_CACHE_LEN]                = "TORQUE_CACHE_LEN",
-    [KEYWORD_TORQUE_LIMIT]                    = "TORQUE_LIMIT",
-    [KEYWORD_JINI_HISTOGRAM_BINS]             = "JINI_HISTOGRAM_BINS",
-    [KEYWORD_JINI_HISTOGRAM_MAX]              = "JINI_HISTOGRAM_MAX",
-    [KEYWORD_JFIN_HISTOGRAM_BINS]             = "JFIN_HISTOGRAM_BINS",
-    [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
     [KEYWORD_USE_ZIMMERMANN_TRICK]            = "USE_ZIMMERMANN_TRICK",
@@ -158,13 +154,24 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_DJ]                              = "DJ",
     [KEYWORD_II]                              = "II",
     [KEYWORD_INITIAL_J]                       = "INITIAL_J",
+    [KEYWORD_TORQUE_CACHE_LEN]                = "TORQUE_CACHE_LEN",
+    [KEYWORD_TORQUE_LIMIT]                    = "TORQUE_LIMIT",
+    [KEYWORD_NSWITCH_HISTOGRAM_BINS]          = "NSWITCH_HISTOGRAM_BINS",
+    [KEYWORD_NSWITCH_HISTOGRAM_MAX]           = "NSWITCH_HISTOGRAM_MAX",
+    [KEYWORD_NSWITCH_HISTOGRAM_FILENAME]      = "NSWITCH_HISTOGRAM_FILENAME",
+    [KEYWORD_JINI_HISTOGRAM_BINS]             = "JINI_HISTOGRAM_BINS",
+    [KEYWORD_JINI_HISTOGRAM_MAX]              = "JINI_HISTOGRAM_MAX",
+    [KEYWORD_JINI_HISTOGRAM_FILENAME]         = "JINI_HISTOGRAM_FILENAME",
+    [KEYWORD_JFIN_HISTOGRAM_BINS]             = "JFIN_HISTOGRAM_BINS",
+    [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
+    [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
 }; 
-static_assert(KEYWORD_COUNT == 33, "");
+static_assert(KEYWORD_COUNT == 38, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
     [KEYWORD_PAIR_STATE]                      = TOKEN_STRING,
-    [KEYWORD_REDUCED_MASS]                    = TOKEN_FLOAT,
+    [KEYWORD_PAIR_REDUCED_MASS]               = TOKEN_FLOAT,
     [KEYWORD_SO_POTENTIAL]                    = TOKEN_DQSTRING,
     [KEYWORD_SO_DIPOLE]                       = TOKEN_DQSTRING,
     [KEYWORD_TEMPERATURE]                     = TOKEN_FLOAT,
@@ -181,12 +188,6 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_SF_FILENAME]                     = TOKEN_DQSTRING,
     [KEYWORD_R0]                              = TOKEN_FLOAT,
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = TOKEN_FLOAT,
-    [KEYWORD_TORQUE_CACHE_LEN]                = TOKEN_INTEGER,
-    [KEYWORD_TORQUE_LIMIT]                    = TOKEN_FLOAT,
-    [KEYWORD_JINI_HISTOGRAM_BINS]             = TOKEN_INTEGER,
-    [KEYWORD_JINI_HISTOGRAM_MAX]              = TOKEN_FLOAT,
-    [KEYWORD_JFIN_HISTOGRAM_BINS]             = TOKEN_INTEGER,
-    [KEYWORD_JFIN_HISTOGRAM_MAX]              = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
     [KEYWORD_USE_ZIMMERMANN_TRICK]            = TOKEN_BOOLEAN,
@@ -196,6 +197,17 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_DJ]                              = TOKEN_FLOAT,
     [KEYWORD_II]                              = TOKEN_OCURLY,
     [KEYWORD_INITIAL_J]                       = TOKEN_FLOAT,
+    [KEYWORD_TORQUE_CACHE_LEN]                = TOKEN_INTEGER,
+    [KEYWORD_TORQUE_LIMIT]                    = TOKEN_FLOAT,
+    [KEYWORD_NSWITCH_HISTOGRAM_BINS]          = TOKEN_INTEGER,
+    [KEYWORD_NSWITCH_HISTOGRAM_MAX]           = TOKEN_FLOAT,
+    [KEYWORD_NSWITCH_HISTOGRAM_FILENAME]      = TOKEN_DQSTRING,
+    [KEYWORD_JINI_HISTOGRAM_BINS]             = TOKEN_INTEGER,
+    [KEYWORD_JINI_HISTOGRAM_MAX]              = TOKEN_FLOAT,
+    [KEYWORD_JINI_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
+    [KEYWORD_JFIN_HISTOGRAM_BINS]             = TOKEN_INTEGER,
+    [KEYWORD_JFIN_HISTOGRAM_MAX]              = TOKEN_FLOAT,
+    [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
 };
 
 
@@ -474,11 +486,17 @@ void print_input_block(InputBlock *input_block) {
     printf("  so_dipole    = %s\n", input_block->so_dipole);
 }
 
-void print_monomer(MonomerBlock *monomer_block) {
-    printf("Monomer Block:\n");
-    printf("  t = %s\n", display_monomer_type(monomer_block->t));
-    printf("  I = {%.5e, %.5e, %.5e}\n", monomer_block->II[0], monomer_block->II[1], monomer_block->II[2]);
-    printf("  DJ = %.5e\n", monomer_block->DJ);  
+void print_monomer(Monomer *monomer) {
+    printf("Monomer:\n");
+    printf("  t = %s\n", display_monomer_type(monomer->t));
+    printf("  I = {%.5e, %.5e, %.5e}\n", monomer->II[0], monomer->II[1], monomer->II[2]);
+    printf("  DJ = %.5e\n", monomer->DJ);  
+    printf("  torque_cache_len        = %zu\n", monomer->torque_cache_len);
+    printf("  torque_limit            = %.5e\n", monomer->torque_limit);
+    printf("  jini_histogram_bins     = %zu\n", monomer->jini_histogram_bins);
+    printf("  jini_histogram_max      = %.5e\n", monomer->jini_histogram_max);
+    printf("  jfin_histogram_bins     = %zu\n", monomer->jfin_histogram_bins);
+    printf("  jfin_histogram_max      = %.5e\n", monomer->jfin_histogram_max);
 }
 
 void print_params(CalcParams *params) {
@@ -493,12 +511,6 @@ void print_params(CalcParams *params) {
     printf("  initialM2_npoints       = %zu\n", params->initialM2_npoints);
     printf("  R0                      = %.5e\n", params->R0);
     printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
-    printf("  torque_cache_len        = %zu\n", params->torque_cache_len);
-    printf("  torque_limit            = %.5e\n", params->torque_limit);
-    printf("  jini_histogram_bins     = %zu\n", params->jini_histogram_bins);
-    printf("  jini_histogram_max      = %.5e\n", params->jini_histogram_max);
-    printf("  jfin_histogram_bins     = %zu\n", params->jfin_histogram_bins);
-    printf("  jfin_histogram_max      = %.5e\n", params->jfin_histogram_max);
     printf("  odd_j_spin_weight       = %.5e\n", params->odd_j_spin_weight);
     printf("  even_j_spin_weight      = %.5e\n", params->even_j_spin_weight);
 }
@@ -538,6 +550,7 @@ void print_lexeme(Lexer *l) {
       case TOKEN_INTEGER:  PRINT0("%s: %"PRId64"\n", TOKEN_TYPES[l->token_type], l->int_number); break;
       case TOKEN_FLOAT:    PRINT0("%s: %.16e\n", TOKEN_TYPES[l->token_type], l->double_number); break;
       case TOKEN_DQSTRING: PRINT0("%s: \"%s\"\n", TOKEN_TYPES[l->token_type], l->string_storage.items); break;
+      case TOKEN_BOOLEAN:  PRINT0("%s: %d\n", TOKEN_TYPES[l->token_type], l->boolean_value); break;
       case TOKEN_EOF:      PRINT0("EOF\n"); break;
       case TOKEN_OCURLY:   PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
       case TOKEN_CCURLY:   PRINT0("TOKEN: %s\n", TOKEN_TYPES[l->token_type]); break; 
@@ -635,7 +648,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
 
                 break;
             }
-            case KEYWORD_REDUCED_MASS:            input_block->reduced_mass = l->double_number; break;
+            case KEYWORD_PAIR_REDUCED_MASS:       input_block->reduced_mass = l->double_number; break;
             case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
             case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
             case KEYWORD_TEMPERATURE:             input_block->Temperature = l->double_number; break;
@@ -652,12 +665,6 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;
             case KEYWORD_R0:                      params->R0 = l->double_number; break;
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
-            case KEYWORD_TORQUE_CACHE_LEN:        params->torque_cache_len = l->int_number; break;
-            case KEYWORD_TORQUE_LIMIT:            params->torque_limit = l->double_number; break;
-            case KEYWORD_JINI_HISTOGRAM_BINS:     params->jini_histogram_bins = l->int_number; break;
-            case KEYWORD_JINI_HISTOGRAM_MAX:      params->jini_histogram_max = l->double_number; break;
-            case KEYWORD_JFIN_HISTOGRAM_BINS:     params->jfin_histogram_bins = l->int_number; break;
-            case KEYWORD_JFIN_HISTOGRAM_MAX:      params->jfin_histogram_max = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
             case KEYWORD_USE_ZIMMERMANN_TRICK:    params->use_zimmermann_trick = l->boolean_value; break;
@@ -671,7 +678,10 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
     }
 }
             
-void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
+void parse_monomer_block(Lexer *l, Monomer *m) 
+{
+    m->initial_j = -1.0;
+
     while (true) {
         get_token(l);
         if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
@@ -689,15 +699,15 @@ void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
         switch (keyword_type) {
             case KEYWORD_MONOMER_TYPE: {
                 if (strcasecmp(l->string_storage.items, "ATOM") == 0) {
-                    monomer_block->t = ATOM;
+                    m->t = ATOM;
                 } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE;
+                    m->t = LINEAR_MOLECULE;
                 } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_INTEGER") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE_REQ_INTEGER;
+                    m->t = LINEAR_MOLECULE_REQ_INTEGER;
                 } else if (strcasecmp(l->string_storage.items, "LINEAR_MOLECULE_REQ_HALFINTEGER") == 0) {
-                    monomer_block->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
+                    m->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
                 } else if (strcasecmp(l->string_storage.items, "ROTOR") == 0) {
-                    monomer_block->t = ROTOR;
+                    m->t = ROTOR;
                 } else {
                     PRINT0("ERROR: %s:%d:%d: unknown monomer type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
                     PRINT0("Available monomer_block types:\n");
@@ -709,24 +719,35 @@ void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
                 
                 break;
             }
-            case KEYWORD_DJ: monomer_block->DJ = l->double_number; break; 
+            case KEYWORD_DJ: m->DJ = l->double_number; break; 
             case KEYWORD_II: {
                get_and_expect_token(l, TOKEN_FLOAT);
-               monomer_block->II[0] = l->double_number;
+               m->II[0] = l->double_number;
                get_and_expect_token(l, TOKEN_COMMA);
                
                get_and_expect_token(l, TOKEN_FLOAT);
-               monomer_block->II[1] = l->double_number;
+               m->II[1] = l->double_number;
                get_and_expect_token(l, TOKEN_COMMA);
                
                get_and_expect_token(l, TOKEN_FLOAT);
-               monomer_block->II[2] = l->double_number;
+               m->II[2] = l->double_number;
 
                get_and_expect_token(l, TOKEN_CCURLY);
                break;
             } 
-            case KEYWORD_INITIAL_J: monomer_block->initial_j = l->double_number; break; 
-
+            case KEYWORD_INITIAL_J:                  m->initial_j = l->double_number; break;
+            case KEYWORD_TORQUE_CACHE_LEN:           m->torque_cache_len = l->int_number; break;
+            case KEYWORD_TORQUE_LIMIT:               m->torque_limit = l->double_number; break;
+            case KEYWORD_NSWITCH_HISTOGRAM_BINS:     m->nswitch_histogram_bins = l->int_number; break; 
+            case KEYWORD_NSWITCH_HISTOGRAM_MAX:      m->nswitch_histogram_max = l->double_number; break; 
+            case KEYWORD_NSWITCH_HISTOGRAM_FILENAME: m->nswitch_histogram_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_JINI_HISTOGRAM_BINS:        m->jini_histogram_bins = l->int_number; break;
+            case KEYWORD_JINI_HISTOGRAM_MAX:         m->jini_histogram_max = l->double_number; break;
+            case KEYWORD_JINI_HISTOGRAM_FILENAME:    m->jini_histogram_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_JFIN_HISTOGRAM_BINS:        m->jfin_histogram_bins = l->int_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_MAX:         m->jfin_histogram_max = l->double_number; break;
+            case KEYWORD_JFIN_HISTOGRAM_FILENAME:    m->jfin_histogram_filename = strdup(l->string_storage.items); break;
+ 
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &MONOMER block\n",
                      l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
@@ -736,13 +757,10 @@ void parse_monomer_block(Lexer *l, MonomerBlock *monomer_block) {
     }
 } 
 
-void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block)
+void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer *m1, Monomer *m2)
 {
-    monomer1_block->initial_j = -1.0;
-    monomer2_block->initial_j = -1.0;
-
     size_t monomer_blocks_count = 0;
-    MonomerBlock *monomer_block = monomer1_block;
+    Monomer *m = m1;
 
     while (true) { 
         get_token(l);
@@ -761,9 +779,9 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
                 exit(1);
             }
 
-            parse_monomer_block(l, monomer_block);
+            parse_monomer_block(l, m);
 
-            monomer_block = monomer2_block;
+            m = m2;
             monomer_blocks_count++; 
         }
     }
@@ -909,21 +927,23 @@ int main(int argc, char* argv[])
     //print_lexemes(&l);
 
     InputBlock input_block = {0}; 
-    MonomerBlock monomer1  = {0};
-    MonomerBlock monomer2  = {0};
-    CalcParams params      = {0};
+    Monomer monomer1  = {0};
+    Monomer monomer2  = {0};
+    CalcParams params = {0};
     parse_params(&l, &params, &input_block, &monomer1, &monomer2);
+    
+    /*
+    print_params(&params); 
+    print_input_block(&input_block);
+    */
+    print_monomer(&monomer1);
+    print_monomer(&monomer2);
 
     setup_dipole(&input_block);
     setup_pes(&input_block);
 
-    MoleculeSystem ms = init_ms(input_block.reduced_mass, monomer1.t, monomer2.t, monomer1.II, monomer2.II, 0);
 
-    ms.m1.DJ = monomer1.DJ; 
-    ms.m2.DJ = monomer2.DJ; 
-
-    ms.m1.initial_j = (monomer1.initial_j >= 0) ? monomer1.initial_j : -1.0;
-    ms.m2.initial_j = (monomer2.initial_j >= 0) ? monomer2.initial_j : -1.0;
+    MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
 
     /*
     double *q = malloc(ms.Q_SIZE*sizeof(double));
@@ -942,17 +962,12 @@ int main(int argc, char* argv[])
             SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, input_block.Temperature);
             break; 
         }
-        default: {
-          assert(false);
-        }
+        case CALCULATION_CORRELATION_SINGLE: assert(false);
+        case CALCULATION_CORRELATION_ARRAY: assert(false);
+        case CALCULATION_NONE: UNREACHABLE(""); 
+        case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
 
-    /*
-    print_params(&params); 
-    print_input_block(&input_block);
-    print_monomer(&monomer1);
-    print_monomer(&monomer2);
-    */
     
     MPI_Finalize();
 
