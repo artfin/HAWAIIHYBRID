@@ -33,7 +33,8 @@ int _wsize = 1;
 
 static size_t INIT_SB_CAPACITY = 256;
 
-const char *PAIR_STATES[] = {
+const char *PAIR_STATES[PAIR_STATE_COUNT] = {
+    "NONE",
     "FREE_AND_METASTABLE",
     "BOUND",
 };

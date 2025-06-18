@@ -964,9 +964,9 @@ int main(int argc, char* argv[])
     /*
     print_params(&params); 
     print_input_block(&input_block);
-    */
     print_monomer(&monomer1);
     print_monomer(&monomer2);
+    */
 
     setup_dipole(&input_block);
     setup_pes(&input_block);

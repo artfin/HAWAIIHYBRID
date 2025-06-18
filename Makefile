@@ -89,16 +89,22 @@ build/loess.o: loess.cpp | build
 ###################### CO2-Ar #############################
 ###########################################################
 build/ai_pes_co2_ar.o: ./PES-IDS/ai_pes_co2ar.c | build
-	$(CC) $(FLAGS) $(INC) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+	$(CC) $(FLAGS) $(INC) -c -MD -fPIC -I ./ $< -o $@ $(LINK_GSL) -lm 
 
 build/ai_ids_co2_ar.o: ./PES-IDS/ai_ids_co2ar.cpp | build
-	$(CC) $(FLAGS) $(INC) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm
+	$(CXX) $(FLAGS) $(INC) -c -MD -fPIC -I ./ $< -o $@ $(LINK_GSL) -lm
 
-build/ai_pes_co2ar.so: ./PES-IDS/ai_pes_co2ar.cpp build/ai_pes_co2_ar.o build/angles_handler.o | build
-	$(CC) -I./ $(INC_EIGEN) -shared -o $@ $^ -lm -lstdc++
+build/ai_pes_co2ar_lib.o: ./PES-IDS/ai_pes_co2ar_lib.cpp
+	$(CXX) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
-build/ai_ids_co2ar.so: ./PES-IDS/ai_ids_co2ar_lib.cpp build/ai_ids_co2_ar.o build/angles_handler.o | build
-	$(CC) -fPIC -I./ $(INC_EIGEN) -shared -o $@ $^ -lm -lstdc++
+build/ai_pes_co2ar.so: ./build/ai_pes_co2ar_lib.o build/ai_pes_co2_ar.o build/angles_handler.o | build
+	$(CC) -shared -o $@ $^ -lm -lstdc++
+
+build/ai_ids_co2ar_lib.o: ./PES-IDS/ai_ids_co2ar_lib.cpp
+	$(CXX) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_ids_co2ar.so: ./build-IDS/ai_ids_co2ar_lib.o build/ai_ids_co2_ar.o build/angles_handler.o | build
+	$(CC) -shared -o $@ $^ -lm -lstdc++
 ###########################################################
 
 ###########################################################
@@ -199,7 +205,7 @@ build/ai_ids_n2_ar_pip_nn.o: ./PES-IDS/ai_ids_n2_ar_pip_nn.cpp | build
 
 OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
 MPI_OBJ := build/mpi_hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o build/hep_hawaii.o
-CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o
+CO2_AR  := build/ai_pes_co2_ar.o build/ai_ids_co2_ar.o build/ai_pes_co2ar_lib.o build/ai_ids_co2ar_lib.o
 N2_AR   := build/cnpy.o -lz build/ai_pes_n2_ar_pip_nn.o build/ai_ids_n2_ar_pip_nn.o \
 		   build/c_basis_2_1_4_purify.o build/c_jac_2_1_4_purify.o \
 		   build/c_basis_2_2_1_3_purify.o build/c_basis_2_1_1_1_3_purify.o build/c_basis_1_1_2_1_3_purify.o
