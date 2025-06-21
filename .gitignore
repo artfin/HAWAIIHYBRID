@@ -1,9 +1,14 @@
+build/*
 *.o
 *.swp
 *.exe
 *.bak
 *.out
 *.dat
+docs/*.bbl
+docs/*.bcf
+docs/*.blg
+docs/*.xml
 docs/*.aux
 docs/*.log
 docs/*.toc
