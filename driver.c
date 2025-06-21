@@ -11,7 +11,6 @@
 #define USE_MPI
 #include "hawaii.h"
 
-
 // TODO: we may want to have some predefined constants like 'l_H2' or 'm_H2'
 // and have a library of them (constants.h) instead of specifying them in raw
 // form in the configuration file
@@ -82,9 +81,13 @@ typedef enum {
     KEYWORD_PAIR_REDUCED_MASS,
     KEYWORD_SO_POTENTIAL,
     KEYWORD_SO_DIPOLE,
+
     KEYWORD_TEMPERATURE,
+    KEYWORD_SATELLITE_TEMPERATURES,
+    
     KEYWORD_NITERATIONS,
     KEYWORD_TOTAL_TRAJECTORIES,
+    
     KEYWORD_CVODE_TOLERANCE,
     KEYWORD_SAMPLING_TIME,
     KEYWORD_MAXTRAJECTORYLENGTH,
@@ -95,9 +98,11 @@ typedef enum {
     KEYWORD_INITIALM2_NPOINTS,
     KEYWORD_SF_FILENAME,
     KEYWORD_CF_FILENAME,
+    KEYWORD_CF_FILENAMES,
     KEYWORD_R0,
     KEYWORD_RCUT,
     KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO,
+    KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIOS,
     KEYWORD_APPROXIMATEFREQUENCYMAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
@@ -135,6 +140,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_SO_POTENTIAL]                    = "SO_POTENTIAL",
     [KEYWORD_SO_DIPOLE]                       = "SO_DIPOLE",
     [KEYWORD_TEMPERATURE]                     = "TEMPERATURE",
+    [KEYWORD_SATELLITE_TEMPERATURES]          = "SATELLITE_TEMPERATURES",
     [KEYWORD_NITERATIONS]                     = "NITERATIONS",
     [KEYWORD_TOTAL_TRAJECTORIES]              = "TOTAL_TRAJECTORIES",
     [KEYWORD_CVODE_TOLERANCE]                 = "CVODE_TOLERANCE",
@@ -147,9 +153,11 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM2_NPOINTS]               = "INITIALM2_NPOINTS",
     [KEYWORD_SF_FILENAME]                     = "SF_FILENAME",
     [KEYWORD_CF_FILENAME]                     = "CF_FILENAME",
+    [KEYWORD_CF_FILENAMES]                    = "CF_FILENAMES",
     [KEYWORD_R0]                              = "R0",
     [KEYWORD_RCUT]                            = "RCUT",
     [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO] = "PARTIAL_PARTITION_FUNCTION_RATIO",
+    [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIOS] = "PARTIAL_PARTITION_FUNCTION_RATIOS",
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = "APPROXIMATEFREQUENCYMAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
@@ -172,7 +180,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
 }; 
-static_assert(KEYWORD_COUNT == 41, "");
+static_assert(KEYWORD_COUNT == 44, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -181,6 +189,7 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_SO_POTENTIAL]                    = TOKEN_DQSTRING,
     [KEYWORD_SO_DIPOLE]                       = TOKEN_DQSTRING,
     [KEYWORD_TEMPERATURE]                     = TOKEN_FLOAT,
+    [KEYWORD_SATELLITE_TEMPERATURES]          = TOKEN_OCURLY,
     [KEYWORD_NITERATIONS]                     = TOKEN_INTEGER,
     [KEYWORD_TOTAL_TRAJECTORIES]              = TOKEN_INTEGER,
     [KEYWORD_CVODE_TOLERANCE]                 = TOKEN_FLOAT,
@@ -193,9 +202,11 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM2_NPOINTS]               = TOKEN_INTEGER,
     [KEYWORD_SF_FILENAME]                     = TOKEN_DQSTRING,
     [KEYWORD_CF_FILENAME]                     = TOKEN_DQSTRING,
+    [KEYWORD_CF_FILENAMES]                    = TOKEN_OCURLY,
     [KEYWORD_R0]                              = TOKEN_FLOAT,
     [KEYWORD_RCUT]                            = TOKEN_FLOAT,
     [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO] = TOKEN_FLOAT,
+    [KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIOS] = TOKEN_OCURLY,
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
@@ -219,6 +230,23 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
 };
 
+typedef struct {
+    double *items;
+    size_t count;
+    size_t capacity;
+} Satellite_Temperatures;
+
+typedef struct {
+    char **items;
+    size_t count;
+    size_t capacity;
+} CF_Filenames;
+
+typedef struct {
+    double *items;
+    size_t count;
+    size_t capacity;
+} Partial_Partition_Function_Ratios;
 
 typedef struct {
     char *input_stream;
@@ -510,18 +538,59 @@ void print_monomer(Monomer *monomer) {
 
 void print_params(CalcParams *params) {
     printf("Params:\n");
-    printf("  pair state              = %s\n", PAIR_STATES[params->ps]);
-    printf("  niterations             = %zu\n", params->niterations);
-    printf("  total_trajectories      = %zu\n", params->total_trajectories); 
-    printf("  cvode_tolerance         = %.5e\n", params->cvode_tolerance);         
-    printf("  sampling_time           = %.5e\n", params->sampling_time);
-    printf("  MaxTrajectoryLength     = %zu\n", params->MaxTrajectoryLength);
-    printf("  initialM0_npoints       = %zu\n", params->initialM0_npoints);
-    printf("  initialM2_npoints       = %zu\n", params->initialM2_npoints);
-    printf("  R0                      = %.5e\n", params->R0);
+    printf("  pair state = %s\n", PAIR_STATES[params->ps]);
+    printf("  calculation type = %s\n", CALCULATION_TYPES[params->calculation_type]);
+    printf("  --- sampling ---\n");
+    printf("  sampler_Rmin = %.5e\n", params->sampler_Rmin);
+    printf("  sampler_Rmax = %.5e\n", params->sampler_Rmax);
+    printf("  pesmin       = %.5e\n", params->pesmin);
+    printf("  --- initial spectral moments check ---\n");
+    printf("  initialM0_npoints = %zu\n", params->initialM0_npoints);
+    printf("  initialM2_npoints = %zu\n", params->initialM2_npoints);
+    printf("  partial_partition_function_ratio = %.5e\n", params->partial_partition_function_ratio);
+    printf("  --- weights to factor in spin statistics ---\n"); 
+    printf("  odd_j_spin_weight  = %.5e\n", params->odd_j_spin_weight);
+    printf("  even_j_spin_weight = %.5e\n", params->even_j_spin_weight);
+    printf("  --- trajectory ---\n"); 
+    printf("  sampling_time = %.5e\n", params->sampling_time);
+    printf("  MaxTrajectoryLength = %zu\n", params->MaxTrajectoryLength);
+    printf("  allow_truncating_trajectories_at_length_limit = %d\n", params->allow_truncating_trajectories_at_length_limit);
+    printf("  cvode_tolerance = %.5e\n", params->cvode_tolerance);
+    printf("  --- iteration parameters  ---\n"); 
+    printf("  niterations = %zu\n", params->niterations);
+    printf("  total_trajectories = %zu\n", params->total_trajectories); 
+    printf("  --- correlation function and correlation function array calculation ONLY --- \n"); 
+    printf("  cf_filename = %s\n", params->cf_filename);
+    printf("  Rcut = %.5e\n", params->Rcut);
+    printf("  use_zimmermann_trick = %d\n", params->use_zimmermann_trick);
+    printf("  --- pr/mu spectral function calculation ONLY --- \n"); 
+    printf("  sf_filename = %s\n", params->sf_filename);
     printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
-    printf("  odd_j_spin_weight       = %.5e\n", params->odd_j_spin_weight);
-    printf("  even_j_spin_weight      = %.5e\n", params->even_j_spin_weight);
+    printf("  R0 = %.5e\n", params->R0);
+    printf("  average_time_between_collisions = %.5e\n", params->average_time_between_collisions);
+    printf("  --- correlation function array calculation ONLY --- \n"); 
+
+    printf("  num_satellite_temperatures = %zu\n", params->num_satellite_temperatures);
+    printf("  satellite_temperatures = {");
+    for (size_t i = 0; i < params->num_satellite_temperatures; ++i) {
+        printf("%.2e", params->satellite_temperatures[i]);
+        if (i < params->num_satellite_temperatures - 1) printf(", ");
+    }
+    printf("}\n");
+
+    printf("  cf_filenames = {");
+    for (size_t i = 0; i < params->num_satellite_temperatures; ++i) {
+        printf("%s", params->cf_filenames[i]);
+        if (i < params->num_satellite_temperatures - 1) printf(", ");
+    }
+    printf("}\n");
+ 
+    printf("  partial_partition_function_ratios = {");
+    for (size_t i = 0; i < params->num_satellite_temperatures; ++i) {
+        printf("%.5e", params->partial_partition_function_ratios[i]);
+        if (i < params->num_satellite_temperatures - 1) printf(", ");
+    }    
+    printf("}\n");
 }
 
 bool read_entire_file(const char *path, String_Builder *sb)
@@ -582,6 +651,51 @@ void print_lexemes(Lexer *l)
     assert(get_token(l) == TOKEN_EOF);
 }
 
+void expect_one_of_tokens(Lexer *l, int count, ...) {
+    Token_Type t = l->token_type;
+
+    va_list args;
+    va_start(args, count);
+    
+    String_Builder sb = {0};
+
+    for (int i = 0; i < count; ++i) {
+        Token_Type expected = va_arg(args, Token_Type);
+        if (t == expected) {
+            va_end(args);
+            return;
+        }
+    }
+
+    va_start(args, count); // reset va_args
+
+    bool print_boolean_hint = false;
+
+    for (int i = 0; i < count; ++i) {
+        Token_Type expected = va_arg(args, Token_Type);
+        if (expected == TOKEN_BOOLEAN) {
+            print_boolean_hint = true;
+        }
+
+        sb_append_format(&sb, "'%s'", TOKEN_TYPES[expected]);
+
+        if (i < count - 1) sb_append_cstring(&sb, " or "); 
+    }
+    
+    va_end(args);
+
+    PRINT0("ERROR: %s:%d:%d: expected one of [%s] but got '%s'\n", 
+            l->loc.input_path, l->loc.line_number, l->loc.line_offset,
+            sb.items, TOKEN_TYPES[t]);
+        
+    if (print_boolean_hint) {
+        PRINT0("Use TRUE and FALSE for boolean values\n");
+    }
+
+    sb_free(&sb); 
+    exit(1);
+}
+
 void expect_token(Lexer *l, Token_Type expected) {
     Token_Type t = l->token_type;
 
@@ -604,6 +718,10 @@ void get_and_expect_token(Lexer *l, Token_Type token) {
 
 void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
 {
+    Satellite_Temperatures st = {0}; 
+    CF_Filenames cf_filenames = {0};
+    Partial_Partition_Function_Ratios ppfs = {0};
+
     while (true) {
         get_token(l);
         if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
@@ -661,6 +779,20 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
             case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
             case KEYWORD_TEMPERATURE:             input_block->Temperature = l->double_number; break;
+            case KEYWORD_SATELLITE_TEMPERATURES:  {
+               while(true) {
+                   get_and_expect_token(l, TOKEN_FLOAT);
+                   da_append(&st, l->double_number);
+   
+                   get_token(l); 
+                   expect_one_of_tokens(l, 2, TOKEN_COMMA, TOKEN_CCURLY);
+                   if (l->token_type == TOKEN_CCURLY) break;
+               }
+
+               params->satellite_temperatures = st.items; 
+               params->num_satellite_temperatures = st.count;
+               break;
+            }
             case KEYWORD_NITERATIONS:             params->niterations = l->int_number; break;
             case KEYWORD_TOTAL_TRAJECTORIES:      params->total_trajectories = l->int_number; break;
             case KEYWORD_CVODE_TOLERANCE:         params->cvode_tolerance = l->double_number; break;
@@ -673,9 +805,36 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
             case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;
             case KEYWORD_CF_FILENAME:             params->cf_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_CF_FILENAMES: {
+                while (true) {
+                    get_and_expect_token(l, TOKEN_DQSTRING);
+                    da_append(&cf_filenames, NULL);
+                    cf_filenames.items[cf_filenames.count-1] = strdup(l->string_storage.items);
+
+                    get_token(l);
+                    expect_one_of_tokens(l, 2, TOKEN_COMMA, TOKEN_CCURLY);
+                    if (l->token_type == TOKEN_CCURLY) break;
+                } 
+
+                params->cf_filenames = (const char**) cf_filenames.items;
+                break;
+            }
             case KEYWORD_R0:                      params->R0 = l->double_number; break;
             case KEYWORD_RCUT:                    params->Rcut = l->double_number; break;
             case KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIO: params->partial_partition_function_ratio = l->double_number; break;
+            case KEYWORD_PARTIAL_PARTITION_FUNCTION_RATIOS: {
+                while (true) {
+                   get_and_expect_token(l, TOKEN_FLOAT);
+                   da_append(&ppfs, l->double_number);
+   
+                   get_token(l); 
+                   expect_one_of_tokens(l, 2, TOKEN_COMMA, TOKEN_CCURLY);
+                   if (l->token_type == TOKEN_CCURLY) break;
+                } 
+
+                params->partial_partition_function_ratios = ppfs.items;
+                break;
+            }
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
@@ -961,8 +1120,8 @@ int main(int argc, char* argv[])
     CalcParams params = {0};
     parse_params(&l, &params, &input_block, &monomer1, &monomer2);
     
-    /*
     print_params(&params); 
+    /*
     print_input_block(&input_block);
     print_monomer(&monomer1);
     print_monomer(&monomer2);

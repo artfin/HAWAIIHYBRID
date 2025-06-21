@@ -240,16 +240,16 @@ typedef struct {
     bool allow_truncating_trajectories_at_length_limit;
     double cvode_tolerance;
    
-    /* applicable to both correlation function AND spectral function calculations */ 
+    /* iteration parameters :: applicable to both correlation function AND spectral function calculations */ 
     size_t niterations; // the accumulation of the total_trajectories is split into this number of iterations
     size_t total_trajectories; // the total number of accumulated trajectories (ALL iterations) 
 
-    /* correlation calculation ONLY */
+    /* correlation function and correlation function array calculations ONLY */
     const char* cf_filename;
     double Rcut; // distance at which the trajectory is forcefully stopped, a.u. 
     bool use_zimmermann_trick;
 
-    /* pr/mu calculation ONLY */   
+    /* pr/mu spectral function calculation ONLY */   
     const char *sf_filename;
     double ApproximateFrequencyMax; // cm-1
     double R0; // initial distance, a.u. 
