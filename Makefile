@@ -12,13 +12,15 @@ FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
 FLAGS := $(FLAGS_DEBUG)
 
-INC_SUNDIALS := -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
+-include Makefile.config
 
-INC_EIGEN    := -I/usr/local/include/eigen3
-INC_HEP      := -I/home/artfin/Desktop/lib/hep-mc-0.7/include/
+# set the default values if not defined in config
+INC_SUNDIALS ?= -I/home/artfin/Desktop/lib/sundials-5.2.0/instdir/include
+INC_EIGEN    ?= -I/usr/local/include/eigen3
+INC_HEP      ?= -I/home/artfin/Desktop/lib/hep-mc-0.7/include/
 INC          := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) 
 LIB_GSL      := -lgsl -lgslcblas
-LIB_SUNDIALS := /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_nvecserial.a /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_cvode.a
+LIB_SUNDIALS ?= /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_nvecserial.a /home/artfin/Desktop/lib/sundials-5.2.0/instdir/lib/libsundials_cvode.a
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
 			examples/mpi_phase_space_integration_co2_ar.exe  \

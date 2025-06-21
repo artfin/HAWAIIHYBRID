@@ -1120,8 +1120,8 @@ int main(int argc, char* argv[])
     CalcParams params = {0};
     parse_params(&l, &params, &input_block, &monomer1, &monomer2);
     
-    print_params(&params); 
     /*
+    print_params(&params); 
     print_input_block(&input_block);
     print_monomer(&monomer1);
     print_monomer(&monomer2);
