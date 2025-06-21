@@ -1,10 +1,34 @@
 #include <math.h>
 
+double pes_lab(double *q); // bohr -> Hartree
+void dpes_lab(double *q, double *dpesdq); // bohr -> Hartree
+void dipole_lab(double *q, double diplab[3]); // bohr -> dipole a.u. 
+
 double V_HeAr(double R); // bohr -> Hartree
 double dV_HeAr(double R); // bohr -> Hartree
 double dip_HeAr(double R); // bohr -> dipole a.u.
 
 #ifdef HEAR_IMPLEMENTATION
+
+double pes_lab(double *q) {
+    return V_HeAr(q[2]);
+} 
+
+void dpes_lab(double *q, double *dpesdq) {
+    dpesdq[0] = 0.0;           // dVdPhi
+    dpesdq[1] = 0.0;           // dVdTheta
+    dpesdq[2] = dV_HeAr(q[2]); // dVdR
+}
+
+void dipole_lab(double *q, double diplab[3]) {
+    double Phi    = q[0];
+    double Theta  = q[1];
+    double diplen = dip_HeAr(q[2]);
+
+    diplab[0] = diplen * sin(Theta) * cos(Phi); 
+    diplab[1] = diplen * sin(Theta) * sin(Phi);
+    diplab[2] = diplen * cos(Theta);
+}
 
 double dip_HeAr(double R)
 {

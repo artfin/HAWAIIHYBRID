@@ -1054,7 +1054,7 @@ void setup_pes(InputBlock *input_block)
             pes_init();
         }
     } else {
-        PRINT0("INFO: no init function for dipole found\n");
+        PRINT0("INFO: no pes_init function found\n");
     }
     
 
@@ -1148,13 +1148,20 @@ int main(int argc, char* argv[])
     switch (params.calculation_type) {
         case CALCULATION_PR_MU: {
             SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, input_block.Temperature);
+            UNUSED(sf);
             break; 
         }
         case CALCULATION_CORRELATION_SINGLE: {
             CFnc cf = calculate_correlation_and_save(&ms, &params, input_block.Temperature);
+            UNUSED(cf);
             break;
         } 
-        case CALCULATION_CORRELATION_ARRAY: assert(false);
+        case CALCULATION_CORRELATION_ARRAY: {
+            double base_temperature = input_block.Temperature;
+            CFncArray ca = calculate_correlation_array_and_save(&ms, &params, base_temperature);
+            UNUSED(ca);
+            break;
+        } 
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 

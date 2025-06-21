@@ -37,14 +37,17 @@ const char *PAIR_STATES[PAIR_STATE_COUNT] = {
     "NONE",
     "FREE_AND_METASTABLE",
     "BOUND",
+    "ALL",
 };
+static_assert(PAIR_STATE_COUNT == 4, "");
 
 const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "NONE",
     "PR_MU",
-    "CORRELTION_SINGLE",
+    "CORRELATION_SINGLE",
     "CORRELATION_ARRAY",
 };
+static_assert(CALCULATION_TYPES_COUNT == 4, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -1281,6 +1284,7 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("calculate_M0");
         case PAIR_STATE_COUNT: UNREACHABLE("calculate_M0");
     } 
@@ -1376,6 +1380,7 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000; break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 100000; break;
         case PAIR_STATE_NONE: UNREACHABLE("calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("calculate_M2"); 
     } 
@@ -1461,6 +1466,7 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M0"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M0"); 
     } 
@@ -1533,6 +1539,7 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M2"); 
     } 
@@ -2055,6 +2062,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                           }
                           break;
                         }
+                        case PAIR_STATE_ALL: TODO("calculate_correlation_array_and_save");
                         case PAIR_STATE_NONE: UNREACHABLE("calculate_correlation_array_and_save");
                         case PAIR_STATE_COUNT: UNREACHABLE("calculate_correlation_array_and_save");
                     }

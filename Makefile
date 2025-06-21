@@ -85,6 +85,16 @@ build/angles_handler.o: angles_handler.cpp | build
 build/loess.o: loess.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ -fopenmp  
 
+
+###########################################################
+####################### He-Ar #############################
+###########################################################
+build/HeAr.o: ./PES-IDS/HeAr.h | build
+	$(CC) -DHEAR_IMPLEMENTATION -o $@ -x c -c $^ -lm -lstdc++
+
+build/ai_pes_ids_he_ar.so: ./build/HeAr.o | build
+	$(CC) -shared -o $@ $^ -lm -lstdc++
+
 ###########################################################
 ###################### CO2-Ar #############################
 ###########################################################
@@ -216,7 +226,6 @@ CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_c
 		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o build/ai_ids_ch4_co2.o
  
  
-
 examples/phase_space_integration_co2_ar.exe: examples/phase_space_integration_co2_ar.cpp build/hawaii.o $(OBJ) $(CO2_AR) 
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
