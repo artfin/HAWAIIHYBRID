@@ -2023,12 +2023,19 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     }
     PRINT0("      %s\n", sb.items);
     sb_reset(&sb); 
-    
+
+
     PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
     PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    minimum intermolecular distance for sampler (sampler_Rmin):          %.3e\n", params->sampler_Rmin);
     PRINT0("    maximum intermolecular distance for sampler (sampler_Rmax):          %.3e\n", params->sampler_Rmax);
+    
+    PRINT0("    Writing resulting correlation functions to:\n");
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        PRINT0("      %s\n", params->cf_filenames[st]);
+    }
+
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
    
