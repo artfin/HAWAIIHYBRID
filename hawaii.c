@@ -2190,14 +2190,14 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
         
         if (iter == 0) {
-            printf("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
         } else {
-            printf("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
            
             double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
             sb_reset(&sb_datetime);
             sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
-            printf("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
         }
 
         ms->temp_rawtime = current_rawtime;
