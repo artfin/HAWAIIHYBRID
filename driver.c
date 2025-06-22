@@ -11,7 +11,6 @@
 #define USE_MPI
 #include "hawaii.h"
 
-// TODO: allow to have '_' in long integers. For example, it should be ok to write 1000000 as 1_000_000 (FOR INTEGERS ONLY) 
 // TODO: add types of calculation for calculating phase moment M0 and M2
 // TODO: add type of calculation for running trajectory from specific phase-point 
 
@@ -456,6 +455,8 @@ bool get_token(Lexer *l) {
             } else if (c == '.' || c == 'e' || c == 'E') {
                 is_float = true;
                 break;
+            } else if (c == '_') {
+                skip_char(l);
             } else {
                 break;
             }
