@@ -1017,7 +1017,7 @@ void setup_dipole(InputBlock *input_block)
             dipole_init(log);
         }
     } else {
-        PRINT0("INFO: no init function for dipole found\n");
+        PRINT0("INFO: no 'dipole_init' function found\n");
     }
     
     dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab", must_be_defined);
@@ -1054,7 +1054,7 @@ void setup_pes(InputBlock *input_block)
             pes_init();
         }
     } else {
-        PRINT0("INFO: no pes_init function found\n");
+        PRINT0("INFO: no 'pes_init' function found\n");
     }
     
 
