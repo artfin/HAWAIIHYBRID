@@ -79,6 +79,8 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
            init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
            init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
 
+    PRINT0("WORLD SIZE: %d\n\n", _wsize);
+
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(ms.m1.t), display_monomer_type(ms.m2.t));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
     
@@ -230,6 +232,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     PRINT0("CURRENT TIME: %04d-%02d-%02d %02d:%02d:%02d\n\n",  
            init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
            init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
+    
+    PRINT0("WORLD SIZE: %d\n\n", _wsize);
 
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(t1), display_monomer_type(t2));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
