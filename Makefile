@@ -12,6 +12,8 @@ FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
 FLAGS := $(FLAGS_RELEASE)
 
+LIB_GSL ?= -lgsl -lgslcblas 
+
 -include Makefile.config
 
 INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL)
@@ -58,13 +60,13 @@ docs: docs/main.tex
 	cd docs && pdflatex main.tex && bibtex main && pdflatex main.tex
 
 build/hawaii.o: hawaii.c | build
-	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@
 
 build/mpi_hawaii.o: hawaii.c | build
-	$(MPICC) $(FLAGS) $(INC) -DUSE_MPI -c -MD $< -o $@ 
+	$(MPICC) $(FLAGS) $(INC) -DUSE_MPI -c -MD $< -o $@
 
 build/hep_hawaii.o: hep_hawaii.cpp | build
-	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@
 
 build/array.o: array.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
@@ -312,7 +314,7 @@ examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/a
 
 # '-ldl' on IFA machine instead of '-lmpi_cxx' 
 driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl # -lmpi_cxx 
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -lmpi_cxx 
 
 
 build:
