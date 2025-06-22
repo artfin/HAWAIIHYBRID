@@ -37,14 +37,17 @@ const char *PAIR_STATES[PAIR_STATE_COUNT] = {
     "NONE",
     "FREE_AND_METASTABLE",
     "BOUND",
+    "ALL",
 };
+static_assert(PAIR_STATE_COUNT == 4, "");
 
 const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "NONE",
     "PR_MU",
-    "CORRELTION_SINGLE",
+    "CORRELATION_SINGLE",
     "CORRELATION_ARRAY",
 };
+static_assert(CALCULATION_TYPES_COUNT == 4, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -75,6 +78,8 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
     PRINT0("CURRENT TIME: %04d-%02d-%02d %02d:%02d:%02d\n\n",  
            init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
            init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
+
+    PRINT0("WORLD SIZE: %d\n\n", _wsize);
 
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(ms.m1.t), display_monomer_type(ms.m2.t));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
@@ -227,6 +232,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     PRINT0("CURRENT TIME: %04d-%02d-%02d %02d:%02d:%02d\n\n",  
            init_timeinfo->tm_year + 1900, init_timeinfo->tm_mon + 1, init_timeinfo->tm_mday,
            init_timeinfo->tm_hour,        init_timeinfo->tm_min,     init_timeinfo->tm_sec);
+    
+    PRINT0("WORLD SIZE: %d\n\n", _wsize);
 
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(t1), display_monomer_type(t2));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
@@ -1281,6 +1288,7 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("calculate_M0");
         case PAIR_STATE_COUNT: UNREACHABLE("calculate_M0");
     } 
@@ -1376,6 +1384,7 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 100000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000; break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 100000; break;
         case PAIR_STATE_NONE: UNREACHABLE("calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("calculate_M2"); 
     } 
@@ -1461,6 +1470,7 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M0"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M0"); 
     } 
@@ -1533,6 +1543,7 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
     switch (params->ps) {
         case PAIR_STATE_FREE_AND_METASTABLE: print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_BOUND:               print_every_nth_iteration = 1000;    break;
+        case PAIR_STATE_ALL:                 print_every_nth_iteration = 1000000; break;
         case PAIR_STATE_NONE: UNREACHABLE("mpi_calculate_M2"); 
         case PAIR_STATE_COUNT: UNREACHABLE("mpi_calculate_M2"); 
     } 
@@ -2081,6 +2092,8 @@ void gsl_fft_square(double *farr, size_t N) {
 }
 
 #ifdef USE_MPI
+#include "hep_hawaii.h"
+
 CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature)
 {
     assert(dipole != NULL);
@@ -2089,13 +2102,61 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     assert(params->Rcut > 0);
     assert(params->sampling_time > 0);
     assert(params->total_trajectories > 0);
-    assert(params->partial_partition_function_ratios != NULL);
     assert(params->cvode_tolerance > 0);
     assert(params->niterations >= 1);
     assert(params->num_satellite_temperatures >= 1);
     assert(params->satellite_temperatures != NULL); 
     assert(params->cf_filenames != NULL);
     
+    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
+    memset(prelim_M0, 0, params->num_satellite_temperatures*sizeof(double));
+
+    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
+    memset(prelim_M2, 0, params->num_satellite_temperatures*sizeof(double));
+    
+    if (params->partial_partition_function_ratios == NULL) {
+        PRINT0("Ratios of partial partition functions to full (analytic) partial partition function are not provided.\n");
+        PRINT0("Conducting calculations using adaptive Monte Carlo method.\n");
+    
+        params->partial_partition_function_ratios = (double*) malloc(params->num_satellite_temperatures*sizeof(double));
+
+        size_t niterations = 12;
+        size_t npoints = 1e6; 
+
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            double T = params->satellite_temperatures[st];
+
+            PRINT0("Satellite temperature = %.2e\n", T);
+            double pf_analytic = analytic_full_partition_function_by_V(ms, T);
+            PRINT0("Analytic partition function divided by V: %.5e\n\n\n", pf_analytic);
+
+            double hep_ppf, hep_ppf_err;    
+            c_mpi_perform_integration(ms, INTEGRAND_PF, params, T, niterations, npoints, &hep_ppf, &hep_ppf_err);
+    
+            params->partial_partition_function_ratios[st] = hep_ppf / pf_analytic;
+            PRINT0("T = %.2e => PPF ratio: %.5e\n", T, params->partial_partition_function_ratios[st]);
+
+            double hep_M0, hep_M0_err; 
+            c_mpi_perform_integration(ms, INTEGRAND_M0, params, T, 15, 1e6, &hep_M0, &hep_M0_err);
+
+            hep_M0     *= ZeroCoeff / pf_analytic;
+            hep_M0_err *= ZeroCoeff / pf_analytic;
+            PRINT0("T = %.2e => M0: %.5e\n", T, hep_M0);
+            
+            double hep_M2, hep_M2_err; 
+            c_mpi_perform_integration(ms, INTEGRAND_M2, params, T, 15, 1e6, &hep_M2, &hep_M2_err);
+    
+            hep_M2     *= SecondCoeff / pf_analytic;
+            hep_M2_err *= SecondCoeff / pf_analytic;
+            PRINT0("T = %.2e => M2: %.5e\n", T, hep_M2);
+
+            prelim_M0[st] = hep_M0;
+            prelim_M2[st] = hep_M2;
+        }
+    }    
+   
+    String_Builder sb_datetime = {0};
+
     FILE **fps = malloc(params->num_satellite_temperatures * sizeof(FILE*)); 
     if (_wrank == 0) {
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -2111,7 +2172,6 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
     //       the case when total_trajectories is not divisible by niterations. 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
-
 
     CFncArray ca = {
         .t     = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
@@ -2185,42 +2245,54 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     }
     PRINT0("      %s\n", sb.items);
     sb_reset(&sb); 
-    
+
+
     PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
     PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    minimum intermolecular distance for sampler (sampler_Rmin):          %.3e\n", params->sampler_Rmin);
     PRINT0("    maximum intermolecular distance for sampler (sampler_Rmax):          %.3e\n", params->sampler_Rmax);
+    
+    PRINT0("    Writing resulting correlation functions to:\n");
+    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        PRINT0("      %s\n", params->cf_filenames[st]);
+    }
+
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
+   
+    
     PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
     PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
     PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
 
-    // TODO: preliminary calculation of spectral moments should be done (INDEPENDENTLY?) for all satellite temperatures 
-
-    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
-    double *prelim_M0std = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
+    
+    assert(params->partial_partition_function_ratios != NULL);
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        double M0, M0std;
         params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &prelim_M0[st], &prelim_M0std[st]);
+        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &M0, &M0std);
 
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0[st], prelim_M0std[st], prelim_M0[st] - prelim_M0std[st], prelim_M0[st] + prelim_M0std[st]);
-        PRINT0("Error: %.3f%%\n\n", prelim_M0std[st]/prelim_M0[st] * 100.0);
+        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0std, M0 - M0std, M0 + M0std);
+        PRINT0("Error: %.3f%%\n\n", M0std/M0 * 100.0);
+
+        if (prelim_M0[st] == 0) prelim_M0[st] = M0; 
     }
         
     PRINT0("\n\n");
 
-    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
-    double *prelim_M2std = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        double M2, M2std;
+
         params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M2(ms, params, base_temperature, &prelim_M2[st], &prelim_M2std[st]);
+        mpi_calculate_M2(ms, params, base_temperature, &M2, &M2std);
 
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2[st], prelim_M2std[st], prelim_M2[st] - prelim_M2std[st], prelim_M2[st] + prelim_M2std[st]);
-        PRINT0("Error: %.3f%%\n", prelim_M2std[st]/prelim_M2[st] * 100.0);
+        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2std, M2 - M2std, M2 + M2std);
+        PRINT0("Error: %.3f%%\n", M2std/M2 * 100.0);
+        
+        if (prelim_M2[st] == 0) prelim_M2[st] = M2; 
     }
     
     for (size_t iter = 0; iter < params->niterations; ++iter) 
@@ -2277,6 +2349,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                           }
                           break;
                         }
+                        case PAIR_STATE_ALL: TODO("calculate_correlation_array_and_save");
                         case PAIR_STATE_NONE: UNREACHABLE("calculate_correlation_array_and_save");
                         case PAIR_STATE_COUNT: UNREACHABLE("calculate_correlation_array_and_save");
                     }
@@ -2330,6 +2403,26 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         
         PRINT0("\n"); 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary results\n", iter+1, params->niterations, ca_total.ntraj);
+          
+        time_t current_rawtime;
+        time(&current_rawtime);
+        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime); 
+
+        sb_reset(&sb_datetime);
+        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+        
+        if (iter == 0) {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+        } else {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+           
+            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+            sb_reset(&sb_datetime);
+            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+        }
+
+        ms->temp_rawtime = current_rawtime;
        
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) { 
             double M0_crln_est =  ca_total.data[st][0] / ca_total.nstar[st] * ZeroCoeff / ALU/ALU/ALU;
@@ -2363,9 +2456,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     free_cfnc_array(ca);
 
     free(prelim_M0);
-    free(prelim_M0std);
     free(prelim_M2);
-    free(prelim_M2std);
     sb_free(&sb);
 
     if (_wrank == 0) {    
@@ -2385,7 +2476,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->Rcut > 0);
     assert(params->sampling_time > 0);
     assert(params->total_trajectories > 0);
-    assert(params->partial_partition_function_ratio > 0);
     assert(params->cvode_tolerance > 0);
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
@@ -2398,6 +2488,31 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             exit(1);
         }
     } 
+    
+    if (params->partial_partition_function_ratio <= 0) {
+        PRINT0("Ratio of partial partition functions to full (analytic) partial partition function is not provided.\n");
+        PRINT0("Conducting calculations using adaptive Monte Carlo method.\n\n\n");
+    
+        size_t niterations = 12;
+        size_t npoints = 1e6; 
+
+        double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
+        PRINT0("Analytic partition function divided by V: %.5e\n", pf_analytic);
+
+        double hep_ppf, hep_ppf_err;    
+        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, niterations, npoints, &hep_ppf, &hep_ppf_err);
+    
+        params->partial_partition_function_ratio = hep_ppf / pf_analytic;
+        PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
+
+        double hep_M0, hep_M0_err; 
+        c_mpi_perform_integration(ms, INTEGRAND_M0, params, Temperature, 12, 1e6, &hep_M0, &hep_M0_err);
+
+        hep_M0     *= ZeroCoeff / pf_analytic;
+        hep_M0_err *= ZeroCoeff / pf_analytic;
+        PRINT0("T = %.2e => M0: %.5e\n", Temperature, hep_M0);
+    }    
+    
 
     // TODO: handle the distribution of trajectories between processes so that in total we 
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
@@ -2610,7 +2725,6 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
     }
 }
 
-#include "hep_hawaii.h"
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {

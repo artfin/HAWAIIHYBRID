@@ -8,7 +8,7 @@ void pes_init()
     legP = malloc((lmax + 1) * sizeof(double));
 }
 
-void free_pes() {
+void pes_free() {
     free(legP);
 }
 

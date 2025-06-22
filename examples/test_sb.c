@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include "hawaii.h"
 
-double pes(double *q) { UNUSED(q); return 0; }
-void dpes(double *q, double *dVdq) { UNUSED(q); UNUSED(dVdq); }
-
 int main()
 {
     String_Builder sb = {0};

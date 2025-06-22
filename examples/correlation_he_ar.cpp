@@ -10,26 +10,6 @@
 
 #define Rmin 6.597835932201344e+00
 
-double pes(double *q) {
-    return V_HeAr(q[2]);
-} 
-
-void dpes(double *q, double *dpesdq) {
-    dpesdq[0] = 0.0;           // dVdPhi
-    dpesdq[1] = 0.0;           // dVdTheta
-    dpesdq[2] = dV_HeAr(q[2]); // dVdR
-}
-
-void dipole_lab(double *q, double diplab[3]) {
-    double Phi    = q[0];
-    double Theta  = q[1];
-    double diplen = dip_HeAr(q[2]);
-
-    diplab[0] = diplen * sin(Theta) * cos(Phi); 
-    diplab[1] = diplen * sin(Theta) * sin(Phi);
-    diplab[2] = diplen * cos(Theta);
-}
-
 const char *var_to_cstring(int n) {
     switch (n) {
         case 0: return "Phi";
@@ -155,14 +135,17 @@ int main(int argc, char *argv[])
 
     double MU = m_He * m_Ar / (m_He + m_Ar); 
     MoleculeSystem ms = init_ms(MU, ATOM, ATOM, NULL, NULL, seeds[_wrank]);
+   
 
+    pes = pes_lab;
+    dpes = dpes_lab;
     dipole = dipole_lab;
 
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     CalcParams params = {};
-    params.ps                               = BOUND;
+    params.ps                               = PAIR_STATE_FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 40.0;
     params.niterations                      = 100;
@@ -175,8 +158,12 @@ int main(int argc, char *argv[])
     params.partial_partition_function_ratio = 4.87813e+02; // B, 50K
     params.initialM0_npoints                = 1000000;
     params.initialM2_npoints                = 1000;
-    params.pesmin                            = V_HeAr(Rmin) / HTOCM;
+    params.pesmin                            = V_HeAr(Rmin);
     params.cf_filename                      = "./CF-He-Ar-B-50.0.txt";
+    
+    printf("MU = %.15e\n", MU);
+    printf("pesmin = %.15e\n", params.pesmin);
+    assert(false);
 
     double Temperature = 50.0;
     

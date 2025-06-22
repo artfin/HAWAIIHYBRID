@@ -2,6 +2,10 @@
 
 #include "hawaii.h"
 
+#define ARENA_IMPLEMENTATION
+#include "arena.h"
+
+
 static double *xp = NULL;
 static double *yp = NULL;
 static size_t len = 0;
@@ -65,6 +69,8 @@ int omp_get_num_threads() { return 1; }
 int omp_get_thread_num() { return 1; }
 #endif // _OPENMP
 
+Arena a = {};
+
 void loess_init(double *x, double *y, size_t ilen)
 /*
  * This function prepares the input data for LOESS by storing the predictor 'x' and response 'y' values,
@@ -95,12 +101,16 @@ void loess_init(double *x, double *y, size_t ilen)
     }
     
     XRAW_STEP = x[1] - x[0];
+
+    memset(&a, 0, sizeof(Arena));
 } 
 
 void loess_free()
 {
     free(xp);
     free(yp);
+
+    arena_free(&a);
 }
 
 Window make_window(double* distances, size_t window_size) 
@@ -118,13 +128,13 @@ Window make_window(double* distances, size_t window_size)
 
     if (min_idx == 0) {
         return (Window) {
-            .items = linspace_size_t(0, window_size - 1, window_size),
+            .items = arena_linspace_size_t(&a, 0, window_size - 1, window_size),
             .count = window_size,
             .capacity = window_size,
         };
     } else if (min_idx == len - 1) {
         return (Window) {
-            .items= linspace_size_t(len - window_size, len - 1, window_size),
+            .items= arena_linspace_size_t(&a, len - window_size, len - 1, window_size),
             .count = window_size,
             .capacity = window_size,
         };
@@ -146,7 +156,7 @@ Window make_window(double* distances, size_t window_size)
     }
     
     Window window{
-        .items    = (size_t*) malloc(window_size * sizeof(double)),
+        .items    = (size_t*) arena_alloc(&a, window_size * sizeof(double)),
         .count    = window_size,
         .capacity = window_size,
     };
@@ -197,9 +207,11 @@ double loess_estimate(double x, size_t window_size, size_t degree)
  *  value 'x' and uses it to estimate the response value 'y'.
  */
 {
+    Arena_Mark arena_mark = arena_snapshot(&a);
+
     double nx = (x - minx) / (maxx - minx);
     
-    double* distances = (double*) malloc(len * sizeof(double));
+    double* distances = (double*) arena_alloc(&a, len * sizeof(double));
     for (size_t i = 0; i < len; ++i) {
         distances[i] = fabs(xp[i] - nx);
     }
@@ -324,9 +336,8 @@ double loess_estimate(double x, size_t window_size, size_t degree)
         printf("DEBUG: estimate: x = %.5e, y = %.5e, window_size = %zu, degree = %zu\n", x, y, window_size, degree); 
     }
     
-    free(distances);
-    free(window.items);
-    
+    arena_rewind(&a, arena_mark);
+
     return y;
 }
 
@@ -384,6 +395,8 @@ double *loess_apply_smoothing(Smoothing_Config *config)
         return NULL;
     }
 
+    Arena_Mark arena_mark = arena_snapshot(&a);
+
     double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
     memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
 
@@ -418,6 +431,8 @@ double *loess_apply_smoothing(Smoothing_Config *config)
                     omp_get_thread_num(), i, x, smoothed[i], window_size, window_size * XRAW_STEP); 
         }
     } 
+
+    arena_rewind(&a, arena_mark);
 
     return smoothed;
 }

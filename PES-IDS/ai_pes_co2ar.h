@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 void pes_init(); 
-void free_pes();
+void pes_free();
 
 double pes_co2ar(double R, double Theta);
 void dpes_co2ar(double R, double Theta, double *dR, double *dTheta);
