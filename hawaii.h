@@ -413,7 +413,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     
 double* linspace(double start, double end, size_t n);
 double* arena_linspace(Arena *a, double start, double end, size_t n); 
-size_t* linspace_size_t(Arena *a, size_t start, size_t end, size_t n);
+size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n);
 
 double integrate_composite_simpson(double *x, double *y, size_t len); 
 double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
