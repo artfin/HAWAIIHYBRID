@@ -1882,6 +1882,12 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     assert(params->satellite_temperatures != NULL); 
     assert(params->cf_filenames != NULL);
     
+    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
+    memset(prelim_M0, 0, params->num_satellite_temperatures*sizeof(double));
+
+    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
+    memset(prelim_M2, 0, params->num_satellite_temperatures*sizeof(double));
+    
     if (params->partial_partition_function_ratios == NULL) {
         PRINT0("Ratios of partial partition functions to full (analytic) partial partition function are not provided.\n");
         PRINT0("Conducting calculations using adaptive Monte Carlo method.\n");
@@ -1910,6 +1916,16 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             hep_M0     *= ZeroCoeff / pf_analytic;
             hep_M0_err *= ZeroCoeff / pf_analytic;
             PRINT0("T = %.2e => M0: %.5e\n", T, hep_M0);
+            
+            double hep_M2, hep_M2_err; 
+            c_mpi_perform_integration(ms, INTEGRAND_M2, params, T, 15, 1e6, &hep_M2, &hep_M2_err);
+    
+            hep_M2     *= SecondCoeff / pf_analytic;
+            hep_M2_err *= SecondCoeff / pf_analytic;
+            PRINT0("T = %.2e => M2: %.5e\n", T, hep_M2);
+
+            prelim_M0[st] = hep_M0;
+            prelim_M2[st] = hep_M2;
         }
     }    
     
@@ -2017,28 +2033,31 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 
     
     assert(params->partial_partition_function_ratios != NULL);
-    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
-    double *prelim_M0std = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        double M0, M0std;
         params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &prelim_M0[st], &prelim_M0std[st]);
+        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &M0, &M0std);
 
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0[st], prelim_M0std[st], prelim_M0[st] - prelim_M0std[st], prelim_M0[st] + prelim_M0std[st]);
-        PRINT0("Error: %.3f%%\n\n", prelim_M0std[st]/prelim_M0[st] * 100.0);
+        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0std, M0 - M0std, M0 + M0std);
+        PRINT0("Error: %.3f%%\n\n", M0std/M0 * 100.0);
+
+        if (prelim_M0[st] == 0) prelim_M0[st] = M0; 
     }
         
     PRINT0("\n\n");
 
-    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
-    double *prelim_M2std = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+        double M2, M2std;
+
         params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M2(ms, params, base_temperature, &prelim_M2[st], &prelim_M2std[st]);
+        mpi_calculate_M2(ms, params, base_temperature, &M2, &M2std);
 
         PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2[st], prelim_M2std[st], prelim_M2[st] - prelim_M2std[st], prelim_M2[st] + prelim_M2std[st]);
-        PRINT0("Error: %.3f%%\n", prelim_M2std[st]/prelim_M2[st] * 100.0);
+        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2std, M2 - M2std, M2 + M2std);
+        PRINT0("Error: %.3f%%\n", M2std/M2 * 100.0);
+        
+        if (prelim_M2[st] == 0) prelim_M2[st] = M2; 
     }
     
     for (size_t iter = 0; iter < params->niterations; ++iter) 
@@ -2182,9 +2201,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     free_cfnc_array(ca);
 
     free(prelim_M0);
-    free(prelim_M0std);
     free(prelim_M2);
-    free(prelim_M2std);
     sb_free(&sb);
 
     if (_wrank == 0) {    
