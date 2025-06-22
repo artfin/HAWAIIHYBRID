@@ -11,6 +11,9 @@
 #define USE_MPI
 #include "hawaii.h"
 
+// TODO: add types of calculation for calculating phase moment M0 and M2
+// TODO: add type of calculation for running trajectory from specific phase-point 
+
 // TODO: we may want to have some predefined constants like 'l_H2' or 'm_H2'
 // and have a library of them (constants.h) instead of specifying them in raw
 // form in the configuration file
@@ -58,7 +61,6 @@ const char *TOKEN_TYPES[TOKEN_COUNT] = {
       [TOKEN_COMMA]    = ",",
       [TOKEN_EQ]       = "=",
 }; 
-
 static_assert(TOKEN_COUNT == 12, "");
 
 const char *PUNCTS[TOKEN_COUNT] = {
@@ -68,11 +70,18 @@ const char *PUNCTS[TOKEN_COUNT] = {
     [TOKEN_EQ]     = "=",
 };
 
-typedef struct {
-    Token_Type t;
-    char *s;
-    Loc loc;
-} Token; 
+const char *BLOCK_NAMES[] = {
+    [0] = "&INPUT",
+    [1] = "&MONOMER",
+    [2] = "&END",
+};
+static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 3);
+
+const char *BOOLEAN_AS_STR[] = {
+    [0] = "FALSE",
+    [1] = "TRUE",
+};
+static_assert(sizeof(BOOLEAN_AS_STR)/sizeof(BOOLEAN_AS_STR[0]) == 2);
 
 typedef enum {
     /* INPUT BLOCK */
@@ -253,6 +262,8 @@ typedef struct {
     char *parse_point;
     char *eof;
     Token_Type token_type;
+    char *token_start;
+    size_t token_len;
     String_Builder string_storage;
     bool boolean_value;
     int64_t int_number;
@@ -291,6 +302,7 @@ void skip_char(Lexer *l)
     
     char c = *l->parse_point;
     l->parse_point++;
+    l->token_len++;
 
     l->loc.line_offset++;
 
@@ -359,7 +371,10 @@ bool get_token(Lexer *l) {
         break;
     }
 
-    char c = peek_char(l);;
+    char c = peek_char(l);
+    l->token_start = l->parse_point;
+    l->token_len = 0;
+
     if (c == '\0') {
         l->token_type = TOKEN_EOF;
         return false; 
@@ -368,13 +383,16 @@ bool get_token(Lexer *l) {
     for (size_t i = 0; i < sizeof(PUNCTS)/sizeof(PUNCTS[0]); ++i) {
         const char *prefix = PUNCTS[i];
         if (skip_prefix(l, prefix)) {
-            l->token_type = (Token_Type) i; 
+            l->token_type = (Token_Type) i;
+            l->token_len = 1;
         }
     } 
 
     if (c == '&') { // block begin
         (*l).token_type = TOKEN_BLOCK;
         (*l).string_storage.count = 0;
+        
+        da_append(&l->string_storage, c);
         skip_char(l); // consume '&'
 
         for ( c = peek_char(l); c != '\0'; c = peek_char(l)) {
@@ -437,6 +455,8 @@ bool get_token(Lexer *l) {
             } else if (c == '.' || c == 'e' || c == 'E') {
                 is_float = true;
                 break;
+            } else if (c == '_') {
+                skip_char(l);
             } else {
                 break;
             }
@@ -696,12 +716,58 @@ void expect_one_of_tokens(Lexer *l, int count, ...) {
     exit(1);
 }
 
-void expect_token(Lexer *l, Token_Type expected) {
+void expect_token(Lexer *l, Token_Type expected) 
+{
     Token_Type t = l->token_type;
 
     if (t != expected) {
-        PRINT0("ERROR: %s:%d:%d: expected '%s' but got type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, 
-               TOKEN_TYPES[expected], TOKEN_TYPES[t]);
+        switch (t) {
+            case TOKEN_KEYWORD:
+            case TOKEN_BLOCK:
+            case TOKEN_STRING: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got '%s' of type %s\n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], l->string_storage.items, TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_DQSTRING: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got \"%s\" of type %s\n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], l->string_storage.items, TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_COMMA:
+           case TOKEN_OCURLY:
+           case TOKEN_CCURLY:
+           case TOKEN_EQ: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got punctuation token \"%s\" \n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_EOF: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s\n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_BOOLEAN: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s of type '%s'\n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], BOOLEAN_AS_STR[l->boolean_value], TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_FLOAT: {
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %.5e of type %s\n", 
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                        TOKEN_TYPES[expected], l->double_number, TOKEN_TYPES[t]);
+               break; 
+           }
+           case TOKEN_COUNT: UNREACHABLE("expect_token"); 
+           default: { 
+               UNREACHABLE("expect_token"); 
+           }
+        }
 
         if (expected == TOKEN_BOOLEAN) {
             PRINT0("Use TRUE and FALSE for boolean values\n");
@@ -724,16 +790,17 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
 
     while (true) {
         get_token(l);
-        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "&END") == 0)) {
             //print_lexeme(l);
             return;
         }
 
         expect_token(l, TOKEN_KEYWORD);
         Keyword keyword_type = l->keyword_type;
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
 
         get_and_expect_token(l, TOKEN_EQ);
+        
+        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
         get_and_expect_token(l, expect_token);
         
         switch (keyword_type) {
@@ -745,7 +812,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                 } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
                     params->calculation_type = CALCULATION_CORRELATION_ARRAY;
                 } else {
-                    PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", 
+                            l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
                     PRINT0("Available calculation types:\n");
                     
                     for (size_t i = 1; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
@@ -763,7 +831,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                 } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
                     params->ps = PAIR_STATE_BOUND;
                 } else {
-                    PRINT0("ERROR: %s:%d:%d: unknown pair state '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("ERROR: %s:%d:%d: unknown pair state '%s'\n", 
+                            l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
                     PRINT0("Available pair states:\n");
 
                     for (size_t i = 0; i < sizeof(PAIR_STATES)/sizeof(PAIR_STATES[0]); ++i) {
@@ -842,7 +911,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS: params->average_time_between_collisions = l->double_number; break;
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &INPUT block\n",
-                     l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                     l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
               exit(1);
             } 
         }
@@ -880,7 +949,8 @@ void parse_monomer_block(Lexer *l, Monomer *m)
                 } else if (strcasecmp(l->string_storage.items, "ROTOR") == 0) {
                     m->t = ROTOR;
                 } else {
-                    PRINT0("ERROR: %s:%d:%d: unknown monomer type '%s'\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                    PRINT0("ERROR: %s:%d:%d: unknown monomer type '%s'\n", 
+                            l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
                     PRINT0("Available monomer_block types:\n");
                     for (size_t i = 0; i < sizeof(MONOMER_TYPES)/sizeof(MONOMER_TYPES[0]); ++i) {
                         PRINT0(" %s\n", display_monomer_type(MONOMER_TYPES[i])); 
@@ -921,7 +991,7 @@ void parse_monomer_block(Lexer *l, Monomer *m)
  
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &MONOMER block\n",
-                     l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+                     l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
               exit(1);
             } 
         }
@@ -939,12 +1009,13 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
 
         expect_token(l, TOKEN_BLOCK);
 
-        if (strcasecmp(l->string_storage.items, "END") == 0) {
-            PRINT0("ERROR: %s:%d:%d: found '%s' without corresponding block beginning\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset, l->string_storage.items);
+        if (strcasecmp(l->string_storage.items, "&END") == 0) {
+            PRINT0("ERROR: %s:%d:%d: found '%s' without corresponding block beginning\n", 
+                    l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
             exit(1);
-        } else if (strcasecmp(l->string_storage.items, "INPUT") == 0) {
+        } else if (strcasecmp(l->string_storage.items, "&INPUT") == 0) {
             parse_input_block(l, input_block, params);
-        } else if (strcasecmp(l->string_storage.items, "MONOMER") == 0) {
+        } else if (strcasecmp(l->string_storage.items, "&MONOMER") == 0) {
             if (monomer_blocks_count >= 2) {
                 PRINT0("ERROR: %s:%d:%d: only two &MONOMER blocks could be defined\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
                 exit(1);
@@ -954,6 +1025,16 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
 
             m = m2;
             monomer_blocks_count++; 
+        } else {
+            PRINT0("ERROR: %s:%d:%d: found unknown block name '%s'\n",
+                   l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1,
+                   l->string_storage.items);
+            PRINT0("  Expected block names:\n");
+            for (size_t i = 0; i < sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]); ++i) {
+                PRINT0("    %s\n", BLOCK_NAMES[i]);
+            }
+
+            exit(1);
         }
     }
 
