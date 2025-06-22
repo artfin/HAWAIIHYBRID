@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "arena.h"
+#include "thirdparty/arena.h"
 
 typedef struct {
     double *data;

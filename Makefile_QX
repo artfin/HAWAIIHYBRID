@@ -77,7 +77,7 @@ build/array.o: array.c | build
 build/trajectory.o: trajectory.c | build
 	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
 
-build/mtwist.o: mtwist.c | build
+build/mtwist.o: thirdparty/mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
 
 build/angles_handler.o: angles_handler.cpp | build

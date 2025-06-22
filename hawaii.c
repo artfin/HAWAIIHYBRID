@@ -22,7 +22,7 @@
 #include "hawaii.h"
 
 #define ARENA_IMPLEMENTATION
-#include "arena.h"
+#include "thirdparty/arena.h"
 
 dipolePtr dipole = NULL;
 pesPtr pes       = NULL;
@@ -2670,9 +2670,19 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
 
         // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
-        double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000;
+    //    double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 
+    //  56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000/ALU/ALU/ALU;
+        double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + 
+      128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
 
-        PRINT0("M2 ESTIMATE FROM CF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est, prelim_M2, (M2_crln_est - prelim_M2)/prelim_M2*100.0);
+      double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
+            427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
+      533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
+      27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
+      9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
+
+        PRINT0("M2 ESTIMATE FROM CF (5-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, prelim_M2, (M2_crln_est_5pt - prelim_M2)/prelim_M2*100.0);
+        PRINT0("M2 ESTIMATE FROM CF (11-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, prelim_M2, (M2_crln_est_11pt - prelim_M2)/prelim_M2*100.0);
 
 
         if (_wrank == 0) {
