@@ -75,13 +75,13 @@ const char *BLOCK_NAMES[] = {
     [1] = "&MONOMER",
     [2] = "&END",
 };
-static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 3);
+static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 3, "");
 
 const char *BOOLEAN_AS_STR[] = {
     [0] = "FALSE",
     [1] = "TRUE",
 };
-static_assert(sizeof(BOOLEAN_AS_STR)/sizeof(BOOLEAN_AS_STR[0]) == 2);
+static_assert(sizeof(BOOLEAN_AS_STR)/sizeof(BOOLEAN_AS_STR[0]) == 2, "");
 
 typedef enum {
     /* INPUT BLOCK */
@@ -924,7 +924,7 @@ void parse_monomer_block(Lexer *l, Monomer *m)
 
     while (true) {
         get_token(l);
-        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "END") == 0)) {
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "&END") == 0)) {
             //print_lexeme(l);
             return;
         }
