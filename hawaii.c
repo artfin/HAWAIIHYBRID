@@ -1928,7 +1928,9 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             prelim_M2[st] = hep_M2;
         }
     }    
-    
+   
+    String_Builder sb_datetime = {0};
+
     FILE **fps = malloc(params->num_satellite_temperatures * sizeof(FILE*)); 
     if (_wrank == 0) {
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -2168,6 +2170,26 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         
         PRINT0("\n"); 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary results\n", iter+1, params->niterations, ca_total.ntraj);
+          
+        time_t current_rawtime;
+        time(&current_rawtime);
+        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime); 
+
+        sb_reset(&sb_datetime);
+        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+        
+        if (iter == 0) {
+            printf("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+        } else {
+            printf("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+           
+            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+            sb_reset(&sb_datetime);
+            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+            printf("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+        }
+
+        ms->temp_rawtime = current_rawtime;
        
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) { 
             double M0_crln_est =  ca_total.data[st][0] / ca_total.nstar[st] * ZeroCoeff / ALU/ALU/ALU;
