@@ -1,5 +1,8 @@
-# USER_SPACIFIC PATHS
-# Override default library paths here
+# USER SPECIFIC PATHS
+# Override compilers and set include and link paths to libraries here
+
+# MPICC  := ...path.../mpicc
+# MPICXX := ...path.../mpic++
 
 # INC_SUNDIALS := -I/...path.../sundials-5.2.0/instdir/include/path
 # INC_EIGEN    := -I/...path.../eigen3
