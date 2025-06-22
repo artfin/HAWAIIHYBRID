@@ -992,6 +992,11 @@ int main(int argc, char* argv[])
             break; 
         }
         case CALCULATION_CORRELATION_SINGLE: {
+            if ((params.use_zimmermann_trick == true) && (params.ps != PAIR_STATE_BOUND))
+            {
+              PRINT0("ERROR: Zimmermann trick is supported for bound states only. At least for now...\n");
+              exit(1);
+            }
             CFnc cf = calculate_correlation_and_save(&ms, &params, input_block.Temperature);
             break;
         } 

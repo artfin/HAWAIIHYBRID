@@ -1656,6 +1656,227 @@ void track_turning_points(Tracker *tr, double R)
     if (tr->called > 1) tr->ready = true; 
 } 
 
+int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+// TODO: Use temporary arena instead of malloc 
+{
+  //NOTE:for convenience: dip_: -MaxTrajectoryLength+1,-MaxTrajectoryLength+2... 0, 1, ... MaxTrajectoryLength-1
+    double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    double * dipy = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    double * dipz = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    memset(dipx, 0.0, params->MaxTrajectoryLength * sizeof(double));
+    memset(dipy, 0.0, params->MaxTrajectoryLength * sizeof(double));
+    memset(dipz, 0.0, params->MaxTrajectoryLength * sizeof(double));
+    
+    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
+            
+    double dip0[3], dipt[3];
+    extract_q_and_write_into_ms(ms);
+    (*dipole)(ms->intermediate_q, dip0);
+   
+    dipx[params->MaxTrajectoryLength-1] = dip0[0];
+    dipy[params->MaxTrajectoryLength-1] = dip0[1];
+    dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
+    
+    Array qp = create_array(ms->QP_SIZE);
+    get_qp_from_ms(ms, &qp);
+    set_initial_condition(traj, qp);
+   
+    // return value: 
+    // 0 -- means trajectories propagated successfully
+    // >0 -- an error was encountered during trajectory propagation 
+    int status = 0;
+    
+    double t = 0.0;
+    double tout = params->sampling_time;
+   
+    Tracker tr = {
+      .before2 = qp.data[IR],
+      .before  = qp.data[IR],
+      .current = qp.data[IR],
+      .ready   = false,
+    };
+
+    double prev_value, curr_value;
+
+    /*
+     * We start step_counter from 1 so that correlation value after the first integration step
+     * will go into correlation_forw[1] 
+     */
+    for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
+    {
+        status = make_step(traj, tout, &t);
+        if (status) {
+            printf("CVODE ERROR: status = %d\n", status);
+            break;
+        }
+
+        extract_q_and_write_into_ms(ms);
+        (*dipole)(ms->intermediate_q, dipt);
+        
+        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+            printf("ERROR: one of the components of the dipole is corrupted!\n");
+            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
+        
+        prev_value = curr_value;
+        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+
+        if (fabs(curr_value) > 1e100) {
+            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
+            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
+
+        if (step_counter > 1) {
+            double ratio = fabs(curr_value / prev_value);
+            // if (ratio > 10000) {
+            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+            // }
+            if (ratio > 1e10) {
+                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+                printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                    printf("%.10e ", qp.data[i]);
+                }
+                printf("\n");
+                return 1;         
+            } 
+        }
+
+        dipx[params->MaxTrajectoryLength-1+step_counter] = dipt[0];
+        dipy[params->MaxTrajectoryLength-1+step_counter] = dipt[1];
+        dipz[params->MaxTrajectoryLength-1+step_counter] = dipt[2]; 
+       // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
+
+        track_turning_points(&tr, ms->intermolecular_qp[IR]);
+
+        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+    }
+    
+    put_qp_into_ms(ms, qp);
+    invert_momenta(ms);
+    get_qp_from_ms(ms, &qp);
+    set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
+   
+    
+    t = 0.0;
+    tout = params->sampling_time;
+   
+    tr.before2 = qp.data[IR];
+    tr.before  = qp.data[IR];
+    tr.current = qp.data[IR];
+    tr.called  = 0;
+    tr.ready   = false;
+
+    for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
+    {
+        status = make_step(traj, tout, &t);
+        if (status) {
+            printf("CVODE ERROR: status = %d\n", status);
+            break;
+        }
+
+        extract_q_and_write_into_ms(ms);
+        (*dipole)(ms->intermediate_q, dipt);
+        
+        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+            printf("ERROR: one of the components of the dipole is corrupted!\n");
+            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
+        
+        prev_value = curr_value;
+        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+        
+        if (fabs(curr_value) > 1e100) {
+            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
+            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                printf("%.10e ", qp.data[i]);
+            }
+            printf("\n");
+            return 1;         
+        }
+
+        if (step_counter > 1) {
+            double ratio = fabs(curr_value / prev_value); 
+            // if (ratio > 10000) {
+            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+            // }
+            if (ratio > 1e10) {
+                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+                printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                    printf("%.10e ", qp.data[i]);
+                }
+                printf("\n");
+                return 1;         
+            } 
+        }
+
+
+        dipx[params->MaxTrajectoryLength-1-step_counter] = dipt[0];
+        dipy[params->MaxTrajectoryLength-1-step_counter] = dipt[1];
+        dipz[params->MaxTrajectoryLength-1-step_counter] = dipt[2]; 
+        //local_correlation[params->MaxTrajectoryLength-1-step_counter] = curr_value; 
+       // printf("current index: %d\n",params->MaxTrajectoryLength-1-step_counter);
+        
+        track_turning_points(&tr, ms->intermolecular_qp[IR]);
+
+        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+    }
+
+    // @correctness: check that after moving the factor ALU^3 here, the produced correlation functions
+    // are correct for both single-correlation function and correlation-array calculations 
+//    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+//        crln[i] =  local_correlation[i] * ALU*ALU*ALU;
+//        //crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
+//    	if (fabs(crln[i]) > 1e100) {
+//	    printf("crln: broken value detected for i = %zu!\n", i);
+//	    assert(false);
+//	}
+//    } 
+
+    
+    for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif )
+    {
+      for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt)
+        crln[shif] += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
+      crln[shif] /= (params->MaxTrajectoryLength);
+
+    	if (fabs(crln[shif]) > 1e100) {
+	    printf("crln: broken value detected for i = %zu!\n", shif);
+	    assert(false);
+      }
+    }
+    //  for (int curpt = numsteps+1; curpt < traj_length; ++curpt)
+    //    local_correlation[curpt] = local_correlation[curpt-numsteps];
+
+    *tps = tr.turning_points;
+
+    free_array(&qp);
+   
+    free(dipx);
+    free(dipy);
+    free(dipz);
+  //free(correlation_back); 
+
+    return status;
+}
+
 int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 // TODO: Use temporary arena instead of malloc 
 {
@@ -1833,6 +2054,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     // are correct for both single-correlation function and correlation-array calculations 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
+       // printf("(TEST) CRLN_VALUE: %e\n",crln[i]);
     	if (fabs(crln[i]) > 1e100) {
 	    printf("crln: broken value detected for i = %zu!\n", i);
 	    assert(false);
@@ -2231,7 +2453,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("    partial partition function (partial_partition_function_ratio):       %.6e\n",   params->partial_partition_function_ratio);
     PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n",   params->sampling_time);
     PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n",   params->Rcut);
-    PRINT0("    CVode tolerance:                                                     %.3e\n\n", params->cvode_tolerance);
+    PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
+    PRINT0("    use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
     PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
@@ -2274,7 +2497,14 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     if (energy > 0.0) continue;
                 }
 
-                int status = correlation_eval(ms, &traj, params, crln, &tps); 
+               // printf("(correlation and save) USE ZIMMERMANN TRICK: %d\n", params->use_zimmermann_trick);
+                int status;
+                if (params->use_zimmermann_trick == true){
+                  status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
+                }
+                else {
+                  status = correlation_eval(ms, &traj, params, crln, &tps); 
+                }
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
@@ -2301,6 +2531,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 				total_crln_iter.data[j] += buf[j];
 			}
 		}
+			for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
+				total_crln_iter.data[j] += local_crln[j];
+			}
+
 	} else { 
 		MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 	} 
