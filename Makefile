@@ -16,7 +16,7 @@ LIB_GSL ?= -lgsl -lgslcblas
 
 -include Makefile.config
 
-INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL)
+INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL) -I./thirdparty/
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
             examples/mpi_phase_space_integration_co2_ar.exe  \
@@ -69,12 +69,12 @@ build/hep_hawaii.o: hep_hawaii.cpp | build
 	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@
 
 build/array.o: array.c | build
-	$(CC) $(FLAGS) -c -MD $< -o $@ 
+	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
 
 build/trajectory.o: trajectory.c | build
 	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
 
-build/mtwist.o: mtwist.c | build
+build/mtwist.o: thirdparty/mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
 
 build/angles_handler.o: angles_handler.cpp | build
