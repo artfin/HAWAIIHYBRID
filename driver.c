@@ -103,8 +103,14 @@ typedef enum {
     KEYWORD_SAMPLER_RMIN,
     KEYWORD_SAMPLER_RMAX,
     KEYWORD_PESMIN,
+
     KEYWORD_INITIALM0_NPOINTS,
     KEYWORD_INITIALM2_NPOINTS,
+    KEYWORD_HEP_M0_NITERATIONS,
+    KEYWORD_HEP_M0_NPOINTS,
+    KEYWORD_HEP_PPF_NITERATIONS,
+    KEYWORD_HEP_PPF_NPOINTS,
+    
     KEYWORD_SF_FILENAME,
     KEYWORD_CF_FILENAME,
     KEYWORD_CF_FILENAMES,
@@ -160,6 +166,10 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_PESMIN]                          = "PESMIN",
     [KEYWORD_INITIALM0_NPOINTS]               = "INITIALM0_NPOINTS",
     [KEYWORD_INITIALM2_NPOINTS]               = "INITIALM2_NPOINTS",
+    [KEYWORD_HEP_M0_NPOINTS]                  = "HEP_M0_NPOINTS",
+    [KEYWORD_HEP_M0_NITERATIONS]              = "HEP_M0_NITERATIONS",
+    [KEYWORD_HEP_PPF_NITERATIONS]             = "HEP_PPF_NITERATIONS",
+    [KEYWORD_HEP_PPF_NPOINTS]                 = "HEP_PPF_NPOINTS",
     [KEYWORD_SF_FILENAME]                     = "SF_FILENAME",
     [KEYWORD_CF_FILENAME]                     = "CF_FILENAME",
     [KEYWORD_CF_FILENAMES]                    = "CF_FILENAMES",
@@ -189,7 +199,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
 }; 
-static_assert(KEYWORD_COUNT == 44, "");
+static_assert(KEYWORD_COUNT == 48, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -209,6 +219,10 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_PESMIN]                          = TOKEN_FLOAT,
     [KEYWORD_INITIALM0_NPOINTS]               = TOKEN_INTEGER,
     [KEYWORD_INITIALM2_NPOINTS]               = TOKEN_INTEGER,
+    [KEYWORD_HEP_M0_NPOINTS]                  = TOKEN_INTEGER,
+    [KEYWORD_HEP_M0_NITERATIONS]              = TOKEN_INTEGER,
+    [KEYWORD_HEP_PPF_NPOINTS]                 = TOKEN_INTEGER,
+    [KEYWORD_HEP_PPF_NITERATIONS]             = TOKEN_INTEGER,
     [KEYWORD_SF_FILENAME]                     = TOKEN_DQSTRING,
     [KEYWORD_CF_FILENAME]                     = TOKEN_DQSTRING,
     [KEYWORD_CF_FILENAMES]                    = TOKEN_OCURLY,
@@ -872,6 +886,10 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_PESMIN:                  params->pesmin = l->double_number; break;
             case KEYWORD_INITIALM0_NPOINTS:       params->initialM0_npoints = l->int_number; break;
             case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
+            case KEYWORD_HEP_M0_NITERATIONS:      params->hep_m0_niterations = l->int_number; break;
+            case KEYWORD_HEP_M0_NPOINTS:          params->hep_m0_npoints = l->int_number; break;
+            case KEYWORD_HEP_PPF_NITERATIONS:     params->hep_ppf_niterations = l->int_number; break;
+            case KEYWORD_HEP_PPF_NPOINTS:         params->hep_ppf_npoints = l->int_number; break;
             case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;
             case KEYWORD_CF_FILENAME:             params->cf_filename = strdup(l->string_storage.items); break;
             case KEYWORD_CF_FILENAMES: {

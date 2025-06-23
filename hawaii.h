@@ -230,7 +230,12 @@ typedef struct {
     size_t initialM0_npoints;
     size_t initialM2_npoints;
     double partial_partition_function_ratio;
-   
+
+    size_t hep_m0_niterations;
+    size_t hep_m0_npoints;
+    size_t hep_ppf_niterations;
+    size_t hep_ppf_npoints;
+
     /* weights to factor in spin statistics */
     double odd_j_spin_weight;
     double even_j_spin_weight;

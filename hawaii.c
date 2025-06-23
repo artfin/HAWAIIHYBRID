@@ -2774,25 +2774,42 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             exit(1);
         }
     } 
-    
+   
+    double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
+
     if (params->partial_partition_function_ratio <= 0) {
         PRINT0("Ratio of partial partition functions to full (analytic) partial partition function is not provided.\n");
         PRINT0("Conducting calculations using adaptive Monte Carlo method.\n\n\n");
-    
-        size_t niterations = 12;
-        size_t npoints = 1e6; 
-
-        double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
+        
         PRINT0("Analytic partition function divided by V: %.5e\n", pf_analytic);
+        
+        size_t hep_ppf_niterations = 12;
+        if (params->hep_ppf_niterations > 0) {
+            hep_ppf_niterations = params->hep_ppf_niterations;
+        } 
+
+        size_t hep_ppf_npoints = 1000000;
+        if (params->hep_ppf_npoints > 0) {
+            hep_ppf_npoints = params->hep_ppf_npoints;
+        } 
 
         double hep_ppf, hep_ppf_err;    
-        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, niterations, npoints, &hep_ppf, &hep_ppf_err);
+        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
         params->partial_partition_function_ratio = hep_ppf / pf_analytic;
         PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
+    }       
 
-        double hep_M0, hep_M0_err; 
-        c_mpi_perform_integration(ms, INTEGRAND_M0, params, Temperature, 12, 1e6, &hep_M0, &hep_M0_err);
+    double hep_M0 = 0.0;
+    { 
+        size_t hep_m0_niterations = 12;
+        if (params->hep_m0_niterations > 0) hep_m0_niterations = params->hep_m0_niterations;
+
+        size_t hep_m0_npoints = 1000000;
+        if (params->hep_m0_npoints > 0) hep_m0_npoints = params->hep_m0_npoints;
+
+        double hep_M0_err; 
+        c_mpi_perform_integration(ms, INTEGRAND_M0, params, Temperature, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
         hep_M0     *= ZeroCoeff / pf_analytic;
         hep_M0_err *= ZeroCoeff / pf_analytic;
@@ -2847,31 +2864,39 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("\n\n"); 
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    pair state (pair_state):                                             %s\n",     PAIR_STATES[params->ps]);
-    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",    params->total_trajectories);
-    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",    params->niterations);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",    params->MaxTrajectoryLength);
-    PRINT0("    partial partition function (partial_partition_function_ratio):       %.6e\n",   params->partial_partition_function_ratio);
-    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n",   params->sampling_time);
-    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n",   params->Rcut);
+    PRINT0("    pair state (pair_state):                                             %s\n",   PAIR_STATES[params->ps]);
+    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
+    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
+    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
+    PRINT0("    partial partition function (partial_partition_function_ratio):       %.6e\n", params->partial_partition_function_ratio);
+    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
+    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
     PRINT0("------------------------------------------------------------------------\n");
-    PRINT0("\n\n"); 
-    PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+    PRINT0("\n\n");
+
+    if (params->initialM0_npoints <= 0) params->initialM0_npoints = 1000000; 
+    
+    PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
     PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
-    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
 
     double prelim_M0, prelim_M0std;
     mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
-    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
+    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0-prelim_M0std, prelim_M0+prelim_M0std);
     PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+
+    if (params->initialM2_npoints <= 0) params->initialM2_npoints = 1000000; 
     
+    PRINT0("Running preliminary calculations of M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
+
     double prelim_M2, prelim_M2std;
     mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std); 
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2-prelim_M2std, prelim_M2+prelim_M2std);
     PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
     
+
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
         size_t counter = 0;
@@ -2898,13 +2923,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     if (energy > 0.0) continue;
                 }
 
-               // printf("(correlation and save) USE ZIMMERMANN TRICK: %d\n", params->use_zimmermann_trick);
                 int status;
-                if (params->use_zimmermann_trick == true){
-                  status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
-                }
-                else {
-                  status = correlation_eval(ms, &traj, params, crln, &tps); 
+                if (params->use_zimmermann_trick) {
+                    status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
+                } else {
+                    status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
                 if (status == -1) continue;
 
@@ -2921,39 +2944,39 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
 
         // MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-     	if (_wrank == 0) {
-		MPI_Status status;
+        if (_wrank == 0) {
+            MPI_Status status;
 
-		for (size_t i = 1; i < (size_t) _wsize; ++i) {
-			memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
-			MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+            for (size_t i = 1; i < (size_t) _wsize; ++i) {
+                memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
+                MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
 
-			for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
-				total_crln_iter.data[j] += buf[j];
-			}
-		}
-			for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
-				total_crln_iter.data[j] += local_crln[j];
-			}
+                for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
+                    total_crln_iter.data[j] += buf[j];
+                }
+            }
 
-	} else { 
-		MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-	} 
+            for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
+                total_crln_iter.data[j] += local_crln[j];
+            }
+        } else { 
+            MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+        } 
 
-	if (_wrank == 0) {
-		for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-			total_crln.data[i] += total_crln_iter.data[i];
-		}
+        if (_wrank == 0) {
+            for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+                total_crln.data[i] += total_crln_iter.data[i];
+            }
 
-		total_crln.ntraj += local_ntrajectories * _wsize;
-	}
+            total_crln.ntraj += local_ntrajectories * _wsize;
+        }
 
         memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, (size_t)total_crln.ntraj, params->cf_filename);
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
-        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, prelim_M0, (M0_crln_est - prelim_M0)/prelim_M0*100.0);
+        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
 
         // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
     //    double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 
