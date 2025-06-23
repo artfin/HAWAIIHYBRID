@@ -1667,6 +1667,273 @@ void track_turning_points(Tracker *tr, double R)
     if (tr->called > 1) tr->ready = true; 
 } 
 
+
+//int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+//// TODO: Use temporary arena instead of malloc 
+//{
+//  //NOTE:for convenience: dip_: -MaxTrajectoryLength+1,-MaxTrajectoryLength+2... 0, 1, ... MaxTrajectoryLength-1
+//    double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+//    double * dipy = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+//    double * dipz = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+//
+//   // int * idxarr = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
+//   // memset(idxarr, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
+//  
+//    memset(dipx, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+//    memset(dipy, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+//    memset(dipz, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+//    
+//    memset(crln, 0.0, params->MaxTrajectoryLength * sizeof(double));
+//            
+//    double dip0[3], dipt[3];
+//    extract_q_and_write_into_ms(ms);
+//    (*dipole)(ms->intermediate_q, dip0);
+//   // dipx[params->MaxTrajectoryLength-1] = dip0[0];
+//   // dipy[params->MaxTrajectoryLength-1] = dip0[1];
+//   // dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
+//    //idxarr[params->MaxTrajectoryLength-1] = 1;
+//    dipx[0] = dip0[0];
+//    dipy[0] = dip0[1];
+//    dipz[0] = dip0[2]; 
+//    
+//    Array qp = create_array(ms->QP_SIZE);
+//    get_qp_from_ms(ms, &qp);
+//    set_initial_condition(traj, qp);
+//   
+//    // return value: 
+//    // 0 -- means trajectories propagated successfully
+//    // >0 -- an error was encountered during trajectory propagation 
+//    int status = 0;
+//    
+//    double t = 0.0;
+//    double tout = params->sampling_time;
+//   
+//    Tracker tr = {
+//      .before2 = qp.data[IR],
+//      .before  = qp.data[IR],
+//      .current = qp.data[IR],
+//      .ready   = false,
+//    };
+//
+//    double prev_value, curr_value;
+//
+//    /*
+//     * We start step_counter from 1 so that correlation value after the first integration step
+//     * will go into correlation_forw[1] 
+//     */
+//    for (size_t step_counter = 1; step_counter < 2*params->MaxTrajectoryLength-1; ++step_counter, tout += params->sampling_time)
+//    {
+//        status = make_step(traj, tout, &t);
+//        if (status) {
+//            printf("CVODE ERROR: status = %d\n", status);
+//            break;
+//        }
+//
+//        extract_q_and_write_into_ms(ms);
+//        (*dipole)(ms->intermediate_q, dipt);
+//        
+//        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+//            printf("ERROR: one of the components of the dipole is corrupted!\n");
+//            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+//            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                printf("%.10e ", qp.data[i]);
+//            }
+//            printf("\n");
+//            return 1;         
+//        }
+//        
+//        prev_value = curr_value;
+//        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+//
+//        if (fabs(curr_value) > 1e100) {
+//            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
+//            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+//            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                printf("%.10e ", qp.data[i]);
+//            }
+//            printf("\n");
+//            return 1;         
+//        }
+//
+//        if (step_counter > 1) {
+//            double ratio = fabs(curr_value / prev_value);
+//            // if (ratio > 10000) {
+//            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+//            // }
+//            if (ratio > 1e10) {
+//                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+//                printf("The initial phase-point for broken trajectory in the forward direction is:\n");
+//                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                    printf("%.10e ", qp.data[i]);
+//                }
+//                printf("\n");
+//                return 1;         
+//            } 
+//        }
+//
+//       // dipx[params->MaxTrajectoryLength-1+step_counter] = dipt[0];
+//       // dipy[params->MaxTrajectoryLength-1+step_counter] = dipt[1];
+//       // dipz[params->MaxTrajectoryLength-1+step_counter] = dipt[2]; 
+//        //idxarr[params->MaxTrajectoryLength-1+step_counter] = 1;
+//        dipx[step_counter] = dipt[0];
+//        dipy[step_counter] = dipt[1];
+//        dipz[step_counter] = dipt[2]; 
+//       // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
+//
+//        track_turning_points(&tr, ms->intermolecular_qp[IR]);
+//
+//        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+//    }
+//
+//
+//    double interm = 0.0;
+//    for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif )
+//    {
+//      interm = 0.0;
+//      for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt){
+//        interm += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
+//      }
+//        crln[shif] = interm; 
+//     // crln[shif] /= (params->MaxTrajectoryLength);
+//
+//    	if (fabs(crln[shif]) > 1e100) {
+//	    printf("crln: broken value detected for i = %zu!\n", shif);
+//	    assert(false);
+//      }
+//    }
+//    
+//    put_qp_into_ms(ms, qp);
+//    invert_momenta(ms);
+//    get_qp_from_ms(ms, &qp);
+//    set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
+//   
+//    
+//    t = 0.0;
+//    tout = params->sampling_time;
+//   
+//    tr.before2 = qp.data[IR];
+//    tr.before  = qp.data[IR];
+//    tr.current = qp.data[IR];
+//    tr.called  = 0;
+//    tr.ready   = false;
+//
+//    for (size_t step_counter = 1; step_counter < 2*params->MaxTrajectoryLength-1; ++step_counter, tout += params->sampling_time)
+//    {
+//        status = make_step(traj, tout, &t);
+//        if (status) {
+//            printf("CVODE ERROR: status = %d\n", status);
+//            break;
+//        }
+//
+//        extract_q_and_write_into_ms(ms);
+//        (*dipole)(ms->intermediate_q, dipt);
+//        
+//        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+//            printf("ERROR: one of the components of the dipole is corrupted!\n");
+//            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+//            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                printf("%.10e ", qp.data[i]);
+//            }
+//            printf("\n");
+//            return 1;         
+//        }
+//        
+//        prev_value = curr_value;
+//        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+//        
+//        if (fabs(curr_value) > 1e100) {
+//            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
+//            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+//            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                printf("%.10e ", qp.data[i]);
+//            }
+//            printf("\n");
+//            return 1;         
+//        }
+//
+//        if (step_counter > 1) {
+//            double ratio = fabs(curr_value / prev_value); 
+//            // if (ratio > 10000) {
+//            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
+//            // }
+//            if (ratio > 1e10) {
+//                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+//                printf("The initial phase-point for broken trajectory in the backward direction is:\n");
+//                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+//                    printf("%.10e ", qp.data[i]);
+//                }
+//                printf("\n");
+//                return 1;         
+//            } 
+//        }
+//  
+//       // dipx[params->MaxTrajectoryLength-1-step_counter] = dipt[0];
+//       // dipy[params->MaxTrajectoryLength-1-step_counter] = dipt[1];
+//       // dipz[params->MaxTrajectoryLength-1-step_counter] = dipt[2]; 
+//        //idxarr[params->MaxTrajectoryLength-1-step_counter] = 1;
+//        //local_correlation[params->MaxTrajectoryLength-1-step_counter] = curr_value; 
+//       // printf("current index: %d\n",params->MaxTrajectoryLength-1-step_counter);
+//    //
+//        dipx[step_counter] = dipt[0];
+//        dipy[step_counter] = dipt[1];
+//        dipz[step_counter] = dipt[2]; 
+//        
+//        track_turning_points(&tr, ms->intermolecular_qp[IR]);
+//
+//        if (ms->intermolecular_qp[IR] > params->Rcut) break;
+//    }
+//
+//    // @correctness: check that after moving the factor ALU^3 here, the produced correlation functions
+//    // are correct for both single-correlation function and correlation-array calculations 
+////    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
+////        crln[i] =  local_correlation[i] * ALU*ALU*ALU;
+////        //crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
+////    	if (fabs(crln[i]) > 1e100) {
+////	    printf("crln: broken value detected for i = %zu!\n", i);
+////	    assert(false);
+////	}
+////    } 
+//
+//   
+//    for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif )
+//    {
+//      interm = 0.0;
+//      for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt){
+//        interm += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
+//      }
+//        crln[shif] = (crln[shif]+interm)/2.0; 
+//        crln[shif] /= (params->MaxTrajectoryLength);
+//
+//    	if (fabs(crln[shif]) > 1e100) {
+//	    printf("crln: broken value detected for i = %zu!\n", shif);
+//	    assert(false);
+//      }
+//    }
+//    
+//    //  for (int curpt = numsteps+1; curpt < traj_length; ++curpt)
+//    //    local_correlation[curpt] = local_correlation[curpt-numsteps];
+//
+//    *tps = tr.turning_points;
+//
+//  //  int test = 1;
+//  //  for (size_t i = 0;i < 2*params->MaxTrajectoryLength-1;++i) {
+//  //     test *= idxarr[i];
+//  //  }
+//  //  PRINT0("TEST: %d\n", test);
+//    
+//
+//    free_array(&qp);
+//   
+//    free(dipx);
+//    free(dipy);
+//    free(dipz);
+//    //free(idxarr);
+//  //free(correlation_back); 
+//
+//    return status;
+//}
+
+
 int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 // TODO: Use temporary arena instead of malloc 
 {
@@ -1674,19 +1941,26 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
     double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
     double * dipy = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
     double * dipz = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    memset(dipx, 0.0, params->MaxTrajectoryLength * sizeof(double));
-    memset(dipy, 0.0, params->MaxTrajectoryLength * sizeof(double));
-    memset(dipz, 0.0, params->MaxTrajectoryLength * sizeof(double));
+
+   // int * idxarr = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
+   // memset(idxarr, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
+  
+    memset(dipx, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    memset(dipy, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    memset(dipz, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
     
     memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
     double dip0[3], dipt[3];
     extract_q_and_write_into_ms(ms);
     (*dipole)(ms->intermediate_q, dip0);
-   
     dipx[params->MaxTrajectoryLength-1] = dip0[0];
     dipy[params->MaxTrajectoryLength-1] = dip0[1];
     dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
+    //idxarr[params->MaxTrajectoryLength-1] = 1;
+   // dipx[0] = dip0[0];
+   // dipy[0] = dip0[1];
+   // dipz[0] = dip0[2]; 
     
     Array qp = create_array(ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
@@ -1766,6 +2040,10 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
         dipx[params->MaxTrajectoryLength-1+step_counter] = dipt[0];
         dipy[params->MaxTrajectoryLength-1+step_counter] = dipt[1];
         dipz[params->MaxTrajectoryLength-1+step_counter] = dipt[2]; 
+        //idxarr[params->MaxTrajectoryLength-1+step_counter] = 1;
+       // dipx[step_counter] = dipt[0];
+       // dipy[step_counter] = dipt[1];
+       // dipz[step_counter] = dipt[2]; 
        // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
 
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
@@ -1837,11 +2115,11 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
                 return 1;         
             } 
         }
-
-
+  
         dipx[params->MaxTrajectoryLength-1-step_counter] = dipt[0];
         dipy[params->MaxTrajectoryLength-1-step_counter] = dipt[1];
         dipz[params->MaxTrajectoryLength-1-step_counter] = dipt[2]; 
+        //idxarr[params->MaxTrajectoryLength-1-step_counter] = 1;
         //local_correlation[params->MaxTrajectoryLength-1-step_counter] = curr_value; 
        // printf("current index: %d\n",params->MaxTrajectoryLength-1-step_counter);
         
@@ -1878,11 +2156,19 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
 
     *tps = tr.turning_points;
 
+  //  int test = 1;
+  //  for (size_t i = 0;i < 2*params->MaxTrajectoryLength-1;++i) {
+  //     test *= idxarr[i];
+  //  }
+  //  PRINT0("TEST: %d\n", test);
+    
+
     free_array(&qp);
    
     free(dipx);
     free(dipy);
     free(dipz);
+    //free(idxarr);
   //free(correlation_back); 
 
     return status;
@@ -2672,17 +2958,28 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
     //    double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 
     //  56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000/ALU/ALU/ALU;
-        double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + 
-      128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
+    //
+    //
+       if (params->MaxTrajectoryLength >= 5)
+      {
+          double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + 
+        128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
+          PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, prelim_M2, (M2_crln_est_5pt - prelim_M2)/prelim_M2*100.0);
+      }
+      else {
+         PRINT0("Trajectory is too short to estimate M2\n");
+      }
 
-      double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
-            427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
-      533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
-      27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
-      9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
+       if (params->MaxTrajectoryLength >= 11)
+      {
+        double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
+              427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
+        533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
+        27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
+        9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
 
-        PRINT0("M2 ESTIMATE FROM CF (5-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, prelim_M2, (M2_crln_est_5pt - prelim_M2)/prelim_M2*100.0);
-        PRINT0("M2 ESTIMATE FROM CF (11-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, prelim_M2, (M2_crln_est_11pt - prelim_M2)/prelim_M2*100.0);
+          PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, prelim_M2, (M2_crln_est_11pt - prelim_M2)/prelim_M2*100.0);
+      }
 
 
         if (_wrank == 0) {
