@@ -16,8 +16,6 @@ void dipole_init(bool log);
 Eigen::Vector3d dipole_xyz(XYZ4q *xyz);
 Eigen::Vector3d dipole_bf(double R, double Theta); 
 
-void dipole_lab(double *q, double diplab[3]);
-
 #ifdef __cplusplus
 }
 #endif // __cplusplus

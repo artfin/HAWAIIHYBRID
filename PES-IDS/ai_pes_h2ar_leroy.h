@@ -23,9 +23,6 @@ void dpes_h2ar(double R, double Theta, double *dR, double *dTheta);
 
 double pes_in_cm(double R, double Theta);
 
-double pes_lab(double *q);
-void dpes_lab(double *q, double *dpesdq);
-
 #ifdef __cplusplus
 }
 #endif

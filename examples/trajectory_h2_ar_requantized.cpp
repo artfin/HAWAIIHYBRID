@@ -3,36 +3,8 @@
 #include "trajectory.h"
 #include "angles_handler.hpp"
 
-#include "ai_pes_h2ar_leroy.h"
+#include "ai_pes_h2ar_leroy_lib.hpp"
 #include "ai_ids_h2_ar_pip_nn.hpp"
-
-#include <alloca.h>
-
-double pes(double *q) {
-    static double qmol[5];
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    return pes_h2ar(qmol[0], qmol[4]);
-} 
-
-void dpes(double *q, double *dpesdq) {
-    static Eigen::Matrix<double, 5, 5> jac;
-    static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
-    static double qmol[5];
-    
-    jac.setZero();
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    linear_molecule_atom_Jacobi_mol_by_lab(jac, q, qmol);  
-    
-    double dR, dTheta;
-    dpes_h2ar(qmol[0], qmol[4], &dR, &dTheta); // [R, THETAM] -> [dpes_dR, dpes_dTheta]
-
-    // [dpes_dR, 0, 0, 0, dpes_dTheta]
-    derivatives_mol(0) = dR; 
-    derivatives_mol(4) = dTheta; 
-    
-    derivatives_lab = jac * derivatives_mol;
-    Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
-}
 
 void dipole_lab(double *q, double diplab[3]) {
     double qmol[5];
@@ -66,6 +38,8 @@ void dipole_lab(double *q, double diplab[3]) {
 
 int main()
 {
+    pes = pes_lab;
+    dpes = dpes_lab;
     dipole_init(true);
     dipole = dipole_lab;
 
@@ -93,6 +67,10 @@ int main()
         
     // by default we turn on the requantization
     ms.m1.apply_requantization = true;
+    
+    ms.m1.torque_cache_len = 50;
+    ms.m1.torque_cache = (double*) malloc(ms.m1.torque_cache_len * sizeof(double));
+    ms.m1.torque_limit = 1e-4;
 
     double tolerance = 1e-15;
     Trajectory traj = init_trajectory(&ms, tolerance);
@@ -109,16 +87,12 @@ int main()
 
     CalcParams params = {};
     params.sampling_time = 10.0; 
-    params.torque_cache_len = 50;
-    params.torque_limit = 1e-4;
+
     
     size_t switch_counter = 0;
 
     double t = 0.0;
     double tout = params.sampling_time;
-
-    double* cache = (double*) alloca(params.torque_cache_len * sizeof(double));
-    size_t cur_cache = 0;
 
     double dipt[3];
 
@@ -148,15 +122,15 @@ int main()
         printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t %12.5e \t %12.5e\n", 
                 t, ms.intermolecular_qp[IR], E-E0, jl, torq, sqrt(dipt[0]*dipt[0] + dipt[1]*dipt[1] + dipt[2]*dipt[2]));
 
-        cache[nstep % params.torque_cache_len] = torq;
+        ms.m1.torque_cache[nstep % ms.m1.torque_cache_len] = torq;
 
         bool all_less_than_limit = true;
         bool all_more_than_limit = true;
-        for (size_t i = 0; i < params.torque_cache_len; ++i) {
-            torq = cache[i];
+        for (size_t i = 0; i < ms.m1.torque_cache_len; ++i) {
+            torq = ms.m1.torque_cache[i];
 
-            if (torq > params.torque_limit) all_less_than_limit = false;
-            if (torq < params.torque_limit) all_more_than_limit = false;
+            if (torq > ms.m1.torque_limit) all_less_than_limit = false;
+            if (torq < ms.m1.torque_limit) all_more_than_limit = false;
 
             // early exit
             if (!all_less_than_limit && !all_more_than_limit) break;
