@@ -108,6 +108,8 @@ typedef enum {
     KEYWORD_INITIALM2_NPOINTS,
     KEYWORD_HEP_M0_NITERATIONS,
     KEYWORD_HEP_M0_NPOINTS,
+    KEYWORD_HEP_M2_NITERATIONS,
+    KEYWORD_HEP_M2_NPOINTS,
     KEYWORD_HEP_PPF_NITERATIONS,
     KEYWORD_HEP_PPF_NPOINTS,
     
@@ -168,6 +170,8 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM2_NPOINTS]               = "INITIALM2_NPOINTS",
     [KEYWORD_HEP_M0_NPOINTS]                  = "HEP_M0_NPOINTS",
     [KEYWORD_HEP_M0_NITERATIONS]              = "HEP_M0_NITERATIONS",
+    [KEYWORD_HEP_M2_NPOINTS]                  = "HEP_M2_NPOINTS",
+    [KEYWORD_HEP_M2_NITERATIONS]              = "HEP_M2_NITERATIONS",
     [KEYWORD_HEP_PPF_NITERATIONS]             = "HEP_PPF_NITERATIONS",
     [KEYWORD_HEP_PPF_NPOINTS]                 = "HEP_PPF_NPOINTS",
     [KEYWORD_SF_FILENAME]                     = "SF_FILENAME",
@@ -199,7 +203,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
 }; 
-static_assert(KEYWORD_COUNT == 48, "");
+static_assert(KEYWORD_COUNT == 50, "");
 
 Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -221,6 +225,8 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_INITIALM2_NPOINTS]               = TOKEN_INTEGER,
     [KEYWORD_HEP_M0_NPOINTS]                  = TOKEN_INTEGER,
     [KEYWORD_HEP_M0_NITERATIONS]              = TOKEN_INTEGER,
+    [KEYWORD_HEP_M2_NPOINTS]                  = TOKEN_INTEGER,
+    [KEYWORD_HEP_M2_NITERATIONS]              = TOKEN_INTEGER,
     [KEYWORD_HEP_PPF_NPOINTS]                 = TOKEN_INTEGER,
     [KEYWORD_HEP_PPF_NITERATIONS]             = TOKEN_INTEGER,
     [KEYWORD_SF_FILENAME]                     = TOKEN_DQSTRING,
@@ -888,6 +894,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_INITIALM2_NPOINTS:       params->initialM2_npoints = l->int_number; break;
             case KEYWORD_HEP_M0_NITERATIONS:      params->hep_m0_niterations = l->int_number; break;
             case KEYWORD_HEP_M0_NPOINTS:          params->hep_m0_npoints = l->int_number; break;
+            case KEYWORD_HEP_M2_NITERATIONS:      params->hep_m2_niterations = l->int_number; break;
+            case KEYWORD_HEP_M2_NPOINTS:          params->hep_m2_npoints = l->int_number; break;
             case KEYWORD_HEP_PPF_NITERATIONS:     params->hep_ppf_niterations = l->int_number; break;
             case KEYWORD_HEP_PPF_NPOINTS:         params->hep_ppf_npoints = l->int_number; break;
             case KEYWORD_SF_FILENAME:             params->sf_filename = strdup(l->string_storage.items); break;

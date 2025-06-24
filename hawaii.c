@@ -2817,7 +2817,23 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         hep_M0_err *= ZeroCoeff / pf_analytic;
         PRINT0("T = %.2e => M0: %.5e\n", Temperature, hep_M0);
     }    
-    
+   
+    double hep_M2 = 0.0;
+    {
+        size_t hep_m2_niterations = 12;
+        if (params->hep_m2_niterations > 0) hep_m2_niterations = params->hep_m2_niterations;
+
+        size_t hep_m2_npoints = 1000000;
+        if (params->hep_m2_npoints > 0) hep_m2_npoints = params->hep_m2_npoints;
+
+        double hep_M2_err; 
+        c_mpi_perform_integration(ms, INTEGRAND_M2, params, Temperature, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
+
+        hep_M2     *= SecondCoeff / pf_analytic;
+        hep_M2_err *= SecondCoeff / pf_analytic;
+        PRINT0("T = %.2e => M2: %.5e\n", Temperature, hep_M2);
+    } 
+
 
     // TODO: handle the distribution of trajectories between processes so that in total we 
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
@@ -2878,26 +2894,25 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n");
 
-    if (params->initialM0_npoints <= 0) params->initialM0_npoints = 1000000; 
-    
-    PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
-    PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
+    if (params->initialM0_npoints > 0) { 
+        PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+        PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
 
-    double prelim_M0, prelim_M0std;
-    mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
-    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0-prelim_M0std, prelim_M0+prelim_M0std);
-    PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+        double prelim_M0, prelim_M0std;
+        mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
+        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0-prelim_M0std, prelim_M0+prelim_M0std);
+        PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
+    }
 
-    if (params->initialM2_npoints <= 0) params->initialM2_npoints = 1000000; 
-    
-    PRINT0("Running preliminary calculations of M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
-    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
+    if (params->initialM2_npoints > 0) { 
+        PRINT0("Running preliminary calculations of M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+        PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
 
-    double prelim_M2, prelim_M2std;
-    mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std); 
-    PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2-prelim_M2std, prelim_M2+prelim_M2std);
-    PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
-    
+        double prelim_M2, prelim_M2std;
+        mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std); 
+        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2-prelim_M2std, prelim_M2+prelim_M2std);
+        PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
+    } 
 
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
@@ -2985,27 +3000,23 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     //  56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000/ALU/ALU/ALU;
     //
     //
-       if (params->MaxTrajectoryLength >= 5)
-      {
-          double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + 
-        128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
-          PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, prelim_M2, (M2_crln_est_5pt - prelim_M2)/prelim_M2*100.0);
-      }
-      else {
-         PRINT0("Trajectory is too short to estimate M2\n");
-      }
+        if (params->MaxTrajectoryLength >= 5) {
+            double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + \
+                   128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
+            PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, hep_M2, (M2_crln_est_5pt - hep_M2)/hep_M2*100.0);
+        } else {
+            PRINT0("Trajectory is too short to estimate M2\n");
+        }
 
-       if (params->MaxTrajectoryLength >= 11)
-      {
-        double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
-              427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
-        533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
-        27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
-        9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
+        if (params->MaxTrajectoryLength >= 11) {
+            double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
+                    427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
+                    533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
+                    27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
+                    9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
 
-          PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, prelim_M2, (M2_crln_est_11pt - prelim_M2)/prelim_M2*100.0);
-      }
-
+            PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, hep_M2, (M2_crln_est_11pt - hep_M2)/hep_M2*100.0);
+        }
 
         if (_wrank == 0) {
             save_correlation_function(fp, total_crln);
