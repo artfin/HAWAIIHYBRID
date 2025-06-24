@@ -235,6 +235,8 @@ typedef struct {
 
     size_t hep_m0_niterations;
     size_t hep_m0_npoints;
+    size_t hep_m2_niterations;
+    size_t hep_m2_npoints;
     size_t hep_ppf_niterations;
     size_t hep_ppf_npoints;
 
