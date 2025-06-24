@@ -1066,7 +1066,7 @@ void dipole_vector(double *q, double dip[3])
     dip[2] = res(2);
 }
 
-void init_ids() {
+void dipole_init() {
     size_t size1 = gsl_sf_legendre_array_n(lmax_bond);
     LegP1 = (double*) malloc(size1 * sizeof(double));
     
@@ -1074,7 +1074,7 @@ void init_ids() {
     LegP2 = (double*) malloc(size2 * sizeof(double));
 }
 
-void free_ids() {
+void dipole_free() {
     free(LegP1);
     free(LegP2);
 }

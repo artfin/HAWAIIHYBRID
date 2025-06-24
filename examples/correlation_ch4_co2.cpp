@@ -3,70 +3,9 @@
 
 #include "array.h"
 #include "trajectory.h"
-#include "angles_handler.hpp"
 
-#include "ai_pes_ch4_co2.h"
-#include "ai_ids_ch4_co2.hpp"
-
-#define NLAB 8
-#define NKAL 5
-
-double pes(double *qlab) {
-    static double qkal[NKAL];
-    CH4_linear_molecule_lab_to_kal(qlab, qkal); 
-    return pes_ch4co2(qkal[0], qkal[1], qkal[2], qkal[3], qkal[4]); 
-} 
-
-void dpes(double *qlab, double *dpesdq) {
-    static Eigen::Matrix<double, NLAB, NKAL> jac;
-    static Eigen::Matrix<double, NKAL, 1> derivatives_kal;
-    static Eigen::Matrix<double, NLAB, 1> derivatives_lab; 
-    static double qkal[NKAL];
-
-    jac.setZero();
-    CH4_linear_molecule_lab_to_kal(qlab, qkal);
-    CH4_linear_molecule_Jacobi_kal_by_lab(jac, qlab, qkal);  
-
-    double dR, dphi1, dphi2, dtheta1, dtheta2; 
-    dpes_ch4co2(qkal[0], qkal[1], qkal[2], qkal[3], qkal[4], &dR, &dphi1, &dtheta1, &dphi2, &dtheta2); 
-
-    derivatives_kal(0) = dR; 
-    derivatives_kal(1) = dphi1;
-    derivatives_kal(2) = dtheta1;
-    derivatives_kal(3) = dphi2;
-    derivatives_kal(4) = dtheta2;
-
-    derivatives_lab = jac * derivatives_kal;
-
-    Eigen::VectorXd::Map(dpesdq, NLAB) = derivatives_lab;
-}
-
-void dipole_lab(double *qlab, double diplab[3]) {
-    double qkal[NKAL];
-    CH4_linear_molecule_lab_to_kal(qlab, qkal);
-    
-    double dipkal[3];
-    dipole_vector(qkal, dipkal);
-
-    double sinphi, cosphi;
-    double sintheta, costheta;
-    double sinpsi, cospsi;
-
-    sincos(qlab[3], &sinphi, &cosphi);
-    sincos(qlab[4], &sintheta, &costheta);
-    sincos(qlab[5], &sinpsi, &cospsi);
-
-    Sz_filler(Sphi1t, sinphi, cosphi);
-    Sx_filler(Stheta1t, sintheta, costheta);
-    Sz_filler(Spsi1t, sinpsi, cospsi);
-      
-    Eigen::Vector3d dipkal_eig = Eigen::Map<Eigen::Vector3d>(dipkal, 3);
-    Eigen::Vector3d diplab_eig = Sphi1t.transpose() * Stheta1t.transpose() * Spsi1t.transpose() * dipkal_eig; 
-   
-    diplab[0] = diplab_eig(0); 
-    diplab[1] = diplab_eig(1); 
-    diplab[2] = diplab_eig(2); 
-}
+#include "ai_pes_ch4_co2_lib.hpp"
+#include "ai_ids_ch4_co2_lib.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -83,15 +22,18 @@ int main(int argc, char *argv[])
     double I2[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, ROTOR, LINEAR_MOLECULE, I1, I2, seeds[_wrank]);
     
-    init_pes();
-    init_ids();
+    pes_init();
+    pes = pes_lab;
+    dpes = dpes_lab;
+
+    dipole_init();
     dipole = dipole_lab;
 
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = PAIR_STATE_FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.751;
     params.sampler_Rmax                     = 40.0;
     params.niterations                      = 3;
@@ -105,6 +47,12 @@ int main(int argc, char *argv[])
     params.initialM2_npoints                = 2000;
     params.pesmin                           = -342.934 / HTOCM;
     params.cf_filename                      = "./CF-CH4-CO2-F-300.0.txt";
+
+    printf("MU = %.15e\n", MU);
+    printf("II(CH4) = %.15e\n", II_CH4);
+    printf("pesmin = %.15e\n", params.pesmin);
+
+    assert(false);
 
     double Temperature = 300.0;
     

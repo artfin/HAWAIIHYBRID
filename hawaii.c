@@ -81,11 +81,14 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
 
     PRINT0("WORLD SIZE: %d\n\n", _wsize);
 
+    {
+        memcpy(&ms.m1, m1, sizeof(Monomer));
+        memcpy(&ms.m2, m2, sizeof(Monomer));
+    }
+
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(ms.m1.t), display_monomer_type(ms.m2.t));
     PRINT0("Reduced mass of the molecule system: %.6e\n", mu);
-    
     { 
-        memcpy(&ms.m1, m1, sizeof(Monomer));
         ms.m1.qp   = malloc((ms.m1.t%MODULO_BASE)   * sizeof(double));
         ms.m1.dVdq = malloc((ms.m1.t%MODULO_BASE)/2 * sizeof(double));
 
@@ -107,10 +110,9 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
     }
 
     {
-        memcpy(&ms.m2, m2, sizeof(Monomer));
         ms.m2.qp   = malloc((ms.m2.t%MODULO_BASE)   * sizeof(double));
         ms.m2.dVdq = malloc((ms.m2.t%MODULO_BASE)/2 * sizeof(double));
-        
+
         if (m2->nswitch_histogram_filename != NULL) ms.m2.nswitch_histogram_filename = strdup(m2->nswitch_histogram_filename); 
         if (m2->jini_histogram_filename != NULL) ms.m2.jini_histogram_filename = strdup(m2->jini_histogram_filename); 
         if (m2->jfin_histogram_filename != NULL) ms.m2.jfin_histogram_filename = strdup(m2->jfin_histogram_filename); 

@@ -1,6 +1,8 @@
 Makefile.config
 build/*
 *.o
+*.d
+*.so
 *.swp
 *.exe
 *.bak

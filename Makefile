@@ -101,6 +101,7 @@ build/n2_ar_pot_iso.o: ./PES-IDS/n2_ar_pot_iso.cpp | build
 
 build/n2_ar_pot_iso_der.o: ./PES-IDS/n2_ar_pot_iso_der.cpp | build
 	$(CXX) $(FLAGS) $(INC) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+
 ###########################################################
 ###################### CO2-Ar #############################
 ###########################################################
@@ -121,7 +122,6 @@ build/ai_ids_co2ar_lib.o: ./PES-IDS/ai_ids_co2ar_lib.cpp
 
 build/ai_ids_co2ar.so: ./build/ai_ids_co2ar_lib.o build/ai_ids_co2_ar.o build/angles_handler.o | build
 	$(CC) -shared -o $@ $^ -lm -lstdc++
-###########################################################
 
 ###########################################################
 ###################### H2-Ar ##############################
@@ -148,7 +148,6 @@ build/ai_ids_h2_ar_pip_nn.so: build/ai_ids_h2_ar_pip_nn.o \
 
 build/ai_pes_h2_ar_leroy.so: build/ai_pes_h2ar_leroy.o build/angles_handler.o
 	$(CC) -shared -o $@ $^ -lm
-###########################################################
 
 ###########################################################
 ###################### CO-Ar ##############################
@@ -163,8 +162,7 @@ build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handl
 	$(CXX) $(INC_EIGEN) -shared -fPIC -I ./ -o $@ $^
 
 build/perm_dipole_coar.so: ./PES-IDS/perm_dipole_coar.c | build
-	$(CC) $(CFLAGS) -shared -I./ -o $@ $^ -lm
-###########################################################
+	$(CC) $(FLAGS) -shared -I./ -o $@ $^ -lm
 
 ###########################################################
 ###################### N2-Ar ##############################
@@ -192,31 +190,45 @@ build/ai_pes_n2_ar_pip_nn.o: ./PES-IDS/ai_pes_n2_ar_pip_nn.cpp | build
 
 build/ai_ids_n2_ar_pip_nn.o: ./PES-IDS/ai_ids_n2_ar_pip_nn.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
-###########################################################
 
 ###########################################################
 ##################### CH4-CO2 #############################
 ###########################################################
-# build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_pes_ch4_co2_dEdR.o: ./PES-IDS/ai_pes_ch4_co2_dEdR.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_pes_ch4_co2_dEdphi1.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi1.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_pes_ch4_co2_dEdtheta1.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta1.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_pes_ch4_co2_dEdphi2.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi2.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_pes_ch4_co2_dEdtheta2.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta2.c | build
-# 	$(CC) $(FLAGS) $(INC_GSL) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
-# 
-# build/ai_ids_ch4_co2.o: ./PES-IDS/ai_ids_ch4_co2.cpp | build
-# 	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+build/ai_pes_ch4_co2.o: ./PES-IDS/ai_pes_ch4_co2.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_dEdR.o: ./PES-IDS/ai_pes_ch4_co2_dEdR.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_dEdphi1.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi1.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_dEdtheta1.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta1.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_dEdphi2.o: ./PES-IDS/ai_pes_ch4_co2_dEdphi2.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_dEdtheta2.o: ./PES-IDS/ai_pes_ch4_co2_dEdtheta2.c | build
+	$(CC) $(FLAGS) $(INC_GSL) -c -MD -fPIC -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_pes_ch4_co2_lib.o: ./PES-IDS/ai_pes_ch4_co2_lib.cpp | build
+	$(CXX) $(FLAGS) $(INC) -c -MD -fPIC -I./ -I./PES-IDS/ $< -o $@ -lm
+
+build/ai_pes_ch4_co2.so: ./build/ai_pes_ch4_co2_lib.o build/angles_handler.o \
+	  					 ./build/ai_pes_ch4_co2.o ./build/ai_pes_ch4_co2_dEdR.o \
+						 ./build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
+						 ./build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o 
+	$(CC) -shared -o $@ $^ -lm
+
+build/ai_ids_ch4_co2.o: ./PES-IDS/ai_ids_ch4_co2.cpp | build
+	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -fPIC -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_ids_ch4_co2_lib.o: ./PES-IDS/ai_ids_ch4_co2_lib.cpp | build
+	$(CC) $(FLAGS) $(INC_GSL) $(INC_EIGEN) -c -fPIC -MD -I./ $< -o $@ $(LINK_GSL) -lm 
+
+build/ai_ids_ch4_co2.so: ./build/ai_ids_ch4_co2.o ./build/ai_ids_ch4_co2_lib.o ./build/angles_handler.o
+	$(CC) -shared -o $@ $^ -lm
 ###########################################################
 
 OBJ     := build/hawaii.o build/mtwist.o build/angles_handler.o build/array.o build/trajectory.o
@@ -230,8 +242,11 @@ N2_AR   := build/cnpy.o -lz build/ai_pes_n2_ar_pip_nn.o build/ai_ids_n2_ar_pip_n
 H2_AR   := build/cnpy.o -lz build/ai_pes_h2ar_leroy.o build/ai_ids_h2_ar_pip_nn.o \
 		   build/c_basis_2_2_1_3_intermolecular.o build/c_basis_2_1_1_1_3_intermolecular.o build/c_basis_1_1_2_1_3_intermolecular.o
 CO_AR   := build/potv.o build/potv_d.o 
-CH4_CO2 := build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
-		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o build/ai_ids_ch4_co2.o
+CH4_CO2 := build/ai_pes_ch4_co2_lib.o build/ai_ids_ch4_co2_lib.o \
+		   build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o \
+		   build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
+		   build/ai_pes_ch4_co2_dEdphi2.o build/ai_pes_ch4_co2_dEdtheta2.o \
+		   build/ai_ids_ch4_co2.o
  
  
 examples/phase_space_integration_co2_ar.exe: examples/phase_space_integration_co2_ar.cpp build/hawaii.o $(OBJ) $(CO2_AR) 
@@ -312,10 +327,8 @@ examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o b
 examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
 	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
-# '-ldl' on IFA machine instead of '-lmpi_cxx' 
 driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl
-
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl 
 
 build:
 	mkdir -p $@

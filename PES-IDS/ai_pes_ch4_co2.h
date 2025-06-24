@@ -13,8 +13,8 @@
 extern "C" {
 #endif
 
-void init_pes();
-void free_pes();
+void pes_init();
+void pes_free();
 
 double pes_ch4co2(double R, double phi1, double theta1, double phi2, double theta2);
 void dpes_ch4co2(double R, double phi1, double theta1, double phi2, double theta2, double *dR, double *dphi1, double *dtheta1, double *dphi2, double *dtheta2);
