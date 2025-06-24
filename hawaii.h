@@ -30,6 +30,8 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
+#define OMPI_SKIP_MPICXX
+
 #ifndef __cplusplus
 #define _GNU_SOURCE
 void sincos(double, double*, double*);
