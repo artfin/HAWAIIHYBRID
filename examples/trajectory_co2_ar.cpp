@@ -4,51 +4,8 @@
 #include "trajectory.h"
 #include "angles_handler.hpp"
 
-#include "ai_pes_co2ar.h"
-
-double pes(double *q)
-/*
- * q: the order of coordinates is the same as in MoleculeSystem
- *    Phi, Theta, R, phi1, theta1
- * R: bohr, angles: rad
- * Returns: Hartree 
- */ 
-{
-    static double qmol[5];
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    return pes_co2ar(qmol[0], qmol[4]);
-} 
-
-void dpes(double *q, double *dpesdq) {
-    static Eigen::Matrix<double, 5, 5> jac;
-    static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
-    static double qmol[5];
-    
-    jac.setZero();
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    linear_molecule_atom_Jacobi_mol_by_lab(jac, q, qmol);  
-    
-    double dR, dTheta;
-    dpes_co2ar(qmol[0], qmol[4], &dR, &dTheta); // [R, THETAM] -> [dpes_dR, dpes_dTheta]
-
-    // [dpes_dR, 0, 0, 0, dpes_dTheta]
-    derivatives_mol(0) = dR; 
-    derivatives_mol(4) = dTheta; 
-
-    //for (size_t i = 0; i < 5; ++i) {
-    //    printf("derivatives_mol(%zu) = %.10lf\n", i, derivatives_mol(i));
-    //}
-    //
-    //for (size_t i = 0; i < 5; ++i) {
-    //    for (size_t j = 0; j < 5; ++j) {
-    //        printf("%.5e ", jac(i, j)); 
-    //    }
-    //    printf("\n");
-    //}
-    
-    derivatives_lab = jac * derivatives_mol;
-    Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
-}
+#include "ai_pes_co2ar_lib.hpp"
+#include "ai_ids_co2ar_lib.hpp"
 
 const char *var_to_cstring(int n) {
     switch (n) {
@@ -168,7 +125,9 @@ int main()
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
-    init_pes();
+    pes_init();
+    pes = pes_lab;
+    dpes = dpes_lab;
 
     Array qp = create_array(ms.QP_SIZE);
     double data[] = {
@@ -176,7 +135,7 @@ int main()
         8.000086892719947e+00, // PPHI
         2.043243374007463e-01, // THETA
         1.292311668112794e+01, // PTHETA
-        9.066821669009366e+00, // R
+        19.066821669009366e+00, // R
        -0.186729452372973e-01, // PR
         1.462013919064840e+00, // PHI1
         0.199991310728005e+01, // PPHI1
