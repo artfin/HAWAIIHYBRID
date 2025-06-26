@@ -10,7 +10,7 @@ MPICXX ?= mpic++
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
-FLAGS := $(FLAGS_RELEASE)
+FLAGS := $(FLAGS_DEBUG)
 
 LIB_GSL ?= -lgsl -lgslcblas 
 
@@ -335,6 +335,10 @@ examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/a
 
 driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
 	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl 
+
+d4b.exe: d4b.c $(OBJ)
+	$(CC) -Wall -Wextra -ggdb $(INC) $^ -o $@ $(LIB_GSL) $(LIB_SUNDIALS) -lm -lstdc++
+
 
 build:
 	mkdir -p $@

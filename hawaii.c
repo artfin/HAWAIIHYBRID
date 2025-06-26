@@ -5154,8 +5154,8 @@ SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
     };
 
     for (size_t i = 0; i < cf.len; ++i) {
-        sfnum.nu[i]   = i * M_PI / tmax * Xscale;
-        sfnum.data[i] = Ft[i] * tmax / M_PI * Yscale;
+        sfnum.nu[i]   = i * M_PI / tmax * Xscale / ATU; // cm-1
+        sfnum.data[i] = Ft[i] * tmax / M_PI * Yscale; // J * m^6 * s
     }
   
     free(Ft);
