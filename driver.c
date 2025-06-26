@@ -812,7 +812,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
         get_token(l);
         if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "&END") == 0)) {
             //print_lexeme(l);
-            return;
+            break; 
         }
 
         expect_token(l, TOKEN_KEYWORD);
@@ -942,6 +942,14 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             } 
         }
     }
+
+    if (st.count != cf_filenames.count) {
+        PRINT0("ERROR: Satellite temperature count (%s = %zu) does not match correlation filename count (%s = %zu)\n",
+                KEYWORDS[KEYWORD_SATELLITE_TEMPERATURES], st.count,
+                KEYWORDS[KEYWORD_CF_FILENAMES], cf_filenames.count);
+        exit(1);
+    }
+
 }
             
 void parse_monomer_block(Lexer *l, Monomer *m) 
