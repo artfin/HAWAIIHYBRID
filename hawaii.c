@@ -5127,40 +5127,34 @@ double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len)
 }
 
 
-SFnc dct_numeric_sf(CFnc cf, WingParams *wp)
+SFnc idct_cf_to_sf(CFnc cf)
+// CF: 
+//   t    - a.t.u.
+//   data - V (m^6) * (a.u. of dipole)^2
+// 
+// NOTE: Apodization changes the correlation function
 {
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
-    double *cfnum = (double*) malloc(cf.len * sizeof(double));
-    for (size_t i = 0; i < cf.len; ++i) {
-        cfnum[i] = cf.data[i] - wingmodel(wp, cf.t[i]);
-    }
-    
-    double dt = (cf.t[1] - cf.t[0]) / ATU;
-    connes_apodization((Array) {.data = cfnum, .n = cf.len }, dt);
+    double dt = (cf.t[1] - cf.t[0]); 
+    connes_apodization((Array) {.data = cf.t, .n = cf.len }, dt);
 
-    double *Ft = idct(cfnum, cf.len);
-    free(cfnum);
-
-    double tmax = cf.len * dt;
-
-    SFnc sfnum = {
+    SFnc sf = {
         .nu   = (double*) malloc(cf.len * sizeof(double)),
-        .data = (double*) malloc(cf.len * sizeof(double)),
+        .data = idct(cf.data, cf.len),
         .len  = cf.len,
         .Temperature = cf.Temperature,
         .ntraj = cf.ntraj, 
     };
 
+    double tmax = cf.len * dt;
     for (size_t i = 0; i < cf.len; ++i) {
-        sfnum.nu[i]   = i * M_PI / tmax * Xscale / ATU; // cm-1
-        sfnum.data[i] = Ft[i] * tmax / M_PI * Yscale; // J * m^6 * s
+        sf.nu[i]   = i * M_PI / tmax * Xscale; // cm-1
+        sf.data[i] = sf.data[i] * tmax / M_PI * Yscale; // J * m^6 * s
     }
   
-    free(Ft);
-
-    return sfnum; 
+    return sf; 
 }
 
 CFnc dct_sf_to_cf(SFnc sf)
@@ -5207,6 +5201,7 @@ CFnc dct_sf_to_cf(SFnc sf)
     return cf; 
 }
 
+/*
 SFnc idct_cf_to_sf(CFnc cf)
 {
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0;
@@ -5252,7 +5247,7 @@ SFnc idct_cf_to_sf(CFnc cf)
 
     return sf;
 }
-
+*/
 
 SFnc desymmetrize_schofield(SFnc sf) 
 {
@@ -5276,9 +5271,9 @@ SFnc desymmetrize_schofield(SFnc sf)
 SFnc desymmetrize_d2(SFnc sf) 
 {
     SFnc sfd = {
-        .nu          = malloc(sf.len * sizeof(double)),
-        .data        = malloc(sf.len * sizeof(double)),
-        .len         = sf.len,
+        .nu   = (double*) malloc(sf.len * sizeof(double)),
+        .data = (double*) malloc(sf.len * sizeof(double)),
+        .len  = sf.len,
         .Temperature = sf.Temperature,
     };
 
@@ -5297,7 +5292,11 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
 {
     assert(cf.Temperature > 0);
 
-    double cc = HBar / Boltzmann / cf.Temperature / ATU / sqrt(2.0);
+    // double cc = HBar / Boltzmann / cf.Temperature / ATU / sqrt(2.0);
+    //
+    // t -> sqrt( t(t - i*hbar/kT) ) 
+    //
+    double cc = HBar / Boltzmann / cf.Temperature / ATU / 2.0;
     printf("Egelstaff time constant: %.5e\n", cc);
   
     assert(cc < cf.t[cf.len - 1]);
@@ -5307,12 +5306,12 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     gsl_spline_init(spline, cf.t, cf.data, cf.len);
 
     double norm = frommhold_renormalization ? gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc) : 1.0;
-
+        
     // we don't know the length of the Egelstaff correlation function beforehand
     // because of that we resort to reserving the `sz` elements as a close approximation to CF length
     CFnc cf_egelstaff = {
-        .t    = malloc(cf.len * sizeof(double)),
-        .data = malloc(cf.len * sizeof(double)),
+        .t    = (double*) malloc(cf.len * sizeof(double)),
+        .data = (double*) malloc(cf.len * sizeof(double)),
         .capacity = cf.len,
         .Temperature = cf.Temperature,
     };
@@ -5334,9 +5333,8 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     return cf_egelstaff; 
 }
 
-SFnc desymmetrize_frommhold(SFnc sf)
+SFnc desymmetrize_frommhold(CFnc cf)
 {
-    CFnc cf     = dct_sf_to_cf(sf);
     CFnc cf_egf = egelstaff_time_transform(cf, true);
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
@@ -5355,8 +5353,8 @@ SFnc desymmetrize_egelstaff(SFnc sf)
 Spectrum compute_alpha(SFnc sf) 
 {
     Spectrum sp = {
-        .nu   = malloc(sf.len * sizeof(double)),
-        .data = malloc(sf.len * sizeof(double)),
+        .nu   = (double*) malloc(sf.len * sizeof(double)),
+        .data = (double*) malloc(sf.len * sizeof(double)),
         .len  = sf.len,
     };
 

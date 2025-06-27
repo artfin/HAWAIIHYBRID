@@ -517,7 +517,6 @@ double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len);
 double *dct(double *v, size_t len);
 double *idct(double *v, size_t len);
 
-SFnc dct_numeric_sf(CFnc cf, WingParams *wp);
 CFnc dct_sf_to_cf(SFnc sf);
 SFnc idct_cf_to_sf(CFnc cf);
 
@@ -526,7 +525,7 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization);
 SFnc desymmetrize_d2(SFnc sf); 
 SFnc desymmetrize_schofield(SFnc sf); 
 SFnc desymmetrize_egelstaff(SFnc sf);
-SFnc desymmetrize_frommhold(SFnc sf);
+SFnc desymmetrize_frommhold(CFnc cf);
 
 Spectrum compute_alpha(SFnc sf); 
     
