@@ -2,9 +2,6 @@
 #include "hawaii.h"
 
 // TODO: смотрим на десимметризации при 20, 30 и 40 К, 1000 K, 2000 K, 5000 K
-// 
-// LEAKS MEMORY IN MULTITEMPERATURE FIT
-
 
 void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spectrum *out_spectrum, bool do_return_spectrum) 
 {
@@ -12,9 +9,11 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, cf.len);
     gsl_spline_init(spline, cf.t, cf.data, cf.len);
 
-    // SFnc sf_cl = dct_numeric_sf(cf, &wp);
-    // double m0_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 0);
-    // printf("M0 cl = %.5e\n", m0_cl);
+    //SFnc sf_cl = idct_cf_to_sf(cf);
+    //double m0_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 0);
+    //double m1_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 1);
+    //printf("M0 cl = %.5e, m1 cl = %.5e\n", m0_cl, m1_cl);
+    //assert(false);
 
     CFnc cf_d4b = {
         .t    = (double*) malloc(cf.len * sizeof(double)),
@@ -24,7 +23,8 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     };
 
     double cc = HBar / Boltzmann / cf.Temperature / ATU / 2.0;
-  
+    //printf("INFO: time shift constant = %.10e\n", cc);
+
     size_t cursor = 0;
 
     for (size_t i = 0; i < cf.len; ++i) {
@@ -38,10 +38,12 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     }
    
     cf_d4b.len = cursor;   
-
+    //printf("INFO: len of CF after interpolation = %zu\n", cf_d4b.len);
+    
     size_t padded_len = 0; 
     double *padded_t = pad_to_power_of_two(cf_d4b.t, cf_d4b.len, &padded_len); 
     double *padded_data = pad_to_power_of_two(cf_d4b.data, cf_d4b.len, &padded_len); 
+    //printf("INFO: padding 't' and 'data' arrays of CF to padded_len = %zu\n", padded_len);
 
     free(cf_d4b.t);
     free(cf_d4b.data);
@@ -61,7 +63,7 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
         sf_d4b.data[i] *= d0;
     }
 
-    sf_d4b.len = 15000; 
+    sf_d4b.len = 25000; 
     *m0 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 0);
     *m1 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 1);
     // printf("M0 = %.5e\n", *m0);
@@ -70,6 +72,9 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     if (do_return_spectrum) {
         *out_spectrum = compute_alpha(sf_d4b); 
     }
+
+    gsl_spline_free(spline);
+    gsl_interp_accel_free(acc);
 
     free_cfnc(cf_d4b); 
     free_sfnc(sf_intermediate_d4b);
@@ -150,7 +155,7 @@ void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, dou
     double weights[] = {1.0, 1.0}; 
     gsl_vector_view wts = gsl_vector_view_array(weights, 2);
 
-    double initial[] = {1.0, 1.0};
+    double initial[] = {1.0, 0.1};
     gsl_vector_view initial_view = gsl_vector_view_array(initial, 2);
 
     gsl_multifit_nlinear_winit(&initial_view.vector, &wts.vector, &fdf, w); // initialize solver with starting point and weights
@@ -204,13 +209,15 @@ void optimize_one_by_one()
     FILE *fp = fopen("dvals.txt", "w");
     printf("INFO: opened dvals.txt to write d0 and d1 values\n");
 
-    double Temperatures[] = {50.0, 70.0, 90.0, 110.0, 130.0, 150.0, 
-                             170.0, 190.0, 210.0, 230.0, 250.0, 270.0, 290.0};
+    //double Temperatures[] = {50.0, 70.0, 90.0, 110.0, 130.0, 150.0, 
+    //                         170.0, 190.0, 210.0, 230.0, 250.0, 270.0, 290.0};
         
+    double Temperatures[] = { 1000.0 };
+    size_t nTemperatures = sizeof(Temperatures)/sizeof(Temperatures[0]);
 
-    String_Builder filename;
+    String_Builder filename = {0};
 
-    for (size_t i = 0; i < sizeof(Temperatures)/sizeof(Temperatures[0]); ++i) 
+    for (size_t i = 0; i < nTemperatures; ++i) 
     {
         printf("\n\n");
 
@@ -249,10 +256,67 @@ void optimize_one_by_one()
             }
         }
 
-
-        for (size_t i = 0; i < cf.len; ++i) {
-            cf.data[i] *= ATU;
-        } 
+        double m0ref[] = {
+            //1.588844492e-06, // 50  
+            //1.814755710e-06, // 70
+            //2.084497471e-06, // 90
+            //2.375063800e-06, // 110
+            //2.677956101e-06, // 130
+            //2.989174251e-06, // 150
+            //3.306514410e-06, // 170
+            //3.628619784e-06, // 190
+            //3.954583724e-06, // 210
+            //4.283761525e-06, // 230
+            //4.615672169e-06, // 250
+            //4.949942964e-06, // 270
+            //5.286276349e-06, // 290
+            //5.624428938e-06, // 310
+            //5.964197698e-06, // 330
+            //6.305410489e-06, // 350
+            //6.647919378e-06, // 370
+            //6.991595780e-06, // 390
+            //7.336326838e-06, // 410
+            //7.682012676e-06, // 430
+            //8.028564262e-06, // 450
+            //8.375901722e-06, // 470
+            //8.723952993e-06, // 490, quantum
+            //1.064821641e-05, // 600, hbar^4
+            //1.240792216e-05, // 700, hbar^4
+            //1.417303674e-05, // 800, hbar^4
+            //1.594058518e-05, // 900, hbar^4
+            1.770851147e-05, // 1000, hbar^4
+        }; 
+            
+        double m1ref[] = {
+            //7.537432203e-05, // 50
+            //8.385039936e-05, // 70
+            //9.417750094e-05, // 90
+            //1.052460748e-04, // 110
+            //1.166659866e-04, // 130
+            //1.282654866e-04, // 150
+            //1.399574642e-04, // 170
+            //1.516932167e-04, // 190
+            //1.634435213e-04, // 210
+            //1.751898926e-04, // 230
+            //1.869201569e-04, // 250
+            //1.986260475e-04, // 270
+            //2.103018195e-04, // 290
+            //2.219434135e-04, // 310
+            //2.335479297e-04, // 330
+            //2.451132861e-04, // 350
+            //2.566379899e-04, // 370
+            //2.681209797e-04, // 390
+            //2.795615160e-04, // 410
+            //2.909591012e-04, // 430
+            //3.023134226e-04, // 450
+            //3.136243093e-04, // 470
+            //3.248917000e-04, // 490
+            //3.860833542e-04, // 600, hbar^4 
+            //4.406031116e-04, // 700, hbar^4
+            //4.940992375e-04, // 800, hbar^4
+            //5.466124826e-04, // 900, hbar^4
+            5.981823007e-04, // 1000, hbar^4
+        };
 
         /*
            double d0 = 1.0;
@@ -261,57 +325,6 @@ void optimize_one_by_one()
            Spectrum sp = desymmetrize_d4b(cf, d0, d1, &m0, &m1);
            writetxt("d4b/SPD4b-T-He-Ar-300.0.txt", sp.nu, sp.data, sp.len, NULL); 
            */
-        double m0ref[] = {
-            1.588844492e-06,
-            1.814755710e-06,
-            2.084497471e-06,
-            2.375063800e-06,
-            2.677956101e-06,
-            2.989174251e-06,
-            3.306514410e-06,
-            3.628619784e-06,
-            3.954583724e-06,
-            4.283761525e-06,
-            4.615672169e-06,
-            4.949942964e-06,
-            5.286276349e-06,
-            5.624428938e-06,
-            5.964197698e-06,
-            6.305410489e-06,
-            6.647919378e-06,
-            6.991595780e-06,
-            7.336326838e-06,
-            7.682012676e-06,
-            8.028564262e-06,
-            8.375901722e-06,
-            8.723952993e-06,
-        }; 
-
-        double m1ref[] = {
-            7.537432203e-05, // 50
-            8.385039936e-05,
-            9.417750094e-05,
-            1.052460748e-04,
-            1.166659866e-04,
-            1.282654866e-04,
-            1.399574642e-04,
-            1.516932167e-04,
-            1.634435213e-04,
-            1.751898926e-04,
-            1.869201569e-04,
-            1.986260475e-04,
-            2.103018195e-04,
-            2.219434135e-04,
-            2.335479297e-04,
-            2.451132861e-04,
-            2.566379899e-04,
-            2.681209797e-04,
-            2.795615160e-04,
-            2.909591012e-04,
-            3.023134226e-04,
-            3.136243093e-04,
-            3.248917000e-04, // 490
-        };
 
         double opt_d0, opt_d1; 
         optimize_d0_and_d1(cf, m0ref[i], m1ref[i], &opt_d0, &opt_d1);
@@ -330,8 +343,10 @@ void optimize_one_by_one()
         fprintf(fp, "%.2f %.5e %.5e\n", Temperature, opt_d0, opt_d1);
 
         free_spectrum(sp);
+        free_cfnc(cf_f);
+        free_cfnc(cf_b);
     }
-
+        
     sb_free(&filename);
     fclose(fp);
 }
@@ -381,7 +396,8 @@ void optimize_all_temperatures()
 {
     double Temperatures[] = {50.0, 70.0, 90.0, 110.0, 130.0, 150.0, 
                              170.0, 190.0, 210.0, 230.0, 250.0, 270.0, 290.0,
-                             410.0, 430.0, 450.0, 470.0, 490.0};
+                             410.0, 430.0, 450.0, 470.0, 490.0, 
+                             600.0, 700.0, 800.0, 900.0, 1000.0};
 
     int nTemperatures = sizeof(Temperatures)/sizeof(Temperatures[0]); 
     CFnc cf[nTemperatures];
@@ -390,7 +406,7 @@ void optimize_all_temperatures()
 
     for (size_t i = 0; i < sizeof(Temperatures)/sizeof(Temperatures[0]); ++i) 
     {
-        printf("\n\n\n\n");
+        printf("\n\n");
 
         double Temperature = Temperatures[i]; 
         CFnc cf_f = {0};
@@ -428,10 +444,6 @@ void optimize_all_temperatures()
             }
         }
 
-        for (size_t j = 0; j < cf[i].len; ++j) {
-            cf[i].data[j] *= ATU;
-        }
-
         free_cfnc(cf_f);
         free_cfnc(cf_b);
     }
@@ -459,7 +471,12 @@ void optimize_all_temperatures()
         7.682012676e-06, // 430
         8.028564262e-06, // 450
         8.375901722e-06, // 470
-        8.723952993e-06, // 490
+        8.723952993e-06, // 490, quantum
+        1.064821641e-05, // 600, hbar^4
+        1.240792216e-05, // 700, hbar^4
+        1.417303674e-05, // 800, hbar^4
+        1.594058518e-05, // 900, hbar^4
+        1.770851147e-05, // 1000, hbar^4
     }; 
         
     double m1ref[] = {
@@ -486,6 +503,11 @@ void optimize_all_temperatures()
         3.023134226e-04, // 450
         3.136243093e-04, // 470
         3.248917000e-04, // 490
+        3.860833542e-04, // 600, hbar^4 
+        4.406031116e-04, // 700, hbar^4
+        4.940992375e-04, // 800, hbar^4
+        5.466124826e-04, // 900, hbar^4
+        5.981823007e-04, // 1000, hbar^4
     };
 
     MultiTempOptimizeData opt = {
@@ -564,7 +586,7 @@ void optimize_all_temperatures()
 
     FILE *fp = fopen("d4b/dvals-multifit-inverseT.txt", "w");
 
-    for (size_t i = 0; i < sizeof(Temperatures)/sizeof(Temperatures[0]); ++i) 
+    for (size_t i = 0; i < nTemperatures; ++i) 
     {
         double T = Temperatures[i];
         
@@ -594,15 +616,20 @@ void optimize_all_temperatures()
     }
 
     fclose(fp);
-    
+  
+    for (size_t i = 0; i < nTemperatures; ++i) {
+        free_cfnc(cf[i]);
+    }
 
+    sb_free(&filename);
     // *out_d0 = gsl_vector_get(w->x, 0);
     // *out_d1 = gsl_vector_get(w->x, 1);
 } 
 
 int main()
 {
-    optimize_all_temperatures();
+    optimize_one_by_one();
+    // optimize_all_temperatures();
 
     return 0;
 }
