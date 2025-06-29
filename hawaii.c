@@ -4988,7 +4988,8 @@ void connes_apodization(Array a, double sampling_time)
 
     for (size_t i = 0; i < a.n; ++i) {
         double tcurr = sampling_time * i;
-        a.data[i] *= (1.0 - (tcurr / tmax) * (tcurr / tmax)) * (1.0 - (tcurr / tmax) * (tcurr / tmax)); 
+        double factor = (1.0 - (tcurr/tmax)*(tcurr/tmax)) * (1.0 - (tcurr/tmax)*(tcurr/tmax));
+        a.data[i] *= factor;
     } 
 }
 
@@ -5160,7 +5161,7 @@ SFnc idct_cf_to_sf(CFnc cf)
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
     double dt = (cf.t[1] - cf.t[0]); 
-    connes_apodization((Array) {.data = cf.t, .n = cf.len }, dt);
+    connes_apodization((Array) {.data = cf.data, .n = cf.len }, dt);
 
     SFnc sf = {
         .nu   = (double*) malloc(cf.len * sizeof(double)),
