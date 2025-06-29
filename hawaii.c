@@ -2540,6 +2540,12 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    minimum intermolecular distance for sampler (sampler_Rmin):          %.3e\n", params->sampler_Rmin);
     PRINT0("    maximum intermolecular distance for sampler (sampler_Rmax):          %.3e\n", params->sampler_Rmax);
+    PRINT0("    use Zimmermann's trick:                                              %d\n", params->use_zimmermann_trick);
+
+    if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
+        PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
+        exit(1);
+    } 
     
     PRINT0("    Writing resulting correlation functions to:\n");
     for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -2609,7 +2615,12 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                     if (energy > 0.0) continue;
                 }
 
-                int status = correlation_eval(ms, &traj, params, base_crln, &tps); 
+                int status;
+                if (params->use_zimmermann_trick) {
+                    status = correlation_eval_zimmerman_trick(ms, &traj, params, base_crln, &tps);
+                } else {
+                    status = correlation_eval(ms, &traj, params, base_crln, &tps);
+                }  
                 if (status == -1) continue;
 
                 // TODO: turning points counting
@@ -2893,6 +2904,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("    use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n");
+    
+    if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
+        PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
+        exit(1);
+    } 
 
     if (params->initialM0_npoints > 0) { 
         PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
