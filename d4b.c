@@ -8,8 +8,9 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     gsl_interp_accel *acc = gsl_interp_accel_alloc();
     gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, cf.len);
     gsl_spline_init(spline, cf.t, cf.data, cf.len);
-
+    
     //SFnc sf_cl = idct_cf_to_sf(cf);
+    //sf_cl.len = 50000;
     //double m0_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 0);
     //double m1_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 1);
     //printf("M0 cl = %.5e, m1 cl = %.5e\n", m0_cl, m1_cl);
@@ -29,6 +30,10 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
 
     for (size_t i = 0; i < cf.len; ++i) {
         double t_shifted = sqrt(cf.t[i]*cf.t[i] + d1*cc*cc);
+        if (isnan(t_shifted)) {
+            printf("ERROR: t_shifted is NaN for d0 = %.5e, d1 = %.5e, i = %zu\n", d0, d1, i);
+            exit(1);
+        }
 
         if (t_shifted <= cf.t[cf.len - 1]) {
             cf_d4b.t[cursor] = cf.t[i];
@@ -56,7 +61,10 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     //writetxt("SFD4b-F-He-Ar-50.0.txt", sf_intermediate_d4b.nu, sf_intermediate_d4b.data, sf_intermediate_d4b.len, NULL); 
     
     // for D4a
-    // d0 = d0 * gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc);
+    double D4a_coeff = gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc);
+    printf("D4a_coeff = %.10e\n", D4a_coeff);
+    //d0 = d0 * D4a_coeff; 
+    //assert(false);
 
     SFnc sf_d4b = desymmetrize_schofield(sf_intermediate_d4b);
     for (size_t i = 0; i < sf_d4b.len; ++i) {
@@ -66,8 +74,7 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     sf_d4b.len = 25000; 
     *m0 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 0);
     *m1 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 1);
-    // printf("M0 = %.5e\n", *m0);
-    // printf("M1 = %.5e\n", *m1);
+    printf("d0 = %.5e, d1 = %.5e => M0 = %.5e, M1 = %.5e\n", d0, d1, *m0, *m1);
 
     if (do_return_spectrum) {
         *out_spectrum = compute_alpha(sf_d4b); 
@@ -155,7 +162,7 @@ void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, dou
     double weights[] = {1.0, 1.0}; 
     gsl_vector_view wts = gsl_vector_view_array(weights, 2);
 
-    double initial[] = {1.0, 0.1};
+    double initial[] = {1.0, 1.0};
     gsl_vector_view initial_view = gsl_vector_view_array(initial, 2);
 
     gsl_multifit_nlinear_winit(&initial_view.vector, &wts.vector, &fdf, w); // initialize solver with starting point and weights
@@ -233,17 +240,17 @@ void optimize_one_by_one()
         }
 
         CFnc cf = {
-            .t = cf_f.t,
+            .t = malloc(cf_f.capacity * sizeof(double)), 
             .data = malloc(cf_f.capacity * sizeof(double)),
             .len = cf_f.len,
             .capacity = cf_f.capacity,
             .Temperature = cf_f.Temperature, 
         };
 
-        for (size_t i = 0; i < cf_f.len; ++i) {
-            cf.data[i] = cf_f.data[i];
-        }
-
+        memset(cf.t, 0, cf.capacity*sizeof(double));
+        memset(cf.data, 0, cf.capacity*sizeof(double));
+        memcpy(cf.t, cf_f.t, cf_f.len*sizeof(double));
+        memcpy(cf.data, cf_f.data, cf_f.len*sizeof(double));
 
         sb_reset(&filename); 
         sb_append_format(&filename, "He-Ar/CF-B/CF-B-He-Ar-%.1f.txt", Temperature); 
@@ -285,6 +292,9 @@ void optimize_one_by_one()
             //1.417303674e-05, // 800, hbar^4
             //1.594058518e-05, // 900, hbar^4
             1.770851147e-05, // 1000, hbar^4
+            
+            //4.090103806e-05, // 3000, RMIN = 4.0 
+            //5.194223359e-05, // 3000 
         }; 
             
         double m1ref[] = {
@@ -316,6 +326,9 @@ void optimize_one_by_one()
             //4.940992375e-04, // 800, hbar^4
             //5.466124826e-04, // 900, hbar^4
             5.981823007e-04, // 1000, hbar^4
+            
+            //0.001248770302, // 3000, RMIN = 4.0 
+            //0.0014748392, // 3000, hbar^4  
         };
 
         /*
@@ -345,8 +358,9 @@ void optimize_one_by_one()
         free_spectrum(sp);
         free_cfnc(cf_f);
         free_cfnc(cf_b);
+        free_cfnc(cf); 
     }
-        
+       
     sb_free(&filename);
     fclose(fp);
 }
@@ -630,6 +644,22 @@ int main()
 {
     optimize_one_by_one();
     // optimize_all_temperatures();
+ 
+    /* 
+    CFnc cf = {0};   
+
+    const char *filename = "He-Ar/CF-F/CF-F-He-Ar-50.0.txt"; 
+    if (!read_correlation_function(filename, NULL, &cf)) {
+        printf("ERROR: could not read the file '%s'!\n", filename);
+        exit(1); 
+    }
+
+    Spectrum sp = {0};
+
+    double m0, m1;
+    desymmetrize_d4b(cf, 1.0, 1.0, &m0, &m1, &sp, true); 
+    */
+    //writetxt("He-Ar/SF-F/SPD4a-F-He-Ar-300.0-with-two-in-cc.txt", sp.nu, sp.data, sp.len, NULL); 
 
     return 0;
 }

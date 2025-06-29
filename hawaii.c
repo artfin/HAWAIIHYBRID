@@ -4154,11 +4154,12 @@ void sb_reserve(String_Builder *sb, size_t n)
 }
 
 void sb_append(String_Builder *sb, const char *line, size_t n)
-/* Appends a sequence of characters to the String_Builder.
+/* Appends a sequence of characters (sized string) to the String_Builder.
  *
  * This function appends the first `n` characters from the provided `line` to
  * the String_Builder}. If `n` exceeds the length of `line`, the behavior
- * is undefined. The String_Builder automatically resizes its buffer if necessary 
+ * is undefined (meaning that the garbage will be copied into String_Builder). 
+ * The String_Builder automatically resizes its buffer if necessary 
  * to accommodate the new characters.
  */
 {
@@ -4175,6 +4176,22 @@ void sb_append(String_Builder *sb, const char *line, size_t n)
 
     strncpy(sb->items + sb->count, line, n);
     sb->count += n;
+}
+
+void sb_append_null(String_Builder *sb) {
+    size_t new_count = sb->count + 1;
+
+    if (new_count > sb->capacity) {
+        size_t new_capacity = (sb->capacity == 0) ? INIT_SB_CAPACITY : 2 * sb->capacity;
+        for ( ; new_count > new_capacity; new_capacity *= 2);
+
+        sb->items = (char*) realloc(sb->items, new_capacity);
+        assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
+        sb->capacity = new_capacity;
+    }
+
+    sb->items[sb->count] = '\0';
+    sb->count++; 
 }
 
 void sb_reset(String_Builder *sb) 
@@ -4313,6 +4330,8 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
         header_lines++;
     }
+
+    sb_append_null(sb);
   
     printf("INFO: Reading correlation function from '%s'\n", filename); 
     printf("INFO: # of lines in header: %zu\n", header_lines);
@@ -4429,7 +4448,10 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
 defer:
     if (fp) fclose(fp);
-    if (sb_should_be_freed) sb_free(sb);
+    if (sb_should_be_freed) {
+        sb_free(sb);
+        free(sb);
+    }
     if (regalloc) regfree(&regex);
     return result;
 }

@@ -449,6 +449,7 @@ typedef struct {
 
 void sb_reserve(String_Builder *sb, size_t n);
 void sb_append(String_Builder *sb, const char *line, size_t n);
+void sb_append_null(String_Builder *sb);
 void sb_append_cstring(String_Builder *sb, const char *line);
 void sb_append_format(String_Builder *sb, const char *format, ...);
 void sb_append_seconds_as_datetime_string(String_Builder *sb, int seconds);
