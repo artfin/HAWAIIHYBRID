@@ -12,6 +12,7 @@
 #include "hawaii.h"
 
 // TODO: add 'where_begin' field for token start in the Lexer
+// TODO: define a macro for 'expect_one_of_tokens' to not provide the number of varargs
 
 // TODO: add types of calculation for calculating phase moment M0 and M2
 // TODO: add type of calculation for running trajectory from specific phase-point 
@@ -45,31 +46,41 @@ typedef enum {
     TOKEN_BOOLEAN,
     TOKEN_OCURLY,
     TOKEN_CCURLY,
+    TOKEN_OPAREN,
+    TOKEN_CPAREN,
     TOKEN_COMMA,
     TOKEN_EQ,
+    TOKEN_INTERNAL_VAR,
+    TOKEN_FUNCALL,
     TOKEN_COUNT, // sentinel value for array size
 } Token_Type;
 
 const char *TOKEN_TYPES[TOKEN_COUNT] = {
-      [TOKEN_EOF]      = "EOF",
-      [TOKEN_BLOCK]    = "BLOCK",
-      [TOKEN_KEYWORD]  = "KEYWORD",
-      [TOKEN_STRING]   = "STRING",
-      [TOKEN_DQSTRING] = "DOUBLE-QUOTED STRING",
-      [TOKEN_INTEGER]  = "INTEGER",
-      [TOKEN_FLOAT]    = "FLOAT",
-      [TOKEN_BOOLEAN]  = "BOOLEAN",
-      [TOKEN_OCURLY]   = "{",
-      [TOKEN_CCURLY]   = "}",
-      [TOKEN_COMMA]    = ",",
-      [TOKEN_EQ]       = "=",
+      [TOKEN_EOF]          = "EOF",
+      [TOKEN_BLOCK]        = "BLOCK",
+      [TOKEN_KEYWORD]      = "KEYWORD",
+      [TOKEN_STRING]       = "STRING",
+      [TOKEN_DQSTRING]     = "DOUBLE-QUOTED STRING",
+      [TOKEN_INTEGER]      = "INTEGER",
+      [TOKEN_FLOAT]        = "FLOAT",
+      [TOKEN_BOOLEAN]      = "BOOLEAN",
+      [TOKEN_OCURLY]       = "{",
+      [TOKEN_CCURLY]       = "}",
+      [TOKEN_OPAREN]       = "(",
+      [TOKEN_CPAREN]       = ")",
+      [TOKEN_COMMA]        = ",",
+      [TOKEN_EQ]           = "=",
+      [TOKEN_INTERNAL_VAR] = "INTERNAL_VAR",
+      [TOKEN_FUNCALL]      = "FUNCTION CALL",
 }; 
-static_assert(TOKEN_COUNT == 12, "");
+static_assert(TOKEN_COUNT == 16, "");
 
 const char *PUNCTS[TOKEN_COUNT] = {
     [TOKEN_COMMA]  = ",",
     [TOKEN_OCURLY] = "{",
     [TOKEN_CCURLY] = "}",
+    [TOKEN_OPAREN] = "(",
+    [TOKEN_CPAREN] = ")",
     [TOKEN_EQ]     = "=",
 };
 
@@ -151,8 +162,19 @@ typedef enum {
     KEYWORD_JFIN_HISTOGRAM_BINS,
     KEYWORD_JFIN_HISTOGRAM_MAX,
     KEYWORD_JFIN_HISTOGRAM_FILENAME,
+
+    /* PROCESSING BLOCK */
+    
     KEYWORD_COUNT,
 } Keyword;
+
+typedef enum {
+    /* PROCESSING BLOCK */
+    INTERNAL_IN,
+    INTERNAL_OUT,
+
+    INTERNAL_COUNT,
+} Internal_Var;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
@@ -206,10 +228,11 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_BINS]             = "JFIN_HISTOGRAM_BINS",
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
+    /* PROCESSING BLOCK */
 }; 
 static_assert(KEYWORD_COUNT == 50, "");
 
-Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
+Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
     [KEYWORD_PAIR_STATE]                      = TOKEN_STRING,
     [KEYWORD_PAIR_REDUCED_MASS]               = TOKEN_FLOAT,
@@ -261,7 +284,14 @@ Token_Type EXPECT_TOKEN[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_BINS]             = TOKEN_INTEGER,
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = TOKEN_FLOAT,
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
+    /* PROCESSING BLOCK */
 };
+
+const char* INTERNAL_VARS[INTERNAL_COUNT] = {
+    [INTERNAL_IN]  = "IN",
+    [INTERNAL_OUT] = "OUT",
+};
+static_assert(INTERNAL_COUNT == 2, "");
 
 typedef struct {
     double *items;
@@ -293,11 +323,18 @@ typedef struct {
     int64_t int_number;
     double double_number;
     Keyword keyword_type;
+    Internal_Var internal_var_type;
     Loc loc;
 } Lexer;
 
 typedef struct {
+    const char *name;
+    const char *arg;
+} Funcall;
+
+typedef struct {
     const char* cf_filename;
+    Funcall f;
 } Processing_Params;
 
 Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
@@ -445,7 +482,13 @@ bool get_token(Lexer *l) {
         }
 
         da_append(&l->string_storage, 0);
-        
+
+        skip_whitespaces(l);
+        c = peek_char(l);
+        if (c == '(') {
+            (*l).token_type = TOKEN_FUNCALL;
+        }
+
         if (strcasecmp(l->string_storage.items, "true") == 0) {
             l->token_type = TOKEN_BOOLEAN;
             l->boolean_value = true;
@@ -458,6 +501,13 @@ bool get_token(Lexer *l) {
             if (strcasecmp(l->string_storage.items, KEYWORDS[i]) == 0) {
                 l->token_type = TOKEN_KEYWORD;
                 l->keyword_type = i; 
+            }
+        }
+
+        for (size_t i = 0; i < sizeof(INTERNAL_VARS)/sizeof(INTERNAL_VARS[0]); ++i) {
+            if (strcasecmp(l->string_storage.items, INTERNAL_VARS[i]) == 0) {
+                l->token_type = TOKEN_INTERNAL_VAR;
+                l->internal_var_type = i;
             }
         }
     }
@@ -641,6 +691,12 @@ void print_params(CalcParams *params) {
     printf("}\n");
 }
 
+void print_processing_params(Processing_Params *processing_params) {
+    printf("Processing_Params:\n");
+    printf("  cf_filename: %s\n", processing_params->cf_filename);
+    printf("  funcall f = %s(%s)\n", processing_params->f.name, processing_params->f.arg);
+}
+
 bool read_entire_file(const char *path, String_Builder *sb)
 {
     bool result = true;
@@ -767,6 +823,8 @@ void expect_token(Lexer *l, Token_Type expected)
            case TOKEN_COMMA:
            case TOKEN_OCURLY:
            case TOKEN_CCURLY:
+           case TOKEN_OPAREN:
+           case TOKEN_CPAREN:
            case TOKEN_EQ: {
                PRINT0("ERROR: %s:%d:%d: expected token of type %s but got punctuation token \"%s\" \n", 
                         l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
@@ -780,7 +838,7 @@ void expect_token(Lexer *l, Token_Type expected)
                break; 
            }
            case TOKEN_BOOLEAN: {
-               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s of type '%s'\n", 
+               PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s of type %s\n", 
                         l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
                         TOKEN_TYPES[expected], BOOLEAN_AS_STR[l->boolean_value], TOKEN_TYPES[t]);
                break; 
@@ -790,6 +848,13 @@ void expect_token(Lexer *l, Token_Type expected)
                         l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
                         TOKEN_TYPES[expected], l->double_number, TOKEN_TYPES[t]);
                break; 
+           }
+           case TOKEN_FUNCALL: 
+           case TOKEN_INTERNAL_VAR: {
+                PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s of type %s\n",
+                       l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
+                       TOKEN_TYPES[expected], l->string_storage.items, TOKEN_TYPES[t]);
+                break;
            }
            case TOKEN_COUNT: UNREACHABLE("expect_token"); 
            default: { 
@@ -828,7 +893,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
 
         get_and_expect_token(l, TOKEN_EQ);
         
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+        Token_Type expect_token = EXPECT_TOKEN_AFTER_KEYWORD[keyword_type]; 
         get_and_expect_token(l, expect_token);
         
         switch (keyword_type) {
@@ -975,7 +1040,7 @@ void parse_monomer_block(Lexer *l, Monomer *m)
 
         expect_token(l, TOKEN_KEYWORD);
         Keyword keyword_type = l->keyword_type;
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+        Token_Type expect_token = EXPECT_TOKEN_AFTER_KEYWORD[keyword_type]; 
 
         get_and_expect_token(l, TOKEN_EQ);
         get_and_expect_token(l, expect_token);
@@ -1042,6 +1107,7 @@ void parse_monomer_block(Lexer *l, Monomer *m)
     }
 } 
 
+
 void parse_processing_block(Lexer *l, Processing_Params *processing_params) 
 {
     while (true) {
@@ -1051,24 +1117,37 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
             return;
         }
 
-        expect_token(l, TOKEN_KEYWORD);
-        Keyword keyword_type = l->keyword_type;
-        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+        expect_one_of_tokens(l, 2, TOKEN_KEYWORD, TOKEN_INTERNAL_VAR);
 
-        get_and_expect_token(l, TOKEN_EQ);
-        get_and_expect_token(l, expect_token);
+        if (l->token_type == TOKEN_KEYWORD) {
+            get_and_expect_token(l, TOKEN_EQ);
+            get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
 
-        switch (keyword_type) {
-            case KEYWORD_CF_FILENAME: {
-                processing_params->cf_filename = strdup(l->string_storage.items); break; 
+            switch (l->keyword_type) {
+                case KEYWORD_CF_FILENAME: {
+                    processing_params->cf_filename = strdup(l->string_storage.items); break; 
+                }
+
+                default: {
+                    PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
+                           l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
+                    exit(1);
+                }
             }
+        } else if (l->token_type == TOKEN_INTERNAL_VAR) {
+            assert(l->internal_var_type == INTERNAL_OUT);
 
-            default: {
-                PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
-                       l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
-                exit(1);
-            }
-        }
+            get_and_expect_token(l, TOKEN_EQ);
+            get_and_expect_token(l, TOKEN_FUNCALL);
+            processing_params->f.name = strdup(l->string_storage.items);
+
+            get_and_expect_token(l, TOKEN_OPAREN);
+            get_and_expect_token(l, TOKEN_INTERNAL_VAR);
+            assert(l->internal_var_type == INTERNAL_IN);
+            processing_params->f.arg = strdup(l->string_storage.items);
+            
+            get_and_expect_token(l, TOKEN_CPAREN);
+        } 
     }
 } 
 
@@ -1131,6 +1210,7 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
 }
    
 void run_processing(Processing_Params *processing_params) {
+    print_processing_params(processing_params);
 
     if (processing_params->cf_filename == NULL) {
         PRINT0("ERROR: required field missing: '%s'\n", KEYWORDS[KEYWORD_CF_FILENAME]);
