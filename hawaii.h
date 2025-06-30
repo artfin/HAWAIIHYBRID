@@ -352,7 +352,8 @@ typedef struct {
 /*    User-Supplied Functions: loaded from dynamic libs  */
 /* ----------------------------------------------------  */
 typedef void (*dipolePtr)(double*, double[3]);
-extern dipolePtr dipole;
+extern dipolePtr dipole1;
+extern dipolePtr dipole2;
 
 typedef double (*pesPtr)(double*);
 extern pesPtr pes;
