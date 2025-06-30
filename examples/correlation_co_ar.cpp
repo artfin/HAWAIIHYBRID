@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = PAIR_STATE_FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 30.0;
     params.niterations                      = 3;
