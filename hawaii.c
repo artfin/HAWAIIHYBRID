@@ -24,7 +24,8 @@
 #define ARENA_IMPLEMENTATION
 #include "thirdparty/arena.h"
 
-dipolePtr dipole = NULL;
+dipolePtr dipole1 = NULL;
+dipolePtr dipole2 = NULL;
 pesPtr pes       = NULL;
 dpesPtr dpes     = NULL;
 
@@ -339,20 +340,28 @@ double find_closest_integer(double j)
 double find_closest_half_integer(double j) 
 /*
  * requantization to:
- *    0.0, 1.5, 2.5, 3.5 ...
+ *    0.0, 0.5, 1.5, 2.5, 3.5 ...
  */
 {
     double r = 0.0;
 
-    // to avoid the requantization to j = 0.5
-    if (j < 0.75) return 0.0;
-    if (j < 1.5) return 1.5;
 
+   if (j < 0.25) return 0.0;
+    if (j < 1.0) {                  // Диапазон 0.25-1.0
+        // Ближайшее к 0.5 или 1.5
+        return (fabs(j - 0.5) < fabs(j - 1.5)) ? 0.5 : 1.5;
+    }
+
+    // Общий случай для j >= 1.0
+    double r = 0.0;
     while (j - r >= 1.0) {
         r += 1.0;
     }
-
-    return r + 0.5;
+    
+    // Выбираем между n.5 и (n+1).5
+    double lower = r + 0.5;
+    double higher = r + 1.5;
+    return (fabs(j - lower) < fabs(j - higher)) ? lower : higher;
 }
 
 void j_monomer(Monomer m, double j[3])
@@ -1280,7 +1289,8 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
     size_t desired_dist = 0;
     size_t integral_counter = 0;
 
-    double d[3];
+    double d1[3];
+    double d2[3];
     double fval;
 
     *m = 0.0;
@@ -1314,9 +1324,11 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
             }
     
             extract_q_and_write_into_ms(ms);
-            (*dipole)(ms->intermediate_q, d);
+            (*dipole1)(ms->intermediate_q, d1);
+            extract_q_and_write_into_ms(ms);
+            (*dipole2)(ms->intermediate_q, d2);
             
-            fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
+            fval = d1[0]*d2[0] + d1[1]*d2[1] + d1[2]*d2[2]; 
             double diff = fval - *m;
             *m += diff / (integral_counter + 1.0);
             *q += diff * diff * (integral_counter / (integral_counter + 1.0));
@@ -1363,8 +1375,12 @@ void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp)
 }
 
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+//no changes yet
+
 // Running mean/variance formulas taken from GSL 1.15
 // https://github.com/ampl/gsl/blob/master/monte/plain.c 
+
+
 {
     assert(params->initialM2_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1416,12 +1432,12 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 
             for (size_t i = 0; i < ms->Q_SIZE; ++i) {
                 double tmp = ms->intermediate_q[i];
-                
+              
                 ms->intermediate_q[i] = tmp + h;
-                (*dipole)(ms->intermediate_q, dp);
+                (*dipole1)(ms->intermediate_q, dp);
                 
                 ms->intermediate_q[i] = tmp - h;
-                (*dipole)(ms->intermediate_q, dm);
+                (*dipole1)(ms->intermediate_q, dm);
 
                 gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
                 gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
@@ -1465,7 +1481,8 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
     size_t desired_dist = 0;
     size_t integral_counter = 0;
 
-    double d[3];
+    double d1[3];
+    double d2[3];
     double fval;
 
     size_t print_every_nth_iteration = 1;
@@ -1502,9 +1519,12 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
             }
     
             extract_q_and_write_into_ms(ms);
-            (*dipole)(ms->intermediate_q, d);
+            (*dipole1)(ms->intermediate_q, d1);
+
+	    extract_q_and_write_into_ms(ms);
+            (*dipole2)(ms->intermediate_q, d2);
             
-            fval = d[0]*d[0] + d[1]*d[1] + d[2]*d[2]; 
+            fval = d1[0]*d2[0] + d1[1]*d2[1] + d1[2]*d2[2]; 
             double diff = fval - ml;
             ml += diff / (integral_counter + 1.0);
             ql += diff * diff * (integral_counter / (integral_counter + 1.0));
@@ -1526,6 +1546,7 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
 }
 
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+//no changes yet
 {
     assert(params->initialM2_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1583,10 +1604,10 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
                 double tmp = ms->intermediate_q[i];
                 
                 ms->intermediate_q[i] = tmp + h;
-                (*dipole)(ms->intermediate_q, dp);
+                (*dipole1)(ms->intermediate_q, dp);
                 
                 ms->intermediate_q[i] = tmp - h;
-                (*dipole)(ms->intermediate_q, dm);
+                (*dipole1)(ms->intermediate_q, dm);
 
                 gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
                 gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
@@ -1937,7 +1958,8 @@ void track_turning_points(Tracker *tr, double R)
 
 
 int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
-// TODO: Use temporary arena instead of malloc 
+// TODO: Use temporary arena instead of malloc
+// only for dipole1
 {
   //NOTE:for convenience: dip_: -MaxTrajectoryLength+1,-MaxTrajectoryLength+2... 0, 1, ... MaxTrajectoryLength-1
     double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
@@ -1955,7 +1977,7 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
             
     double dip0[3], dipt[3];
     extract_q_and_write_into_ms(ms);
-    (*dipole)(ms->intermediate_q, dip0);
+    (*dipole1)(ms->intermediate_q, dip0);
     dipx[params->MaxTrajectoryLength-1] = dip0[0];
     dipy[params->MaxTrajectoryLength-1] = dip0[1];
     dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
@@ -1998,7 +2020,7 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
         }
 
         extract_q_and_write_into_ms(ms);
-        (*dipole)(ms->intermediate_q, dipt);
+        (*dipole1)(ms->intermediate_q, dipt);
         
         if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
             printf("ERROR: one of the components of the dipole is corrupted!\n");
@@ -2077,7 +2099,7 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
         }
 
         extract_q_and_write_into_ms(ms);
-        (*dipole)(ms->intermediate_q, dipt);
+        (*dipole1)(ms->intermediate_q, dipt);
         
         if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
             printf("ERROR: one of the components of the dipole is corrupted!\n");
@@ -2194,7 +2216,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     extract_q_and_write_into_ms(ms);
     (*dipole2)(ms->intermediate_q, dip2_0);
 
- ms->m1.apply_requantization = true;//??? надо ли
+ ms->m1.apply_requantization = true;//??? 
 	
     correlation_forw[0] = dip1_0[0] * dip2_0[0] + dip1_0[1] * dip2_0[1] + dip1_0[2] * dip2_0[2];
     correlation_back[0] = dip1_0[0] * dip2_0[0] + dip1_0[1] * dip2_0[1] + dip1_0[2] * dip2_0[2];
@@ -2483,7 +2505,8 @@ void gsl_fft_square(double *farr, size_t N) {
 
 CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature)
 {
-    assert(dipole != NULL);
+    assert(dipole1 != NULL);
+    assert(dipole2 != NULL);
     
     assert(params->MaxTrajectoryLength > 0);
     assert(params->Rcut > 0);
@@ -2907,7 +2930,8 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 {
-    assert(dipole != NULL);
+    assert(dipole1 != NULL);
+    assert(dipole2 != NULL);
 
     assert(params->MaxTrajectoryLength > 0);
     assert(params->Rcut > 0);
@@ -2916,6 +2940,14 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->cvode_tolerance > 0);
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
+
+	    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        assert(ms->m1.torque_cache_len > 0);
+        assert(ms->m1.torque_limit > 0);
+
+        // by default we turn on the requantization
+        ms->m1.apply_requantization = true;
+    }
 
     FILE *fp = NULL; 
     if (_wrank == 0) {
@@ -3221,7 +3253,8 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 {
     // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
-    assert(dipole != NULL);
+    assert(dipole1 != NULL);
+    assert(dipole2 != NULL);
 
     assert(params->MaxTrajectoryLength > 0);
     assert(params->sampling_time > 0);
@@ -3728,7 +3761,7 @@ if (_wrank > 0) {
 
                 double dipt[3];
                 extract_q_and_write_into_ms(ms);
-                (*dipole)(ms->intermediate_q, dipt);
+                (*dipole1)(ms->intermediate_q, dipt);
                 
                 if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
                     printf("ERROR: one of the components of the dipole is corrupted!\n");
