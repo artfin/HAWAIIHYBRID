@@ -2395,12 +2395,14 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     assert(params->num_satellite_temperatures >= 1);
     assert(params->satellite_temperatures != NULL); 
     assert(params->cf_filenames != NULL);
-    
-    double *prelim_M0 = (double*) malloc(params->num_satellite_temperatures * sizeof(double));
-    memset(prelim_M0, 0, params->num_satellite_temperatures*sizeof(double));
 
-    double *prelim_M2 = (double*) malloc(params->num_satellite_temperatures * sizeof(double)); 
-    memset(prelim_M2, 0, params->num_satellite_temperatures*sizeof(double));
+    Arena a = {0};
+
+    double *hep_M0s = (double*) arena_alloc(&a, params->num_satellite_temperatures * sizeof(double));
+    memset(hep_M0s, 0, params->num_satellite_temperatures*sizeof(double));
+
+    double *hep_M2s = (double*) arena_alloc(&a, params->num_satellite_temperatures * sizeof(double)); 
+    memset(hep_M2s, 0, params->num_satellite_temperatures*sizeof(double));
     
     if (params->partial_partition_function_ratios == NULL) {
         PRINT0("Ratios of partial partition functions to full (analytic) partial partition function are not provided.\n");
@@ -2408,8 +2410,23 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     
         params->partial_partition_function_ratios = (double*) malloc(params->num_satellite_temperatures*sizeof(double));
 
-        size_t niterations = 12;
-        size_t npoints = 1e6; 
+        size_t hep_ppf_niterations = 12;
+        if (params->hep_ppf_niterations > 0) hep_ppf_niterations = params->hep_ppf_niterations;
+
+        size_t hep_ppf_npoints = 1000000;
+        if (params->hep_ppf_npoints > 0) hep_ppf_npoints = params->hep_ppf_npoints;
+
+        size_t hep_m0_niterations = 12;
+        if (params->hep_m0_niterations > 0) hep_m0_niterations = params->hep_m0_niterations;
+
+        size_t hep_m0_npoints = 1000000;
+        if (params->hep_m0_npoints > 0) hep_m0_npoints = params->hep_m0_npoints;
+
+        size_t hep_m2_niterations = 12;
+        if (params->hep_m2_niterations > 0) hep_m2_niterations = params->hep_m2_niterations;
+
+        size_t hep_m2_npoints = 1000000;
+        if (params->hep_m2_npoints > 0) hep_m2_npoints = params->hep_m2_npoints;
 
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
             double T = params->satellite_temperatures[st];
@@ -2419,33 +2436,32 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             PRINT0("Analytic partition function divided by V: %.5e\n\n\n", pf_analytic);
 
             double hep_ppf, hep_ppf_err;    
-            c_mpi_perform_integration(ms, INTEGRAND_PF, params, T, niterations, npoints, &hep_ppf, &hep_ppf_err);
+            c_mpi_perform_integration(ms, INTEGRAND_PF, params, T, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
             params->partial_partition_function_ratios[st] = hep_ppf / pf_analytic;
             PRINT0("T = %.2e => PPF ratio: %.5e\n", T, params->partial_partition_function_ratios[st]);
 
             double hep_M0, hep_M0_err; 
-            c_mpi_perform_integration(ms, INTEGRAND_M0, params, T, 15, 1e6, &hep_M0, &hep_M0_err);
+            c_mpi_perform_integration(ms, INTEGRAND_M0, params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
             hep_M0     *= ZeroCoeff / pf_analytic;
             hep_M0_err *= ZeroCoeff / pf_analytic;
+            hep_M0s[st] = hep_M0;
             PRINT0("T = %.2e => M0: %.5e\n", T, hep_M0);
             
             double hep_M2, hep_M2_err; 
-            c_mpi_perform_integration(ms, INTEGRAND_M2, params, T, 15, 1e6, &hep_M2, &hep_M2_err);
+            c_mpi_perform_integration(ms, INTEGRAND_M2, params, T, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
     
             hep_M2     *= SecondCoeff / pf_analytic;
             hep_M2_err *= SecondCoeff / pf_analytic;
+            hep_M2s[st] = hep_M2;
             PRINT0("T = %.2e => M2: %.5e\n", T, hep_M2);
-
-            prelim_M0[st] = hep_M0;
-            prelim_M2[st] = hep_M2;
         }
     }    
    
     String_Builder sb_datetime = {0};
 
-    FILE **fps = malloc(params->num_satellite_temperatures * sizeof(FILE*)); 
+    FILE **fps = arena_alloc(&a, params->num_satellite_temperatures * sizeof(FILE*)); 
     if (_wrank == 0) {
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
             fps[st] = fopen(params->cf_filenames[st], "w");
@@ -2555,39 +2571,46 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n"); 
    
-    
-    PRINT0("Running preliminary calculations of M0 & M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
-    PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
-    PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
+    if (params->initialM0_npoints > 0) { 
+        assert(params->partial_partition_function_ratios != NULL);
 
-    
-    assert(params->partial_partition_function_ratios != NULL);
-    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
-        double M0, M0std;
-        params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &M0, &M0std);
+        PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+        PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
 
-        PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0std, M0 - M0std, M0 + M0std);
-        PRINT0("Error: %.3f%%\n\n", M0std/M0 * 100.0);
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            double M0, M0std;
+            params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
+            mpi_calculate_M0(ms, params, params->satellite_temperatures[st], &M0, &M0std);
 
-        if (prelim_M0[st] == 0) prelim_M0[st] = M0; 
+            PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
+            PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0std, M0 - M0std, M0 + M0std);
+            PRINT0("Error: %.3f%%\n\n", M0std/M0 * 100.0);
+        }
+
+        PRINT0("\n\n");
     }
         
-    PRINT0("\n\n");
-
-    for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
-        double M2, M2std;
-
-        params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
-        mpi_calculate_M2(ms, params, base_temperature, &M2, &M2std);
-
-        PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
-        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2std, M2 - M2std, M2 + M2std);
-        PRINT0("Error: %.3f%%\n", M2std/M2 * 100.0);
+    if (params->initialM2_npoints > 0) {
+        assert(params->partial_partition_function_ratios != NULL);
         
-        if (prelim_M2[st] == 0) prelim_M2[st] = M2; 
+        PRINT0("Running preliminary calculations of M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
+        PRINT0("The estimate for M2 will be based on %zu points\n", params->initialM0_npoints); 
+
+        for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
+            double M2, M2std;
+
+            params->partial_partition_function_ratio = params->partial_partition_function_ratios[st];
+            mpi_calculate_M2(ms, params, base_temperature, &M2, &M2std);
+
+            PRINT0("T = %.2f\n", params->satellite_temperatures[st]);
+            PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2std, M2 - M2std, M2 + M2std);
+            PRINT0("Error: %.3f%%\n", M2std/M2 * 100.0);
+        }
     }
+
+    // saving the state of the arena before the start of any iterations
+    // so we could clean up the memory reserved during each iteration
+    Arena_Mark arena_iter_mark = arena_snapshot(&a);
     
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
@@ -2726,11 +2749,26 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) { 
             double M0_crln_est =  ca_total.data[st][0] / ca_total.nstar[st] * ZeroCoeff / ALU/ALU/ALU;
             PRINT0("T = %.2f: NSTAR = %.2f, M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", 
-                    params->satellite_temperatures[st], ca_total.nstar[st], M0_crln_est, prelim_M0[st], (M0_crln_est - prelim_M0[st])/prelim_M0[st]*100.0);
-        }
+                    params->satellite_temperatures[st], ca_total.nstar[st], M0_crln_est, hep_M0s[st], (M0_crln_est - hep_M0s[st])/hep_M0s[st]*100.0);
 
-        // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
-        // double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000;
+            if (params->MaxTrajectoryLength >= 5) {
+                double M2_crln_est_5pt = -SecondCoeff * (-14350.0*ca_total.data[st][0] + 8064.0*2.0*ca_total.data[st][1] - 1008.0*2.0*ca_total.data[st][2] + \
+                        128.0*2.0*ca_total.data[st][3] - 9.0*2.0*ca_total.data[st][4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ ca_total.nstar[st];
+                PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, hep_M2s[st], (M2_crln_est_5pt - hep_M2s[st])/hep_M2s[st]*100.0);
+            } else {
+                PRINT0("Trajectory is too short to estimate M2\n");
+            }
+            
+            if (params->MaxTrajectoryLength >= 11) {
+                double M2_crln_est_11pt = -(-31752*ca_total.data[st][10]+784000*ca_total.data[st][9]-9426375*ca_total.data[st][8]+73872000*ca_total.data[st][7]-
+                        427329000*ca_total.data[st][6]+1969132032*ca_total.data[st][5]-7691922000*ca_total.data[st][4]+27349056000*ca_total.data[st][3]-99994986000*ca_total.data[st][2]+
+                        533306592000*ca_total.data[st][1]-909151481810*ca_total.data[st][0]+533306592000*ca_total.data[st][1]-99994986000*ca_total.data[st][2]+
+                        27349056000*ca_total.data[st][3]-7691922000*ca_total.data[st][4]+1969132032*ca_total.data[st][5]-427329000*ca_total.data[st][6]+73872000*ca_total.data[st][7]-
+                        9426375*ca_total.data[st][8]+784000*ca_total.data[st][9]-31752*ca_total.data[st][10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ ca_total.nstar[st];
+
+                PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, hep_M2s[st], (M2_crln_est_11pt - hep_M2s[st])/hep_M2s[st]*100.0);
+            }
+        }
 
         // PRINT0("M2 ESTIMATE FROM CF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est, prelim_M2, (M2_crln_est - prelim_M2)/prelim_M2*100.0);
 
@@ -2749,14 +2787,15 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                 save_correlation_function(fps[st], cf);
             }
         }
+
+        arena_rewind(&a, arena_iter_mark);
     }
 
     free_cfnc_array(ca_iter);
     free_cfnc_array(ca);
 
-    free(prelim_M0);
-    free(prelim_M2);
     sb_free(&sb);
+    arena_free(&a);
 
     if (_wrank == 0) {    
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
@@ -3011,11 +3050,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
 
-        // double M2_crln_est = SecondCoeff * 2.0/params->sampling_time/params->sampling_time*(total_crln.data[0] - total_crln.data[1]);
-    //    double M2_crln_est = -SecondCoeff * (35.0*total_crln.data[0] - 104.0*total_crln.data[1] + 114.0*total_crln.data[2] - 
-    //  56.0*total_crln.data[3] + 11.0*total_crln.data[4])/12.0/params->sampling_time/params->sampling_time/1000/ALU/ALU/ALU;
-    //
-    //
         if (params->MaxTrajectoryLength >= 5) {
             double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + \
                    128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
