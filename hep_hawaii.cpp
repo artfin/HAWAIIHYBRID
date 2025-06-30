@@ -142,7 +142,8 @@ double integrand_pf(hep::mc_point<double> const& x)
 
 double integrand_M0(hep::mc_point<double> const& x) 
 {
-    assert(dipole != NULL);
+    assert(dipole1 != NULL);
+    assert(dipole2 != NULL);
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
@@ -167,11 +168,13 @@ double integrand_M0(hep::mc_point<double> const& x)
         if (energy > 0.0) return 0.0; 
     }
     
-    double dip[3];
+    double dip1[3];
+    double dip2[3];
     extract_q_and_write_into_ms(gms);
-    (*dipole)(gms->intermediate_q, dip);
+    (*dipole1)(gms->intermediate_q, dip);
+    (*dipole2)(gms->intermediate_q, dip);
     
-    double dipsq = dip[0]*dip[0] + dip[1]*dip[1] + dip[2]*dip[2]; 
+    double dipsq = di1p[0]*dip2[0] + dip1[1]*dip2[1] + dip1[2]*dip2[2]; 
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
 
@@ -180,7 +183,7 @@ double integrand_M0(hep::mc_point<double> const& x)
 
 double integrand_M2(hep::mc_point<double> const& x)
 {
-    assert(dipole != NULL);
+    assert(dipole1 != NULL);
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
@@ -221,10 +224,10 @@ double integrand_M2(hep::mc_point<double> const& x)
         double tmp = gms->intermediate_q[i];
         
         gms->intermediate_q[i] = tmp + h;
-        (*dipole)(gms->intermediate_q, dp);
+        (*dipole1)(gms->intermediate_q, dp);
         
         gms->intermediate_q[i] = tmp - h;
-        (*dipole)(gms->intermediate_q, dm);
+        (*dipole1)(gms->intermediate_q, dm);
 
         gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
         gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
