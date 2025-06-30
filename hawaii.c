@@ -2807,6 +2807,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 } 
 
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
+// TODO: check 'sampler_Rmin': we want to catch the situation when it's too low for given Temperature
 {
     assert(dipole != NULL);
 
@@ -5471,8 +5472,20 @@ double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n)
     for (size_t i = 0; i < sf.len; ++i) {
         y[i] = sf.data[i] * pow(sf.nu[i], n);
     }
+    
+    size_t ind = (0.8*sf.len);
+    double Mn_part = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, ind);
+    double Mn      = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
 
-    double Mn = 2.0*Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
+    double r = (Mn - Mn_part)/Mn;
+    if (r > 0.01) {
+        PRINT0("\n"
+               "WARNING: compute_Mn_from_sf_using_classical_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment\n"
+               "         Consider extending the frequency range.\n", n);
+        PRINT0("  M%zu = %.5e for %.0f -- %.3e cm-1 and M%zu = %.5e for %.0f -- %.3e cm-1\n\n",
+                n, Mn_part, sf.nu[0], sf.nu[ind], n, Mn, sf.nu[0], sf.nu[sf.len - 1]);
+    }
+    
     free(y);
 
     return Mn;
@@ -5490,11 +5503,23 @@ double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n)
     } else {
         for (size_t i = 0; i < sf.len; ++i) {
             double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature); 
-            y[i] = sf.data[i] * pow(sf.nu[i], n) * (1.0 - exp(-hnukt)); 
+            y[i] = sf.data[i] * pow(sf.nu[i], n) * (1.0 - exp(-hnukt));
         }
     }
+
+    size_t ind = (0.8*sf.len);
+    double Mn_part = Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, ind);
+    double Mn      = Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
+   
+    double r = (Mn - Mn_part)/Mn;
+    if (r > 0.01) {
+        PRINT0("\n"
+               "WARNING: compute_Mn_from_sf_using_quantum_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment\n"
+               "         Consider extending the frequency range.\n", n);
+        PRINT0("  M%zu = %.5e for %.0f -- %.3e cm-1 and M%zu = %.5e for %.0f -- %.3e cm-1\n\n",
+                n, Mn_part, sf.nu[0], sf.nu[ind], n, Mn, sf.nu[0], sf.nu[sf.len - 1]);
+    }
     
-    double Mn = Moment_SF_Coeff * integrate_composite_simpson(sf.nu, y, sf.len);
     free(y);
 
     return Mn;
