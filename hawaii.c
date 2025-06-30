@@ -2187,13 +2187,18 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
-    double dip0[3], dipt[3];
+    double dip1_0[3], dip1_t[3];
+    double dip2_0[3], dip2_t[3];
     extract_q_and_write_into_ms(ms);
-    (*dipole)(ms->intermediate_q, dip0);
+    (*dipole1)(ms->intermediate_q, dip1_0);
+    extract_q_and_write_into_ms(ms);
+    (*dipole2)(ms->intermediate_q, dip2_0);
+
+ ms->m1.apply_requantization = true;//??? надо ли
+	
+    correlation_forw[0] = dip1_0[0] * dip2_0[0] + dip1_0[1] * dip2_0[1] + dip1_0[2] * dip2_0[2];
+    correlation_back[0] = dip1_0[0] * dip2_0[0] + dip1_0[1] * dip2_0[1] + dip1_0[2] * dip2_0[2];
    
-    correlation_forw[0] = dip0[0]*dip0[0] + dip0[1]*dip0[1] + dip0[2]*dip0[2]; 
-    correlation_back[0] = dip0[0]*dip0[0] + dip0[1]*dip0[1] + dip0[2]*dip0[2]; 
-    
     Array qp = create_array(ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
@@ -2212,6 +2217,14 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
       .current = qp.data[IR],
       .ready   = false,
     };
+    
+    double* torque_cache = (double*)malloc(ms->m1.torque_cache_len * sizeof(double));
+    memset(torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+    size_t cur_cache = 0;
+    size_t switch_counter = 0;
+    size_t requant_enabled_count = 0;
+    size_t requant_events = 0;
+
 
     double prev_value, curr_value;
 
@@ -2228,9 +2241,11 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         }
 
         extract_q_and_write_into_ms(ms);
-        (*dipole)(ms->intermediate_q, dipt);
+        (*dipole1)(ms->intermediate_q, dip1_t);
+        extract_q_and_write_into_ms(ms);
+        (*dipole2)(ms->intermediate_q, dip2_t);
         
-        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+        if (isnan(dip1_t[0]) || isnan(dip1_t[1]) || isnan(dip1_t[2])) {
             printf("ERROR: one of the components of the dipole is corrupted!\n");
             printf("The initial phase-point for broken trajectory in the forward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
@@ -2239,9 +2254,45 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+
+	double j[3];
+        j_monomer(ms->m1, j);
+        double jl = sqrt(j[0] * j[0] + j[1] * j[1] + j[2] * j[2]);
+      
+        double torq = torque_monomer(ms->m1);
+       
+
+   //     printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e \t \n",t, ms->intermolecular_qp[IR], jl, torq);
+        torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+        bool all_less_than_limit = true;
+        bool all_more_than_limit = true;
+        for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+            if (torque_cache[i] > ms->m1.torque_limit) {
+                all_less_than_limit = false;
+            }
+            if (torque_cache[i] < ms->m1.torque_limit) {
+                all_more_than_limit = false;
+            }
+        }
+
+
+        if (all_less_than_limit) {
+            if (!ms->m1.apply_requantization) {
+                printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+                ms->m1.apply_requantization = true;
+                switch_counter++;
+            }
+        }
+        else if (all_more_than_limit) {
+            if (ms->m1.apply_requantization) {
+                printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+                ms->m1.apply_requantization = false;
+                switch_counter++;
+            }
+        }
         
         prev_value = curr_value;
-        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+       curr_value = dip1_0[0] * dip2_t[0] + dip1_0[1] * dip2_t[1] + dip1_0[2] * dip2_t[2];
 
         if (fabs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
@@ -2291,6 +2342,11 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     tr.called  = 0;
     tr.ready   = false;
 
+    memset(torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+    switch_counter = 0;
+    requant_enabled_count = 0;
+    requant_events = 0;
+	
     for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
     {
         status = make_step(traj, tout, &t);
@@ -2300,7 +2356,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         }
 
         extract_q_and_write_into_ms(ms);
-        (*dipole)(ms->intermediate_q, dipt);
+        (*dipole1)(ms->intermediate_q, dip1_t);
+        extract_q_and_write_into_ms(ms);
+        (*dipole2)(ms->intermediate_q, dip2_t);
         
         if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
             printf("ERROR: one of the components of the dipole is corrupted!\n");
@@ -2311,10 +2369,50 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+
+        double j[3];
+        j_monomer(ms->m1, j);
+        double jl = sqrt(j[0] * j[0] + j[1] * j[1] + j[2] * j[2]);
+
         
+        double torq = torque_monomer(ms->m1);
+    //    printf("%10.1lf \t %12.10lf \t %12.15lf \t %12.5e \t\n", t, ms->intermolecular_qp[IR], jl, torq);
+
+        torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+        bool all_less_than_limit = true;
+        bool all_more_than_limit = true;
+        for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+            if (torque_cache[i] > ms->m1.torque_limit) {
+                all_less_than_limit = false;
+            }
+            if (torque_cache[i] < ms->m1.torque_limit) {
+                all_more_than_limit = false;
+            }
+        }
+
+        if (all_less_than_limit) {
+            if (!ms->m1.apply_requantization) {
+		    printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+                ms->m1.apply_requantization = true;
+                switch_counter++;
+              
+            }
+        }
+
+        if (all_more_than_limit) {
+            if (ms->m1.apply_requantization) {
+		    printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+                ms->m1.apply_requantization = false;
+                switch_counter++;
+              
+            }
+        }
+
+	    
         prev_value = curr_value;
-        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
-        
+        curr_value = dip1_0[0] * dip2_t[0] + dip1_0[1] * dip2_t[1] + dip1_0[2] * dip2_t[2];
+      
         if (fabs(curr_value) > 1e100) {
             printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
             printf("The initial phase-point for broken trajectory in the backward direction is:\n");
@@ -2366,6 +2464,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
    
     free(correlation_forw);
     free(correlation_back); 
+    free(torque_cache);
 
     return status;
 }
