@@ -11,6 +11,8 @@
 #define USE_MPI
 #include "hawaii.h"
 
+// TODO: add 'where_begin' field for token start in the Lexer
+
 // TODO: add types of calculation for calculating phase moment M0 and M2
 // TODO: add type of calculation for running trajectory from specific phase-point 
 
@@ -30,6 +32,7 @@ typedef struct {
     int line_number;
     int line_offset;
 } Loc;
+
 
 typedef enum {
     TOKEN_EOF,
@@ -73,9 +76,10 @@ const char *PUNCTS[TOKEN_COUNT] = {
 const char *BLOCK_NAMES[] = {
     [0] = "&INPUT",
     [1] = "&MONOMER",
-    [2] = "&END",
+    [2] = "&PROCESSING",
+    [3] = "&END",
 };
-static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 3, "");
+static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 4, "");
 
 const char *BOOLEAN_AS_STR[] = {
     [0] = "FALSE",
@@ -291,6 +295,10 @@ typedef struct {
     Keyword keyword_type;
     Loc loc;
 } Lexer;
+
+typedef struct {
+    const char* cf_filename;
+} Processing_Params;
 
 Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
 {
@@ -831,6 +839,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_CORRELATION_SINGLE;
                 } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
                     params->calculation_type = CALCULATION_CORRELATION_ARRAY;
+                } else if (strcasecmp(l->string_storage.items, "PROCESSING") == 0) {
+                    params->calculation_type = CALCULATION_PROCESSING;
                 } else {
                     PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", 
                             l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
@@ -1032,7 +1042,37 @@ void parse_monomer_block(Lexer *l, Monomer *m)
     }
 } 
 
-void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer *m1, Monomer *m2)
+void parse_processing_block(Lexer *l, Processing_Params *processing_params) 
+{
+    while (true) {
+        get_token(l);
+        if ((l->token_type == TOKEN_BLOCK) && (strcasecmp(l->string_storage.items, "&END") == 0)) {
+            //print_lexeme(l);
+            return;
+        }
+
+        expect_token(l, TOKEN_KEYWORD);
+        Keyword keyword_type = l->keyword_type;
+        Token_Type expect_token = EXPECT_TOKEN[keyword_type]; 
+
+        get_and_expect_token(l, TOKEN_EQ);
+        get_and_expect_token(l, expect_token);
+
+        switch (keyword_type) {
+            case KEYWORD_CF_FILENAME: {
+                processing_params->cf_filename = strdup(l->string_storage.items); break; 
+            }
+
+            default: {
+                PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
+                       l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
+                exit(1);
+            }
+        }
+    }
+} 
+
+void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Monomer *m1, Monomer *m2, Processing_Params *processing_params)
 {
     size_t monomer_blocks_count = 0;
     Monomer *m = m1;
@@ -1048,7 +1088,7 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
                     l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
             exit(1);
         } else if (strcasecmp(l->string_storage.items, "&INPUT") == 0) {
-            parse_input_block(l, input_block, params);
+            parse_input_block(l, input_block, calc_params);
         } else if (strcasecmp(l->string_storage.items, "&MONOMER") == 0) {
             if (monomer_blocks_count >= 2) {
                 PRINT0("ERROR: %s:%d:%d: only two &MONOMER blocks could be defined\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
@@ -1059,6 +1099,8 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
 
             m = m2;
             monomer_blocks_count++; 
+        } else if (strcasecmp(l->string_storage.items, "&PROCESSING") == 0) {
+            parse_processing_block(l, processing_params);
         } else {
             PRINT0("ERROR: %s:%d:%d: found unknown block name '%s'\n",
                    l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1,
@@ -1071,20 +1113,36 @@ void parse_params(Lexer *l, CalcParams *params, InputBlock *input_block, Monomer
             exit(1);
         }
     }
-
-    if (params->ps == PAIR_STATE_NONE) {
-        PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_PAIR_STATE]);
-        exit(1);
-    }
-
-    if (params->calculation_type == CALCULATION_NONE) {
+    
+    if (calc_params->calculation_type == CALCULATION_NONE) {
         PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_CALCULATION_TYPE]);
         exit(1); 
-    }
+    } else if (calc_params->calculation_type != CALCULATION_PROCESSING) {
+        if (calc_params->ps == PAIR_STATE_NONE) {
+            PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_PAIR_STATE]);
+            exit(1);
+        }
 
-    if (input_block->Temperature <= 0.0) {
-        PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_TEMPERATURE]);
+        if (input_block->Temperature <= 0.0) {
+            PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_TEMPERATURE]);
+            exit(1);
+        }
+    }
+}
+   
+void run_processing(Processing_Params *processing_params) {
+
+    if (processing_params->cf_filename == NULL) {
+        PRINT0("ERROR: required field missing: '%s'\n", KEYWORDS[KEYWORD_CF_FILENAME]);
         exit(1);
+    } 
+
+    String_Builder sb = {0};
+    CFnc cf = {0};
+
+    if (!read_correlation_function(processing_params->cf_filename, &sb, &cf)) {
+        printf("ERROR: could not read the file '%s'!\n", processing_params->cf_filename);
+        return; 
     }
 }
 
@@ -1232,8 +1290,9 @@ int main(int argc, char* argv[])
     InputBlock input_block = {0}; 
     Monomer monomer1  = {0};
     Monomer monomer2  = {0};
-    CalcParams params = {0};
-    parse_params(&l, &params, &input_block, &monomer1, &monomer2);
+    CalcParams calc_params = {0};
+    Processing_Params processing_params = {0};
+    parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
     /*
     print_params(&params); 
@@ -1242,11 +1301,49 @@ int main(int argc, char* argv[])
     print_monomer(&monomer2);
     */
 
-    setup_dipole(&input_block);
-    setup_pes(&input_block);
 
 
-    MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+    switch (calc_params.calculation_type) {
+        case CALCULATION_PR_MU: {
+            setup_dipole(&input_block);
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+            SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &calc_params, input_block.Temperature);
+
+            UNUSED(sf);
+            break; 
+        }
+        case CALCULATION_CORRELATION_SINGLE: {
+            setup_dipole(&input_block);
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+            CFnc cf = calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
+
+            UNUSED(cf);
+            break;
+        } 
+        case CALCULATION_CORRELATION_ARRAY: {
+            setup_dipole(&input_block);
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+
+            double base_temperature = input_block.Temperature;
+            CFncArray ca = calculate_correlation_array_and_save(&ms, &calc_params, base_temperature);
+
+            UNUSED(ca);
+            break;
+        }
+        case CALCULATION_PROCESSING: {
+            run_processing(&processing_params);
+
+            break; 
+        } 
+        case CALCULATION_NONE: UNREACHABLE(""); 
+        case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
+    } 
 
     /*
     double *q = malloc(ms.Q_SIZE*sizeof(double));
@@ -1259,408 +1356,11 @@ int main(int argc, char* argv[])
     dipole(q, dip);  
     printf("DIPOLE VALUE: %.5e %.5e %.5e\n", dip[0], dip[1], dip[2]);
     */
-
-    switch (params.calculation_type) {
-        case CALCULATION_PR_MU: {
-            SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &params, input_block.Temperature);
-            UNUSED(sf);
-            break; 
-        }
-        case CALCULATION_CORRELATION_SINGLE: {
-            if ((params.use_zimmermann_trick == true) && (params.ps != PAIR_STATE_BOUND))
-            {
-              PRINT0("ERROR: Zimmermann trick is supported for bound states only. At least for now...\n");
-              exit(1);
-            }
-            CFnc cf = calculate_correlation_and_save(&ms, &params, input_block.Temperature);
-            UNUSED(cf);
-            break;
-        } 
-        case CALCULATION_CORRELATION_ARRAY: {
-            double base_temperature = input_block.Temperature;
-            CFncArray ca = calculate_correlation_array_and_save(&ms, &params, base_temperature);
-            UNUSED(ca);
-            break;
-        } 
-        case CALCULATION_NONE: UNREACHABLE(""); 
-        case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
-    } 
-
     
     MPI_Finalize();
 
     return 0; 
 }
 
-/*
-#define BLOCKS_MAX 16
-typedef enum {
-    BLOCK_NONE,
-    BLOCK_INPUT,
-    BLOCK_MONOMER,
-} Block_Name;
-
-typedef struct {
-    Block_Name items[BLOCKS_MAX];
-    size_t count;
-} Block_Names; 
-
-int trim_whitespace(char *s)
-{
-    if (!s) return 0;
-   
-    int trimmed_from_beginning = 0; 
-    char *start = s;
-    while (isspace(*start)) { 
-        start++;
-        trimmed_from_beginning++;
-    }
-
-    char *end = s + strlen(s) - 1;
-    while (end > start && isspace(*end)) end--;
-
-    *(end + 1) = '\0';
-    if (start != s) memmove(s, start, end - start + 2); 
-
-    return trimmed_from_beginning; 
-}
-
-bool parse_key_value(char *line, Token *key, Token *value)
-{
-    char *equals = strchr(line, '=');
-    if (!equals) {
-        printf("ERROR: %s:%d: expected '=' but not found\n", key->loc.input_path, key->loc.line_number);
-        return false;
-    }
-    
-    (*value).s = equals + 1;
-    (*key).s = line;
-    *equals = '\0';
-  
-    trim_whitespace((*key).s);
-    value->loc.line_offset += (int) ((*value).s - line);
-    value->loc.line_offset += trim_whitespace((*value).s);
-
-    return true;
-}
-
-int expect_int(char *value, Loc loc)
-{
-    char *endptr;
-    long p = strtol(value, &endptr, 10);
-    if (endptr != value + strlen(value)) {
-        printf("ERROR: %s:%d:%d: could not parse string '%s' as integer\n", loc.input_path, loc.line_number, loc.line_offset, value);
-        exit(1); 
-    }
-
-    return (int) p;
-}
-
-double expect_double(char* value, Loc *loc)
-{
-    char *endptr;
-    double p = strtof(value, &endptr);
-    if (endptr != value + strlen(value)) {
-        printf("ERROR: %s:%d:%d: could not parse string '%s' as float\n", loc->input_path, loc->line_number, loc->line_offset, value);
-        exit(1);
-    }
-   
-    loc->line_offset += strlen(value);
-
-    return p;    
-}
-
-double *expect_double_array(char *value, Loc loc)
-{
-    if (value[0] != '{') { 
-        printf("ERROR: %s:%d:%d: expected opening curly-brace to start the array\n", loc.input_path, loc.line_number, loc.line_offset);
-        exit(1); 
-    }
-
-    // advance over '{' 
-    value = value + 1; 
-    loc.line_offset++; 
-
-    double *a = (double*) malloc(3*sizeof(double));
-    memset(a, 0, 3*sizeof(double));
-
-    size_t c = 0;
-
-    do {
-        int n = trim_whitespace(value);
-        loc.line_offset += n;
-
-        a[c++] = expect_double(value, &loc);
-        loc.line_offset += n;
-
-        assert(false);
-    } while(true);
-
-    if (value[strlen(value) - 1] != '}') {
-        printf("ERROR: %s:%d:%d: expected closing curly-brace at the end of the array\n", loc.input_path, loc.line_number, loc.line_offset);
-    }
-
-    return a;
-}
-
-char *expect_dqstring(char *value, Loc loc) 
-{
-    if (value[0] != '\"' || value[strlen(value) - 1] != '\"') {
-        printf("ERROR: %s:%d:%d: expected a double-quoted string\n", loc.input_path, loc.line_number, loc.line_offset);
-        exit(1);
-    }
-
-    return strdup(value);
-}
-
-char *expect_string(char *value, Loc loc)
-{
-    UNUSED(loc);
-    return strdup(value);
-}
-                
-void parse_monomer_block_line(char *line, MonomerBlock *monomer, Loc loc)
-{
-    Token key = {
-        .s = NULL,
-        .loc = loc,
-    };
-
-    Token value = {
-        .s = NULL,
-        .loc = loc,
-    };
-    
-    if (!parse_key_value(line, &key, &value)) return;
-    
-    printf("key = '%s', value = '%s'\n", key.s, value.s);
-
-    if (strcasecmp(key.s, "MONOMER_TYPE") == 0) {
-        char *monomer_type_str = expect_string(value.s, value.loc);
-
-        if (strcasecmp(monomer_type_str, "ATOM") == 0) {
-            monomer->t = ATOM;
-        } else if (strcasecmp(monomer_type_str, "LINEAR_MOLECULE") == 0) {
-            monomer->t = LINEAR_MOLECULE;
-        } else if (strcasecmp(monomer_type_str, "LINEAR_MOLECULE_REQ_INTEGER") == 0) {
-            monomer->t = LINEAR_MOLECULE_REQ_INTEGER;
-        } else if (strcasecmp(monomer_type_str, "LINEAR_MOLECULE_REQ_HALFINTEGER") == 0) {
-            monomer->t = LINEAR_MOLECULE_REQ_HALFINTEGER;
-        } else if (strcasecmp(monomer_type_str, "ROTOR") == 0) {
-            monomer->t = ROTOR;
-        } else {
-            printf("ERROR: %s:%d:%d: unknown monomer type '%s'\n", value.loc.input_path, value.loc.line_number, value.loc.line_offset, monomer_type_str);
-            printf("Available monomer types:\n");
-            for (size_t i = 0; i < sizeof(MONOMER_TYPES)/sizeof(MONOMER_TYPES[0]); ++i) {
-                printf(" %s\n", MONOMER_TYPES[i]); 
-            }
-            exit(1);
-        }
-    } else if (strcasecmp(key.s, "DJ") == 0) {
-        monomer->DJ = expect_double(value.s, &value.loc);
-    } else if (strcasecmp(key.s, "II") == 0) {
-        double *a = expect_double_array(value.s, value.loc);
-        memcpy(monomer->II, a, 3*sizeof(double));
-        free(a); 
-    } else {
-        printf("ERROR: %s:%d:%d: unknown key '%s'\n", key.loc.input_path, key.loc.line_number, key.loc.line_offset, key.s);
-        exit(1);
-    }
-}
-
-void parse_input_block_line(char *line, InputBlock *input_block, CalcParams *params, Loc loc)
-{
-    Token key = {
-        .s = NULL,
-        .loc = loc,
-    };
-
-    Token value = {
-        .s = NULL,
-        .loc = loc,
-    };
-
-    // printf("offset = %d\n", key.loc.line_offset);
-    if (!parse_key_value(line, &key, &value)) return;
-
-    //printf("key = '%s', value = '%s'\n", key.s, value.s);
-
-    if (strcasecmp(key.s, "CALCULATION_TYPE") == 0) {
-        char *calculation_type_str = expect_string(value.s, value.loc);
-
-        if (strcasecmp(calculation_type_str, "PR_MU") == 0) {
-            input_block->calculation_type = PR_MU;
-        } else if (strcasecmp(calculation_type_str, "CORRELATION_SINGLE") == 0) {
-            input_block->calculation_type = CORRELATION_SINGLE;
-        } else if (strcasecmp(calculation_type_str, "CORRELATION_ARRAY") == 0) {
-            input_block->calculation_type = CORRELATION_ARRAY;
-        } else {
-            printf("ERROR: %s:%d:%d: unknown calculation type '%s'\n", value.loc.input_path, value.loc.line_number, value.loc.line_offset, calculation_type_str);
-            printf("Available calculation types:\n");
-            for (size_t i = 0; i < sizeof(CALCULATION_TYPES)/sizeof(CALCULATION_TYPES[0]); ++i) {
-                printf("  %s\n", CALCULATION_TYPES[i]);
-            }
-            exit(1);
-        }
-        
-        free(calculation_type_str);
-
-    } else if (strcasecmp(key.s, "REDUCED_MASS") == 0) {
-        input_block->reduced_mass = expect_double(value.s, &value.loc);
-    } else if (strcasecmp(key.s, "SO_POTENTIAL") == 0) {
-        input_block->so_potential = expect_dqstring(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "SO_DIPOLE") == 0) {
-        input_block->so_dipole = expect_dqstring(value.s, value.loc);
-    } else if (strcasecmp(key.s, "II1") == 0) {
-    } else if (strcasecmp(key.s, "PAIR_STATE") == 0) {
-        char *pair_state_str = expect_string(value.s, value.loc);
-        
-        if (strcasecmp(pair_state_str, "FREE_AND_METASTABLE") == 0) {
-            params->ps = FREE_AND_METASTABLE;
-        } else if (strcasecmp(pair_state_str, "BOUND") == 0) {
-            params->ps = BOUND;
-        }
-
-        free(pair_state_str);
-
-    } else if (strcasecmp(key.s, "NITERATIONS") == 0) {
-        params->niterations = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "TOTAL_TRAJECTORIES") == 0) {
-        params->total_trajectories = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "CVODE_TOLERANCE") == 0) {
-        params->cvode_tolerance = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "SAMPLING_TIME") == 0) {
-        params->sampling_time = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "MAXTRAJECTORYLENGTH") == 0) {
-        params->MaxTrajectoryLength = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "INITIALM0_NPOINTS") == 0) {
-        params->initialM0_npoints = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "INITIALM2_NPOINTS") == 0) {
-        params->initialM2_npoints = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "R0") == 0) {
-        params->R0 = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "APPROXIMATEFREQUENCYMAX") == 0) {
-        params->ApproximateFrequencyMax = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "TORQUE_CACHE_LEN") == 0) {
-        params->torque_cache_len = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "TORQUE_LIMIT") == 0) {
-        params->torque_limit = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "JINI_HISTOGRAM_BINS") == 0) {
-        params->jini_histogram_bins = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "JINI_HISTOGRAM_MAX") == 0) {
-        params->jini_histogram_max = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "JFIN_HISTOGRAM_BINS") == 0) {
-        params->jfin_histogram_bins = expect_int(value.s, value.loc); 
-    } else if (strcasecmp(key.s, "JFIN_HISTOGRAM_MAX") == 0) {
-        params->jfin_histogram_max = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "ORTHO_STATE_WEIGHT") == 0) {
-        params->ortho_state_weight = expect_double(value.s, &value.loc); 
-    } else if (strcasecmp(key.s, "PARA_STATE_WEIGHT") == 0) {
-        params->para_state_weight = expect_double(value.s, &value.loc); 
-    } else {
-        printf("ERROR: %s:%d:%d: unknown key '%s'\n", key.loc.input_path, key.loc.line_number, key.loc.line_offset, key.s);
-        exit(1);
-    } 
-}
-
-#define BUFF_SIZE 256
-
-void parse_params_from_file(const char *filename, InputBlock *input_block, MonomerBlock *monomer1_block, MonomerBlock *monomer2_block, CalcParams *params)
-{
-    FILE *fp = fopen(filename, "r");
-    if (fp == NULL) {
-        printf("ERROR: could not open the file '%s'\n", filename);
-        exit(1);
-    }
-
-    char line[BUFF_SIZE];
-
-    Loc loc = {
-        .input_path = filename,
-        .line_number = 0,
-    };
-
-    Block_Name current_block = BLOCK_NONE;
-    Block_Names blocks_found = {0};
-        
-    while (fgets(line, sizeof(line), fp)) 
-    {
-        char *ptr = line;
-        loc.line_offset = 1;
-        loc.line_number++;
-
-        while (isspace((unsigned char) *ptr)) {
-            loc.line_offset++; 
-            ptr++;
-        }
-        
-        if ((*ptr == '!') || (*ptr == '\0')) continue; 
-      
-
-        if (strncmp(ptr, "&INPUT", strlen("&INPUT")) == 0) {
-            if (current_block != BLOCK_NONE) {
-                printf("ERROR: %s:%d:%d: blocks cannot be nested\n", loc.input_path, loc.line_number, loc.line_offset);
-                exit(1);
-            }
-
-            for (size_t i = 0; i < blocks_found.count; ++i) {
-                if (blocks_found.items[i] == BLOCK_INPUT) {
-                    printf("ERROR: %s:%d:%d: $INPUT block cannot be defined multiple times\n", loc.input_path, loc.line_number, loc.line_offset);
-                    exit(1);
-                } 
-            }
-
-            current_block = BLOCK_INPUT;
-            blocks_found.items[blocks_found.count++] = BLOCK_INPUT;
-            continue; 
-        }
-
-        if (strncmp(ptr, "&MONOMER", strlen("&MONOMER")) == 0) {
-            if (current_block != BLOCK_NONE) {
-                printf("ERROR: %s:%d:%d: blocks cannot be nested\n", loc.input_path, loc.line_number, loc.line_offset);
-                exit(1);
-            }
-
-            size_t monomer_blocks_count = 0;
-            for (size_t i = 0; i < blocks_found.count; ++i) {
-                if (blocks_found.items[i] == BLOCK_MONOMER) monomer_blocks_count++; 
-            }
-
-            if (monomer_blocks_count >= 2) {
-                printf("ERROR: %s:%d:%d: only two &MONOMER blocks could be defined\n", loc.input_path, loc.line_number, loc.line_offset);
-                exit(1);
-            }
-
-            current_block = BLOCK_MONOMER;
-            blocks_found.items[blocks_found.count++] = BLOCK_MONOMER;
-            continue;
-        }
-
-        if (strncmp(ptr, "&END", strlen("&END")) == 0) {
-            if (current_block != BLOCK_NONE) {
-                current_block = BLOCK_NONE;
-                continue;
-            } else {
-                printf("ERROR: %s:%d:%d: block end marker (&END) encountered without a corresponding block start\n", loc.input_path, loc.line_number, loc.line_offset);
-                exit(1); 
-            }
-        } 
-
-        switch (current_block) { 
-            case BLOCK_INPUT: {
-                parse_input_block_line(ptr, input_block, params, loc); 
-                break;
-            }
-            case BLOCK_MONOMER: { 
-                parse_monomer_block_line(ptr, monomer1_block, loc);
-                break;
-            } 
-        }
-    }
-
-
-    fclose(fp);
-}
-*/
 
 
