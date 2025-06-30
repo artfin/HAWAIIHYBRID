@@ -35,7 +35,7 @@ extern "C" {
 #define DIPOLE_COAR_IMPLEMENTATION
 #include "dipole_coar.c"
 
-double pes(double *q) {
+double pes_lab(double *q) {
     static double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
 
@@ -51,7 +51,7 @@ double pes(double *q) {
 	return r;
 } 
 
-void dpes(double *q, double *dpesdq) {
+void dpes_lab(double *q, double *dpesdq) {
     static Eigen::Matrix<double, 5, 5> jac;
     static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
     static double qmol[5];
@@ -275,7 +275,8 @@ int main(int argc, char *argv[])
 
     dipole1 = dipole_lab;
     dipole2 = dipole_CO_lab;
-
+    pes = pes_lab;
+    dpes = dpes_lab;
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
