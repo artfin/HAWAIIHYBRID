@@ -343,8 +343,6 @@ double find_closest_half_integer(double j)
  *    0.0, 0.5, 1.5, 2.5, 3.5 ...
  */
 {
-    double r = 0.0;
-
 
    if (j < 0.25) return 0.0;
     if (j < 1.0) {                  // Диапазон 0.25-1.0
@@ -353,7 +351,7 @@ double find_closest_half_integer(double j)
     }
 
     // Общий случай для j >= 1.0
-    double r = 0.0;
+   double r = 0.0;
     while (j - r >= 1.0) {
         r += 1.0;
     }
@@ -2382,7 +2380,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         extract_q_and_write_into_ms(ms);
         (*dipole2)(ms->intermediate_q, dip2_t);
         
-        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+        if (isnan(dip1_t[0]) || isnan(dip1_t[1]) || isnan(dip1_t[2])) {
             printf("ERROR: one of the components of the dipole is corrupted!\n");
             printf("The initial phase-point for broken trajectory in the backward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
