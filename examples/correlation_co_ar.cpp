@@ -124,6 +124,13 @@ void dipole_lab(double *q, double diplab[3]) {
     diplab[2] = diplab_eig(2); 
 }
 
+void dipole_CO_lab(double *q, double diplab_CO[3]) {
+
+diplab_CO[0]= mu_CO * sin( q[4])* cos( q[3]);
+diplab_CO[1]= mu_CO * sin( q[4])* sin( q[3]);
+diplab_CO[2]= mu_CO * cos( q[4]);
+}
+
 const char *var_to_cstring(int n) {
     switch (n) {
         case 0: return "Phi";
@@ -266,7 +273,8 @@ int main(int argc, char *argv[])
     double I1[2] = {II_CO, II_CO};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seeds[_wrank]);
 
-    dipole = dipole_lab;
+    dipole1 = dipole_lab;
+    dipole2 = dipole_CO_lab;
 
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
@@ -287,6 +295,12 @@ int main(int argc, char *argv[])
     params.pesmin                           = -105.0 / HTOCM;
     params.cf_filename                      = "./CF-CO-Ar-F-300.0.txt";
 
+    ms.m1.apply_requantization = true;  
+    ms.m1.torque_cache_len = 30;      
+    ms.m1.torque_cache = (double*)malloc(ms.m1.torque_cache_len * sizeof(double));
+    memset(ms.m1.torque_cache, 0, ms.m1.torque_cache_len * sizeof(double));
+    ms.m1.torque_limit = 5e-6;
+
     double Temperature = 300.0;
     
     CFnc cf = calculate_correlation_and_save(&ms, &params, Temperature);
@@ -301,7 +315,8 @@ int main(int argc, char *argv[])
 
     free_trajectory(&traj);
     free_ms(&ms);
-    free_cfnc(cf); 
+    free_cfnc(cf);
+    free(ms.m1.torque_cache);
 
     MPI_Finalize();
 
