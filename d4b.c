@@ -1,7 +1,50 @@
 #include <stdio.h>
 #include "hawaii.h"
 
-// TODO: смотрим на десимметризации при 20, 30 и 40 К, 1000 K, 2000 K, 5000 K
+typedef struct {
+    CFnc cf;
+    double M0ref;
+    double M1ref;
+} OptimizeData;
+
+typedef struct {
+    CFnc *cf;
+    double *Temperatures;
+    size_t nTemperatures;
+    double *M0ref;
+    double *M1ref;
+} MultiTempOptimizeData;
+
+/* D0 AND D1 TEMPERATURE DEPENDENCE */
+#define MULTITEMP_NPARAMS 4 
+#define MULTITEMP_INITIAL_VALUES {1.0, 7.5, 10.0, 2500.0}
+
+double compute_d0_from_params(const gsl_vector *x, double T) {
+    double d00 = gsl_vector_get(x, 0);
+    double d01 = gsl_vector_get(x, 1);
+    double d02 = gsl_vector_get(x, 2);
+
+    return d00 + d01/T + d02/T/T; 
+}
+
+double compute_d1_from_params(const gsl_vector *x, double T) {
+    double d11 = gsl_vector_get(x, 3);
+
+    return d11/(2500.0 + T*T); 
+}
+
+void gsl_multifit_callback_multitemp(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
+{
+    UNUSED(params);
+
+    gsl_vector* f = gsl_multifit_nlinear_residual(w);
+    gsl_vector* x = gsl_multifit_nlinear_position(w);
+
+    fprintf(stdout, "    [callback] LM iter %2zu: d00 = %.12f, d01 = %.12f, d02 = %.12f, d11 = %.12f |f(x)| = %.4f\n",
+            iter, gsl_vector_get(x, 0), gsl_vector_get(x, 1), gsl_vector_get(x, 2), gsl_vector_get(x, 3), gsl_blas_dnrm2(f));
+}
+/* END OF D0 AND D1 TEMPERATURE DEPENDENCE */
+
 
 void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spectrum *out_spectrum, bool do_return_spectrum) 
 {
@@ -10,7 +53,7 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     gsl_spline_init(spline, cf.t, cf.data, cf.len);
     
     //SFnc sf_cl = idct_cf_to_sf(cf);
-    //sf_cl.len = 50000;
+    //sf_cl.len = 12000;
     //double m0_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 0);
     //double m1_cl = compute_Mn_from_sf_using_classical_detailed_balance(sf_cl, 1);
     //printf("M0 cl = %.5e, m1 cl = %.5e\n", m0_cl, m1_cl);
@@ -29,7 +72,7 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     size_t cursor = 0;
 
     for (size_t i = 0; i < cf.len; ++i) {
-        double t_shifted = sqrt(cf.t[i]*cf.t[i] + d1*cc*cc);
+        double t_shifted = sqrt(cf.t[i]*cf.t[i] + fabs(d1)*cc*cc); 
         if (isnan(t_shifted)) {
             printf("ERROR: t_shifted is NaN for d0 = %.5e, d1 = %.5e, i = %zu\n", d0, d1, i);
             exit(1);
@@ -52,18 +95,17 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
 
     free(cf_d4b.t);
     free(cf_d4b.data);
-    cf_d4b.t = padded_t;
+    cf_d4b.t    = padded_t;
     cf_d4b.data = padded_data;
-    cf_d4b.len = padded_len;
+    cf_d4b.len  = padded_len;
 
     SFnc sf_intermediate_d4b = idct_cf_to_sf(cf_d4b);
     
     //writetxt("SFD4b-F-He-Ar-50.0.txt", sf_intermediate_d4b.nu, sf_intermediate_d4b.data, sf_intermediate_d4b.len, NULL); 
     
     // for D4a
-    double D4a_coeff = gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc);
-    printf("D4a_coeff = %.10e\n", D4a_coeff);
-    //d0 = d0 * D4a_coeff; 
+    //double D4a_coeff = gsl_spline_eval(spline, 0.0, acc) / gsl_spline_eval(spline, cc, acc);
+    //printf("D4a_coeff = %.10e\n", D4a_coeff);
     //assert(false);
 
     SFnc sf_d4b = desymmetrize_schofield(sf_intermediate_d4b);
@@ -71,10 +113,25 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
         sf_d4b.data[i] *= d0;
     }
 
-    sf_d4b.len = 25000; 
+    if (cf.Temperature < 100.0) {
+        sf_d4b.len = 15000;
+    } else if (cf.Temperature < 200.0) {
+        sf_d4b.len = 16000; 
+    } else if (cf.Temperature < 300.0) {
+        sf_d4b.len = 20000; 
+    } else if (cf.Temperature < 400.0) {
+        sf_d4b.len = 24000; 
+    } else if (cf.Temperature < 500.0) {
+        sf_d4b.len = 28000; 
+    } else if (cf.Temperature < 600.0) {
+        sf_d4b.len = 32000; 
+    } else { 
+        sf_d4b.len = 35000; 
+    } 
+
     *m0 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 0);
     *m1 = compute_Mn_from_sf_using_quantum_detailed_balance(sf_d4b, 1);
-    printf("d0 = %.5e, d1 = %.5e => M0 = %.5e, M1 = %.5e\n", d0, d1, *m0, *m1);
+    //printf("d0 = %.5e, d1 = %.5e => M0 = %.5e, M1 = %.5e\n", d0, d1, *m0, *m1);
 
     if (do_return_spectrum) {
         *out_spectrum = compute_alpha(sf_d4b); 
@@ -88,13 +145,11 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     free_sfnc(sf_d4b);
 }
 
-typedef struct {
-    CFnc cf;
-    double M0ref;
-    double M1ref;
-} OptimizeData;
+////////////////////////////////////////////
+///  RELATED TO SINGLE TEMPERATURE FIT ///// 
+////////////////////////////////////////////
 
-int function_to_optimize(const gsl_vector* x, void* data, gsl_vector* f)
+int singletemp_f_to_optimize(const gsl_vector* x, void* data, gsl_vector* f)
 /*
  * [input]  x    : parameters [d0, d1]
  * [input]  data : CF
@@ -115,7 +170,32 @@ int function_to_optimize(const gsl_vector* x, void* data, gsl_vector* f)
     return GSL_SUCCESS;
 }
 
-void gsl_multifit_callback2(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
+int multitemp_f_to_optimize(const gsl_vector* x, void* data, gsl_vector* f)
+/*
+ * [input]  x    : parameters [d00, d01, d02, d10, d11, d12]
+ * [input]  data : CF
+ * [output] f    : Yi - yi = difference between model and CF values
+ */ 
+{
+    MultiTempOptimizeData *opt = (MultiTempOptimizeData*) data; 
+
+    for (size_t i = 0; i < opt->nTemperatures; ++i) {
+        double T = opt->Temperatures[i];
+        double d0 = compute_d0_from_params(x, T); 
+        double d1 = compute_d1_from_params(x, T); 
+
+        assert(T == opt->cf[i].Temperature);
+        double m0, m1;
+        desymmetrize_d4b(opt->cf[i], d0, d1, &m0, &m1, NULL, false);
+
+        gsl_vector_set(f, 2*i, (opt->M0ref[i] - m0) / opt->M0ref[i]);
+        gsl_vector_set(f, 2*i + 1, (opt->M1ref[i] - m1) / opt->M1ref[i]);
+    }
+
+    return GSL_SUCCESS;
+}
+
+void gsl_multifit_callback_singletemp(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
 {
     UNUSED(params);
 
@@ -126,19 +206,8 @@ void gsl_multifit_callback2(const size_t iter, void* params, const gsl_multifit_
             iter, gsl_vector_get(x, 0), gsl_vector_get(x, 1), gsl_blas_dnrm2(f));
 }
 
-void gsl_multifit_callback3(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
-{
-    UNUSED(params);
 
-    gsl_vector* f = gsl_multifit_nlinear_residual(w);
-    gsl_vector* x = gsl_multifit_nlinear_position(w);
-
-    fprintf(stdout, "    [callback] LM iter %2zu: d00 = %.12f, d01 = %.12f, d02 = %.12f, d10 = %.12f, d11 = %.12f, d12 = %.12f, |f(x)| = %.4f\n",
-            iter, gsl_vector_get(x, 0), gsl_vector_get(x, 1), gsl_vector_get(x, 2), 
-                  gsl_vector_get(x, 3), gsl_vector_get(x, 4), gsl_vector_get(x, 5), gsl_blas_dnrm2(f));
-}
-
-void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, double *out_d1)
+void singletemp_optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, double *out_d1)
 {
     OptimizeData opt = {
         .cf = cf,
@@ -149,7 +218,7 @@ void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, dou
     const gsl_multifit_nlinear_type* T = gsl_multifit_nlinear_trust;
 
     gsl_multifit_nlinear_fdf fdf;
-    fdf.f      = function_to_optimize;
+    fdf.f      = singletemp_f_to_optimize;
     fdf.df     = NULL; // set to NULL for finite-difference Jacobian
     fdf.fvv    = NULL; // not using geodesic acceleration
     fdf.n      = 2;
@@ -162,7 +231,7 @@ void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, dou
     double weights[] = {1.0, 1.0}; 
     gsl_vector_view wts = gsl_vector_view_array(weights, 2);
 
-    double initial[] = {1.0, 1.0};
+    double initial[] = {1.0, 0.1};
     gsl_vector_view initial_view = gsl_vector_view_array(initial, 2);
 
     gsl_multifit_nlinear_winit(&initial_view.vector, &wts.vector, &fdf, w); // initialize solver with starting point and weights
@@ -180,7 +249,11 @@ void optimize_d0_and_d1(CFnc cf, double m0ref, double m1ref, double *out_d0, dou
     const double ftol = 1e-8;
 
     const size_t niter_max = 100;
-    status = gsl_multifit_nlinear_driver(niter_max, xtol, gtol, ftol, gsl_multifit_callback2, NULL, &info, w);
+    status = gsl_multifit_nlinear_driver(niter_max, xtol, gtol, ftol, gsl_multifit_callback_singletemp, NULL, &info, w);
+    if (status < 0) {
+        printf("ERROR: could not initialize gsl_multifit_nlinear_driver\n");
+        exit(1); 
+    }
 
     // covariance of best fit parameters
     // gsl_matrix* J = gsl_multifit_nlinear_jac(w);
@@ -292,9 +365,8 @@ void optimize_one_by_one()
             //1.417303674e-05, // 800, hbar^4
             //1.594058518e-05, // 900, hbar^4
             1.770851147e-05, // 1000, hbar^4
-            
-            //4.090103806e-05, // 3000, RMIN = 4.0 
             //5.194223359e-05, // 3000 
+            //4.090103806e-05, // 3000, RMIN = 4.0 
         }; 
             
         double m1ref[] = {
@@ -326,9 +398,8 @@ void optimize_one_by_one()
             //4.940992375e-04, // 800, hbar^4
             //5.466124826e-04, // 900, hbar^4
             5.981823007e-04, // 1000, hbar^4
-            
-            //0.001248770302, // 3000, RMIN = 4.0 
             //0.0014748392, // 3000, hbar^4  
+            //0.001248770302, // 3000, RMIN = 4.0 
         };
 
         /*
@@ -340,7 +411,7 @@ void optimize_one_by_one()
            */
 
         double opt_d0, opt_d1; 
-        optimize_d0_and_d1(cf, m0ref[i], m1ref[i], &opt_d0, &opt_d1);
+        singletemp_optimize_d0_and_d1(cf, m0ref[i], m1ref[i], &opt_d0, &opt_d1);
 
         Spectrum sp;
 
@@ -365,46 +436,9 @@ void optimize_one_by_one()
     fclose(fp);
 }
 
-typedef struct {
-    CFnc *cf;
-    double *Temperatures;
-    size_t nTemperatures;
-    double *M0ref;
-    double *M1ref;
-} MultiTempOptimizeData;
-
-int multitemp_optimize(const gsl_vector* x, void* data, gsl_vector* f)
-/*
- * [input]  x    : parameters [d00, d01, d02, d10, d11, d12]
- * [input]  data : CF
- * [output] f    : Yi - yi = difference between model and CF values
- */ 
-{
-    MultiTempOptimizeData *opt = (MultiTempOptimizeData*) data; 
-
-    double d00 = gsl_vector_get(x, 0);
-    double d01 = gsl_vector_get(x, 1);
-    double d02 = gsl_vector_get(x, 2);
-    double d10 = gsl_vector_get(x, 3);
-    double d11 = gsl_vector_get(x, 4);
-    double d12 = gsl_vector_get(x, 5);
-
-    for (size_t i = 0; i < opt->nTemperatures; ++i) {
-        double T = opt->Temperatures[i];
-        double d0 = d00 + d01/T + d02/T/T;
-        double d1 = d10 + d11/T + d12/T/T;
-
-        assert(T == opt->cf[i].Temperature);
-        double m0, m1;
-        desymmetrize_d4b(opt->cf[i], d0, d1, &m0, &m1, NULL, false);
-
-        gsl_vector_set(f, 2*i, (opt->M0ref[i] - m0) / opt->M0ref[i]);
-        gsl_vector_set(f, 2*i + 1, (opt->M1ref[i] - m1) / opt->M1ref[i]);
-    }
-
-    return GSL_SUCCESS;
-}
-
+//////////////////////////////////////////////////
+///  END OF RELATED TO SINGLE TEMPERATURE FIT //// 
+//////////////////////////////////////////////////
 
 void optimize_all_temperatures()
 {
@@ -413,7 +447,7 @@ void optimize_all_temperatures()
                              410.0, 430.0, 450.0, 470.0, 490.0, 
                              600.0, 700.0, 800.0, 900.0, 1000.0};
 
-    int nTemperatures = sizeof(Temperatures)/sizeof(Temperatures[0]); 
+    size_t nTemperatures = sizeof(Temperatures)/sizeof(Temperatures[0]); 
     CFnc cf[nTemperatures];
 
     String_Builder filename = {};
@@ -535,11 +569,11 @@ void optimize_all_temperatures()
     const gsl_multifit_nlinear_type* T = gsl_multifit_nlinear_trust;
 
     gsl_multifit_nlinear_fdf fdf;
-    fdf.f      = multitemp_optimize;
+    fdf.f      = multitemp_f_to_optimize;
     fdf.df     = NULL; // set to NULL for finite-difference Jacobian
     fdf.fvv    = NULL; // not using geodesic acceleration
     fdf.n      = 2*nTemperatures;
-    fdf.p      = 6;
+    fdf.p      = MULTITEMP_NPARAMS;
     fdf.params = (void*) &opt;
     
     gsl_multifit_nlinear_parameters fdf_params = gsl_multifit_nlinear_default_parameters();
@@ -551,7 +585,7 @@ void optimize_all_temperatures()
     }
     gsl_vector_view wts = gsl_vector_view_array(weights, fdf.n);
 
-    double initial[] = {1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+    double initial[] = MULTITEMP_INITIAL_VALUES; 
     gsl_vector_view initial_view = gsl_vector_view_array(initial, fdf.p);
 
     gsl_multifit_nlinear_winit(&initial_view.vector, &wts.vector, &fdf, w); // initialize solver with starting point and weights
@@ -569,7 +603,11 @@ void optimize_all_temperatures()
     const double ftol = 1e-8;
 
     const size_t niter_max = 100;
-    status = gsl_multifit_nlinear_driver(niter_max, xtol, gtol, ftol, gsl_multifit_callback3, NULL, &info, w);
+    status = gsl_multifit_nlinear_driver(niter_max, xtol, gtol, ftol, gsl_multifit_callback_multitemp, NULL, &info, w);
+    if (status < 0) {
+        printf("ERROR: could not initialize gsl_multifit_nlinear_driver\n");
+        exit(1); 
+    }
 
     // covariance of best fit parameters
     // gsl_matrix* J = gsl_multifit_nlinear_jac(w);
@@ -591,28 +629,16 @@ void optimize_all_temperatures()
     // double c = fmax(1.0, sqrt(chisq / dof));
 
     // fprintf(stderr, "chisq / dof = %g\n", chisq / dof);
-    fprintf(stderr, "d00 = %.10f\n", gsl_vector_get(w->x, 0));
-    fprintf(stderr, "d01 = %.10f\n", gsl_vector_get(w->x, 1));
-    fprintf(stderr, "d02 = %.10f\n", gsl_vector_get(w->x, 2));
-    fprintf(stderr, "d10 = %.10f\n", gsl_vector_get(w->x, 3));
-    fprintf(stderr, "d11 = %.10f\n", gsl_vector_get(w->x, 4));
-    fprintf(stderr, "d12 = %.10f\n", gsl_vector_get(w->x, 5));
 
     FILE *fp = fopen("d4b/dvals-multifit-inverseT.txt", "w");
+
+    String_Builder output = {0};
 
     for (size_t i = 0; i < nTemperatures; ++i) 
     {
         double T = Temperatures[i];
-        
-        double d00 = gsl_vector_get(w->x, 0);
-        double d01 = gsl_vector_get(w->x, 1);
-        double d02 = gsl_vector_get(w->x, 2);
-        double d10 = gsl_vector_get(w->x, 3);
-        double d11 = gsl_vector_get(w->x, 4);
-        double d12 = gsl_vector_get(w->x, 5);
-
-        double d0 = d00 + d01/T + d02/T/T;
-        double d1 = d10 + d11/T + d12/T/T;
+        double d0 = compute_d0_from_params(w->x, T); 
+        double d1 = compute_d1_from_params(w->x, T); 
        
         Spectrum sp = {0};
 
@@ -623,11 +649,14 @@ void optimize_all_temperatures()
         sb_append_format(&filename, "d4b/SPD4b-T-He-Ar-%.1f-multifit-inverseT.txt", T);
         writetxt(filename.items, sp.nu, sp.data, sp.len, NULL); 
 
-        printf("T = %.2f :: d0 = %.5f, d1 = %.5f, M0 (ref) = %.8e, M0 = %.8e, M1 (ref) = %.8e, M1 = %.8e\n", T, d0, d1, m0ref[i], m0, m1ref[i], m1);
+        sb_append_format(&output, "T = %.2f :: d0 = %.5f, d1 = %.5f, M0 (ref) = %.8e, M0 = %.8e, M1 (ref) = %.8e, M1 = %.8e\n", T, d0, d1, m0ref[i], m0, m1ref[i], m1);
         fprintf(fp, "%.2f %.5f %.5f\n", T, d0, d1);
 
         free_spectrum(sp);
     }
+
+    printf("%s\n", output.items);
+    sb_free(&output);
 
     fclose(fp);
   
@@ -642,24 +671,28 @@ void optimize_all_temperatures()
 
 int main()
 {
-    optimize_one_by_one();
-    // optimize_all_temperatures();
+    //optimize_one_by_one();
+    optimize_all_temperatures();
  
-    /* 
+    /*
     CFnc cf = {0};   
-
-    const char *filename = "He-Ar/CF-F/CF-F-He-Ar-50.0.txt"; 
+    const char *filename = "He-Ar/CF-F/CF-F-He-Ar-1000.0.txt"; 
     if (!read_correlation_function(filename, NULL, &cf)) {
         printf("ERROR: could not read the file '%s'!\n", filename);
         exit(1); 
     }
 
+    //printf("last CF values: %.10e %.10e\n", cf.t[cf.len-1], cf.data[cf.len-1]);
+
     Spectrum sp = {0};
 
     double m0, m1;
-    desymmetrize_d4b(cf, 1.0, 1.0, &m0, &m1, &sp, true); 
+    desymmetrize_d4b(cf, 1.15, 1.18, &m0, &m1, &sp, true); 
+    writetxt("./SPD4b-F-He-Ar-1000.0.txt", sp.nu, sp.data, sp.len, NULL); 
+
+    printf("m0 = %.5e\n", m0);
+    printf("m1 = %.5e\n", m1);
     */
-    //writetxt("He-Ar/SF-F/SPD4a-F-He-Ar-300.0-with-two-in-cc.txt", sp.nu, sp.data, sp.len, NULL); 
 
     return 0;
 }
