@@ -171,10 +171,10 @@ double integrand_M0(hep::mc_point<double> const& x)
     double dip1[3];
     double dip2[3];
     extract_q_and_write_into_ms(gms);
-    (*dipole1)(gms->intermediate_q, dip);
-    (*dipole2)(gms->intermediate_q, dip);
+    (*dipole1)(gms->intermediate_q, dip1);
+    (*dipole2)(gms->intermediate_q, dip2);
     
-    double dipsq = di1p[0]*dip2[0] + dip1[1]*dip2[1] + dip1[2]*dip2[2]; 
+    double dipsq = dip1[0]*dip2[0] + dip1[1]*dip2[1] + dip1[2]*dip2[2]; 
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
 
