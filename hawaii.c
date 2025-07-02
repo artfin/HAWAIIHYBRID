@@ -5340,7 +5340,7 @@ SFnc idct_cf_to_sf(CFnc cf)
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
-    double dt = (cf.t[1] - cf.t[0]); 
+    double dt = (cf.t[1] - cf.t[0]) / ATU; 
     connes_apodization((Array) {.data = cf.data, .n = cf.len }, dt);
 
     SFnc sf = {
