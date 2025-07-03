@@ -328,6 +328,8 @@ typedef struct {
 static const char *AVAILABLE_FUNCS[] = {
     "READ_CF",
     "CF_TO_SF",
+    "AVERAGE_CFS",
+    "WRITE_CF",
     "WRITE_SF",
     "ALPHA",
     "D3",
@@ -338,6 +340,35 @@ typedef struct {
     double spectrum_frequency_max; 
     Funcalls fs;
 } Processing_Params;
+
+typedef union { 
+    CFnc cf;
+    SFnc sf;
+    Spectrum sp;
+} Stack_Item; 
+ 
+typedef enum {
+    STACK_ITEM_CF = 0,
+    STACK_ITEM_SF,
+    STACK_ITEM_SPECTRUM,
+} Stack_Item_Type;
+
+const char *STACK_ITEM_TYPES[] = {
+    [STACK_ITEM_CF] = "CF", 
+    [STACK_ITEM_SF] = "SF",
+    [STACK_ITEM_SPECTRUM] = "SPECTRUM",
+};
+
+typedef struct {
+    Stack_Item item;
+    Stack_Item_Type typ;
+} Tagged_Stack_Item;
+
+typedef struct {
+    Tagged_Stack_Item *items; 
+    size_t count; 
+    size_t capacity;
+} Processing_Stack;
 
 Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
 {
@@ -1246,34 +1277,6 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
     }
 }
     
-typedef union { 
-    CFnc cf;
-    SFnc sf;
-    Spectrum sp;
-} Stack_Item; 
- 
-typedef enum {
-    STACK_ITEM_CF = 0,
-    STACK_ITEM_SF,
-    STACK_ITEM_SPECTRUM,
-} Stack_Item_Type;
-
-const char *STACK_ITEM_TYPES[] = {
-    [STACK_ITEM_CF] = "CF", 
-    [STACK_ITEM_SF] = "SF",
-    [STACK_ITEM_SPECTRUM] = "SPECTRUM",
-};
-
-typedef struct {
-    Stack_Item item;
-    Stack_Item_Type typ;
-} Tagged_Stack_Item;
-
-typedef struct {
-    Tagged_Stack_Item *items; 
-    size_t count; 
-    size_t capacity;
-} Processing_Stack;
 
 void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ) 
 {
@@ -1292,12 +1295,22 @@ void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type t
 
 Tagged_Stack_Item stack_pop_with_type(Processing_Stack *stack, Loc loc) {
     if (stack->count < 1) {
-        PRINT0("ERROR: %s:%d:%d: Cannot 'pop' from an empty stack\n", 
+        PRINT0("ERROR: %s:%d:%d: Cannot pop from an empty stack\n", 
                 loc.input_path, loc.line_number, loc.line_offset);
         exit(1);
     }
 
     return stack->items[--stack->count];
+}
+
+Tagged_Stack_Item *stack_peek_with_type(Processing_Stack *stack, size_t i, Loc loc) {
+    if (i >= stack->count) {
+        PRINT0("ERROR: %s:%d:%d: Cannot peek element %zu on a stack with %zu elements\n", 
+                loc.input_path, loc.line_number, loc.line_offset, i, stack->count);
+        exit(1);
+    }
+
+    return &stack->items[stack->count-1 - i];
 }
 
 void expect_item_on_stack(Loc *loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
@@ -1335,6 +1348,38 @@ bool run_processing(Processing_Params *processing_params) {
             //}
 
             stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF);
+        
+        } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
+            CFncs cfncs = {0};
+
+            // peeking the CFnc elements on the stack to have their valid address in memory
+            // to store these addresses in dynamic memory  
+            for (size_t i = 0; i < stack.count; ++i) {
+                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *loc);
+                expect_item_on_stack(loc, tagged_item, STACK_ITEM_CF);
+
+                da_append(&cfncs, &tagged_item->item.cf);
+                
+                PRINT0("INFO: Popped CF (i: %zu) from processing stack: ntraj = %.4e\n", cfncs.count, da_last(&cfncs)->ntraj);
+            }
+
+            for (size_t i = 0; i < cfncs.count; ++i) {
+                PRINT0("CF(%zu): %p => ntraj = %.4e\n", i, cfncs.items[i], cfncs.items[i]->ntraj);
+            } 
+
+            CFnc average = {0};
+            if (!average_correlation_functions_from_da(&average, cfncs)) {
+                PRINT0("ERROR: %s:%d:%d: An error occured during averaging of correlation functions\n",
+                        loc->input_path, loc->line_number, loc->line_offset);
+                exit(1);
+            }
+
+            for (size_t i = 0; i < cfncs.count; ++i) {
+                free_cfnc(*cfncs.items[i]);
+            }
+            stack.count = 0; // manually resetting the state of the stack instead of 'pop'
+
+            stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF);
 
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
@@ -1367,7 +1412,23 @@ bool run_processing(Processing_Params *processing_params) {
             free_sfnc(*sf);
 
             stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF); 
+        
+        } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_CF); 
+            
+            const char *filename = processing_params->fs.items[pc].arg;
+            CFnc *cf = &tagged_item.item.cf; 
 
+            FILE *fp = fopen(filename, "w");
+            if (write_correlation_function(fp, *cf) < 0) {
+                PRINT0("ERROR: could not write to file '%s'\n", filename);
+                exit(1);
+            }
+            fclose(fp);
+
+            free_cfnc(*cf);
+         
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
             expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF); 
@@ -1394,7 +1455,7 @@ bool run_processing(Processing_Params *processing_params) {
                 size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
                 sp->len = (sp->len > n) ? n : sp->len;
                 
-                PRINT0("INFO: Applying frequency cut to spectrum nu = %.4e (setting npoints = %zu)\n", n*dnu, n);
+                PRINT0("INFO: Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
             }
 
             if (!writetxt(filename, sp->nu, sp->data, sp->len, NULL)) {
@@ -1578,8 +1639,6 @@ int main(int argc, char* argv[])
     print_monomer(&monomer2);
     */
 
-
-
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
             setup_dipole(&input_block);
@@ -1596,9 +1655,13 @@ int main(int argc, char* argv[])
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
-            CFnc cf = calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
+            calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
+            
+            if (!run_processing(&processing_params)) {
+                PRINT0("ERROR: could not run commands in PROCESSING block\n");
+                exit(1); 
+            }
 
-            UNUSED(cf);
             break;
         } 
         case CALCULATION_CORRELATION_ARRAY: {
@@ -1641,6 +1704,3 @@ int main(int argc, char* argv[])
 
     return 0; 
 }
-
-
-
