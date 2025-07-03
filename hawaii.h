@@ -106,6 +106,7 @@ int syncfs(int);
 
 extern int _wrank;
 extern int _wsize;
+extern int _print0_margin; 
 
 #ifdef USE_MPI
 #define INIT_WRANK                          \
@@ -114,7 +115,11 @@ extern int _wsize;
 #define INIT_WSIZE                          \
     MPI_Comm_size(MPI_COMM_WORLD, &_wsize); \
 
-#define PRINT0(...) if (_wrank == 0) printf(__VA_ARGS__); 
+#define PRINT0(...)                                               \
+    if (_wrank == 0) {                                            \
+      if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+      printf(__VA_ARGS__);                                        \
+    }
 #else
 #define INIT_WRANK
 #define INIT_WSIZE
@@ -214,6 +219,7 @@ typedef enum {
     CALCULATION_PR_MU,
     CALCULATION_CORRELATION_SINGLE,
     CALCULATION_CORRELATION_ARRAY,
+    CALCULATION_PROCESSING,
     CALCULATION_TYPES_COUNT,
 } CalculationType;
 

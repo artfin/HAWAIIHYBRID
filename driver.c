@@ -330,11 +330,27 @@ typedef struct {
 typedef struct {
     const char *name;
     const char *arg;
+    Loc loc;
 } Funcall;
 
 typedef struct {
+    Funcall *items;
+    size_t count;
+    size_t capacity;
+} Funcalls;
+
+static const char *AVAILABLE_FUNCS[] = {
+    "READ_CF",
+    "CF_TO_SF",
+    "WRITE_SF",
+    "ALPHA",
+    "D3",
+    "WRITE_SPECTRUM",
+};
+
+typedef struct {
     const char* cf_filename;
-    Funcall f;
+    Funcalls fs;
 } Processing_Params;
 
 Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
@@ -450,6 +466,7 @@ bool get_token(Lexer *l) {
         if (skip_prefix(l, prefix)) {
             l->token_type = (Token_Type) i;
             l->token_len = 1;
+            break;
         }
     } 
 
@@ -694,7 +711,10 @@ void print_params(CalcParams *params) {
 void print_processing_params(Processing_Params *processing_params) {
     printf("Processing_Params:\n");
     printf("  cf_filename: %s\n", processing_params->cf_filename);
-    printf("  funcall f = %s(%s)\n", processing_params->f.name, processing_params->f.arg);
+
+    for (size_t i = 0; i < processing_params->fs.count; ++i) {
+        printf("  funcall: %s(%s)\n", processing_params->fs.items[i].name, processing_params->fs.items[i].arg);
+    }
 }
 
 bool read_entire_file(const char *path, String_Builder *sb)
@@ -1117,36 +1137,75 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
             return;
         }
 
-        expect_one_of_tokens(l, 2, TOKEN_KEYWORD, TOKEN_INTERNAL_VAR);
+        expect_one_of_tokens(l, 3, TOKEN_KEYWORD, TOKEN_FUNCALL);
 
-        if (l->token_type == TOKEN_KEYWORD) {
-            get_and_expect_token(l, TOKEN_EQ);
-            get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
+        switch (l->token_type) {
+            case TOKEN_KEYWORD: {
+                get_and_expect_token(l, TOKEN_EQ);
+                get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
 
-            switch (l->keyword_type) {
-                case KEYWORD_CF_FILENAME: {
-                    processing_params->cf_filename = strdup(l->string_storage.items); break; 
+                switch (l->keyword_type) {
+                    case KEYWORD_CF_FILENAME: {
+                        processing_params->cf_filename = strdup(l->string_storage.items); break; 
+                    }
+
+                    default: {
+                        PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
+                               l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
+                        exit(1);
+                    }
                 }
 
-                default: {
-                    PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
-                           l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
-                    exit(1);
-                }
+                break;
             }
-        } else if (l->token_type == TOKEN_INTERNAL_VAR) {
-            assert(l->internal_var_type == INTERNAL_OUT);
+            case TOKEN_FUNCALL: {
+                Funcall f = {0};
 
-            get_and_expect_token(l, TOKEN_EQ);
-            get_and_expect_token(l, TOKEN_FUNCALL);
-            processing_params->f.name = strdup(l->string_storage.items);
+                bool funcall_is_available = false;
+                for (size_t i = 0; i < sizeof(AVAILABLE_FUNCS)/sizeof(AVAILABLE_FUNCS[0]); ++i) {
+                    if (strcasecmp(l->string_storage.items, AVAILABLE_FUNCS[i]) == 0) {
+                        funcall_is_available = true;
+                        break;
+                    }
+                }
+                if (!funcall_is_available) {
+                    PRINT0("ERROR: %s:%d:%d: funcall '%s' is unknown and cannot be used within PROCESSING block\n",
+                            l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
 
-            get_and_expect_token(l, TOKEN_OPAREN);
-            get_and_expect_token(l, TOKEN_INTERNAL_VAR);
-            assert(l->internal_var_type == INTERNAL_IN);
-            processing_params->f.arg = strdup(l->string_storage.items);
-            
-            get_and_expect_token(l, TOKEN_CPAREN);
+                    exit(1); 
+                }
+
+                f.name = strdup(l->string_storage.items);
+                f.loc = (Loc) {
+                    .input_path = strdup(l->loc.input_path),
+                    .line_number = l->loc.line_number,
+                    .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                }; 
+
+                get_and_expect_token(l, TOKEN_OPAREN);
+                
+                get_token(l);
+                expect_one_of_tokens(l, 2, TOKEN_CPAREN, TOKEN_DQSTRING);
+
+                if (l->token_type == TOKEN_DQSTRING) {
+                    f.arg = strdup(l->string_storage.items);
+                    get_and_expect_token(l, TOKEN_CPAREN);
+                }
+
+                if (strcasecmp(f.name, "READ_CF") == 0) {
+                    if (f.arg == NULL) {
+                        PRINT0("ERROR: %s:%d:%d: missing argument for READ_CF. A file path is required.\n",
+                                l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1);
+                        exit(1); 
+                    }
+                }
+
+                da_append(&processing_params->fs, f);
+
+                break;
+            }
+
+            default: UNREACHABLE("parse_processing_block");
         } 
     }
 } 
@@ -1208,22 +1267,167 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
         }
     }
 }
-   
-void run_processing(Processing_Params *processing_params) {
-    print_processing_params(processing_params);
+    
+typedef union { 
+    CFnc cf;
+    SFnc sf;
+    Spectrum sp;
+} Stack_Item; 
+ 
+typedef enum {
+    STACK_ITEM_CF = 0,
+    STACK_ITEM_SF,
+    STACK_ITEM_SPECTRUM,
+} Stack_Item_Type;
 
-    if (processing_params->cf_filename == NULL) {
-        PRINT0("ERROR: required field missing: '%s'\n", KEYWORDS[KEYWORD_CF_FILENAME]);
-        exit(1);
-    } 
+const char *STACK_ITEM_TYPES[] = {
+    [STACK_ITEM_CF] = "CF", 
+    [STACK_ITEM_SF] = "SF",
+    [STACK_ITEM_SPECTRUM] = "SPECTRUM",
+};
 
-    String_Builder sb = {0};
-    CFnc cf = {0};
+typedef struct {
+    Stack_Item item;
+    Stack_Item_Type typ;
+} Tagged_Stack_Item;
 
-    if (!read_correlation_function(processing_params->cf_filename, &sb, &cf)) {
-        printf("ERROR: could not read the file '%s'!\n", processing_params->cf_filename);
-        return; 
+typedef struct {
+    Tagged_Stack_Item *items; 
+    size_t count; 
+    size_t capacity;
+} Processing_Stack;
+
+void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ) 
+{
+    Tagged_Stack_Item tagged_item = {
+        .typ = typ, 
+    };
+
+    switch (typ) {
+        case STACK_ITEM_CF: memcpy(&tagged_item.item.cf, item, sizeof(CFnc)); break;
+        case STACK_ITEM_SF: memcpy(&tagged_item.item.sf, item, sizeof(SFnc)); break;
+        case STACK_ITEM_SPECTRUM: memcpy(&tagged_item.item.sp, item, sizeof(Spectrum)); break; 
     }
+    
+    da_append(stack, tagged_item); 
+}
+
+Tagged_Stack_Item stack_pop_with_type(Processing_Stack *stack, Loc loc) {
+    if (stack->count < 1) {
+        PRINT0("ERROR: %s:%d:%d: Cannot 'pop' from an empty stack\n", 
+                loc.input_path, loc.line_number, loc.line_offset);
+        exit(1);
+    }
+
+    return stack->items[--stack->count];
+}
+
+void expect_item_on_stack(Loc *loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
+    if (tagged_item->typ != expected_type) {
+        PRINT0("ERROR: %s:%d:%d: corrupted stack: expected to find %s but found %s\n", 
+               loc->input_path, loc->line_number, loc->line_offset, STACK_ITEM_TYPES[expected_type], STACK_ITEM_TYPES[tagged_item->typ]);
+        exit(1);
+    }
+}
+
+bool run_processing(Processing_Params *processing_params) {
+    print_processing_params(processing_params);
+    PRINT0("\n\n");
+
+    Processing_Stack stack = {0};
+
+    for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
+        const char *funcname = processing_params->fs.items[pc].name;
+        Loc *loc = &processing_params->fs.items[pc].loc;
+        PRINT0("\n");
+        PRINT0("[%zu] %s\n", pc+1, funcname);
+        _print0_margin = 2;
+
+        if (strcasecmp(funcname, "READ_CF") == 0) {
+            CFnc cf = {0}; 
+
+            const char *filename = processing_params->fs.items[pc].arg;
+            if (!read_correlation_function(filename, NULL, &cf)) {
+                PRINT0("ERROR: could not read the file '%s'!\n", filename);
+                return false; 
+            }
+
+            //for (size_t i = 0; i < cf.len; ++i) {
+            //    cf.t[i] = cf.t[i] * ATU; 
+            //}
+
+            stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF);
+
+        } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_CF); 
+
+            CFnc *cf = &tagged_item.item.cf;
+            SFnc sf = idct_cf_to_sf(*cf);
+            free_cfnc(*cf);
+
+            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF);
+
+        } else if (strcasecmp(funcname, "ALPHA") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF);
+
+            SFnc *sf = &tagged_item.item.sf;
+            Spectrum sp = compute_alpha(*sf);
+            free_sfnc(*sf);
+
+            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM);
+
+        } else if (strcasecmp(funcname, "D3") == 0) {
+            // TODO: allow expecting SF or Spectrum
+            // TODO: implement another 'desymmetrize_schofield' that yields SF
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF);
+            
+            SFnc *sf = &tagged_item.item.sf;
+            SFnc sfd3 = desymmetrize_schofield(*sf);
+            free_sfnc(*sf);
+
+            stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF); 
+
+        } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF); 
+
+            const char *filename = processing_params->fs.items[pc].arg;
+            SFnc *sf = &tagged_item.item.sf; 
+            if (!writetxt(filename, sf->nu, sf->data, sf->len, NULL)) {
+                PRINT0("ERROR: could not write to file '%s'\n", filename);
+                exit(1);
+            } 
+        } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
+            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SPECTRUM); 
+            
+            const char *filename = processing_params->fs.items[pc].arg;
+            Spectrum *sp = &tagged_item.item.sp; 
+            if (!writetxt(filename, sp->nu, sp->data, sp->len, NULL)) {
+                PRINT0("ERROR: could not write to file '%s'\n", filename);
+                exit(1);
+            } 
+
+        } else {
+            PRINT0("\n\n");
+            PRINT0("----------------------------------------\n");
+            PRINT0("ERROR: running '%s' is not implemented\n", processing_params->fs.items[pc].name);
+            PRINT0("----------------------------------------\n");
+            assert(false);
+        }
+        
+        _print0_margin = 0;
+    }
+
+    return true;
+    
+    //if (processing_params->cf_filename == NULL) {
+    //    PRINT0("ERROR: required field missing: '%s'\n", KEYWORDS[KEYWORD_CF_FILENAME]);
+    //    exit(1);
+    //} 
 }
 
 void *load_symbol(void *handle, const char *symbol_name, bool allow_undefined) 
@@ -1417,7 +1621,10 @@ int main(int argc, char* argv[])
             break;
         }
         case CALCULATION_PROCESSING: {
-            run_processing(&processing_params);
+            if (!run_processing(&processing_params)) {
+                PRINT0("ERROR: could not run commands in PROCESSING block\n");
+                exit(1); 
+            }
 
             break; 
         } 

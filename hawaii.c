@@ -30,6 +30,7 @@ dpesPtr dpes     = NULL;
 
 int _wrank = 0;
 int _wsize = 1;
+int _print0_margin = 0;
 
 static size_t INIT_SB_CAPACITY = 256;
 
@@ -46,8 +47,9 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "PR_MU",
     "CORRELATION_SINGLE",
     "CORRELATION_ARRAY",
+    "PROCESSING",
 };
-static_assert(CALCULATION_TYPES_COUNT == 4, "");
+static_assert(CALCULATION_TYPES_COUNT == 5, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -4384,8 +4386,8 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
     sb_append_null(sb);
   
-    printf("INFO: Reading correlation function from '%s'\n", filename); 
-    printf("INFO: # of lines in header: %zu\n", header_lines);
+    PRINT0("INFO: Reading correlation function from '%s'\n", filename); 
+    PRINT0("INFO: # of lines in header: %zu\n", header_lines);
     
     regex_t regex = {0};
     int ret;
@@ -4394,30 +4396,30 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         const char *pattern = "# AVERAGE OVER ([0-9]+\\.[0-9]+) TRAJECTORIES";
         regalloc = true;
         if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
-            printf("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+            PRINT0("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
             return_defer(false); 
         }
         
         regmatch_t matches[2];
         ret = regexec(&regex, sb->items, 2, matches, 0);
         if (ret == 0) {
-           // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
-           int start = matches[1].rm_so; // Start position of the match
-           int end = matches[1].rm_eo;   // End position of the match
-           int len = end - start;
+            // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+            int start = matches[1].rm_so; // Start position of the match
+            int end = matches[1].rm_eo;   // End position of the match
+            int len = end - start;
 
-           char matched_string[len + 1];
-           strncpy(matched_string, sb->items + start, len);
-           matched_string[len] = '\0';
+            char matched_string[len + 1];
+            strncpy(matched_string, sb->items + start, len);
+            matched_string[len] = '\0';
 
-           cf->ntraj = strtod(matched_string, NULL);
-           printf("INFO: Captured number of trajectories: %lf\n", cf->ntraj);
+            cf->ntraj = strtod(matched_string, NULL);
+            PRINT0("INFO: Captured number of trajectories: %lf\n", cf->ntraj);
         } else if (ret == REG_NOMATCH) {
-            printf("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
+            PRINT0("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
         } else {
             char error[256];
             regerror(ret, &regex, error, sizeof(error));
-            printf("ERROR: regex match failed: %s\n", error);
+            PRINT0("ERROR: regex match failed: %s\n", error);
             return_defer(false); 
         }
 
@@ -4427,30 +4429,30 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
     {
         const char *pattern = "# TEMPERATURE: ([0-9]+\\.[0-9]+)";
         if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
-            printf("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+            PRINT0("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
             return_defer(false); 
         }
         
         regmatch_t matches[2];
         ret = regexec(&regex, sb->items, 2, matches, 0);
         if (ret == 0) {
-           // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
-           int start = matches[1].rm_so; // Start position of the match
-           int end = matches[1].rm_eo;   // End position of the match
-           int len = end - start;
+            // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+            int start = matches[1].rm_so; // Start position of the match
+            int end = matches[1].rm_eo;   // End position of the match
+            int len = end - start;
 
-           char matched_string[len + 1];
-           strncpy(matched_string, sb->items + start, len);
-           matched_string[len] = '\0';
+            char matched_string[len + 1];
+            strncpy(matched_string, sb->items + start, len);
+            matched_string[len] = '\0';
 
-           cf->Temperature = strtod(matched_string, NULL);
-           printf("INFO: Captured temperature: %lf\n", cf->Temperature);
+            cf->Temperature = strtod(matched_string, NULL);
+            PRINT0("INFO: Captured temperature: %lf\n", cf->Temperature);
         } else if (ret == REG_NOMATCH) {
-            printf("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
+            PRINT0("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
         } else {
             char error[256];
             regerror(ret, &regex, error, sizeof(error));
-            printf("ERROR: regex match failed: %s\n", error);
+            PRINT0("ERROR: regex match failed: %s\n", error);
             return_defer(false); 
         }
     }
@@ -4676,7 +4678,7 @@ bool writetxt(const char *filename, double *x, double *y, size_t len, const char
 
     FILE *fp = fopen(filename, "wb");
     if (fp == NULL) {
-        printf("ERROR: could not open the file '%s': %s\n", filename, strerror(errno));
+        PRINT0("ERROR: could not open the file '%s': %s\n", filename, strerror(errno));
         return_defer(false); 
     }
 
@@ -4693,11 +4695,11 @@ bool writetxt(const char *filename, double *x, double *y, size_t len, const char
     
     int fd = fileno(fp); 
     if (syncfs(fd) < 0) {
-        printf("ERROR: could not commit filesystem cache to disk\n");
+        PRINT0("ERROR: could not commit filesystem cache to disk\n");
         return_defer(false); 
     }
 
-    printf("INFO: wrote %zu characters to '%s'\n", nchars, filename); 
+    PRINT0("INFO: wrote %zu characters to '%s'\n", nchars, filename); 
 
 defer:
     if (fp) fclose(fp);
@@ -5211,9 +5213,11 @@ SFnc idct_cf_to_sf(CFnc cf)
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
+    PRINT0("INFO: Applying Connes apodization to CF\n");
     double dt = (cf.t[1] - cf.t[0]); 
     connes_apodization((Array) {.data = cf.data, .n = cf.len }, dt);
-
+    
+    PRINT0("INFO: Performing IDCT to transform CF to SF\n");
     SFnc sf = {
         .nu   = (double*) malloc(cf.len * sizeof(double)),
         .data = idct(cf.data, cf.len),
@@ -5480,8 +5484,8 @@ double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n)
     double r = (Mn - Mn_part)/Mn;
     if (r > 0.01) {
         PRINT0("\n"
-               "WARNING: compute_Mn_from_sf_using_classical_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment\n"
-               "         Consider extending the frequency range.\n", n);
+               "WARNING: compute_Mn_from_sf_using_classical_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment at T = %.2f\n"
+               "         Consider extending the frequency range.\n", n, sf.Temperature);
         PRINT0("  M%zu = %.5e for %.0f -- %.3e cm-1 and M%zu = %.5e for %.0f -- %.3e cm-1\n\n",
                 n, Mn_part, sf.nu[0], sf.nu[ind], n, Mn, sf.nu[0], sf.nu[sf.len - 1]);
     }
@@ -5514,8 +5518,8 @@ double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n)
     double r = (Mn - Mn_part)/Mn;
     if (r > 0.01) {
         PRINT0("\n"
-               "WARNING: compute_Mn_from_sf_using_quantum_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment\n"
-               "         Consider extending the frequency range.\n", n);
+               "WARNING: compute_Mn_from_sf_using_quantum_detailed_balance: the provided frequency range maybe too short to accurately estimate the %zu-th moment at T = %.2f\n"
+               "         Consider extending the frequency range.\n", n, sf.Temperature);
         PRINT0("  M%zu = %.5e for %.0f -- %.3e cm-1 and M%zu = %.5e for %.0f -- %.3e cm-1\n\n",
                 n, Mn_part, sf.nu[0], sf.nu[ind], n, Mn, sf.nu[0], sf.nu[sf.len - 1]);
     }
