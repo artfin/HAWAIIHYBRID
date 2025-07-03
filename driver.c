@@ -50,7 +50,6 @@ typedef enum {
     TOKEN_CPAREN,
     TOKEN_COMMA,
     TOKEN_EQ,
-    TOKEN_INTERNAL_VAR,
     TOKEN_FUNCALL,
     TOKEN_COUNT, // sentinel value for array size
 } Token_Type;
@@ -70,10 +69,9 @@ const char *TOKEN_TYPES[TOKEN_COUNT] = {
       [TOKEN_CPAREN]       = ")",
       [TOKEN_COMMA]        = ",",
       [TOKEN_EQ]           = "=",
-      [TOKEN_INTERNAL_VAR] = "INTERNAL_VAR",
       [TOKEN_FUNCALL]      = "FUNCTION CALL",
 }; 
-static_assert(TOKEN_COUNT == 16, "");
+static_assert(TOKEN_COUNT == 15, "");
 
 const char *PUNCTS[TOKEN_COUNT] = {
     [TOKEN_COMMA]  = ",",
@@ -164,17 +162,10 @@ typedef enum {
     KEYWORD_JFIN_HISTOGRAM_FILENAME,
 
     /* PROCESSING BLOCK */
-    
+    KEYWORD_SPECTRUM_FREQUENCY_MAX,
+
     KEYWORD_COUNT,
 } Keyword;
-
-typedef enum {
-    /* PROCESSING BLOCK */
-    INTERNAL_IN,
-    INTERNAL_OUT,
-
-    INTERNAL_COUNT,
-} Internal_Var;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
@@ -229,8 +220,9 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = "JFIN_HISTOGRAM_MAX",
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
     /* PROCESSING BLOCK */
+    [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
 }; 
-static_assert(KEYWORD_COUNT == 50, "");
+static_assert(KEYWORD_COUNT == 51, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -285,13 +277,8 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_MAX]              = TOKEN_FLOAT,
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
     /* PROCESSING BLOCK */
+    [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = TOKEN_FLOAT, 
 };
-
-const char* INTERNAL_VARS[INTERNAL_COUNT] = {
-    [INTERNAL_IN]  = "IN",
-    [INTERNAL_OUT] = "OUT",
-};
-static_assert(INTERNAL_COUNT == 2, "");
 
 typedef struct {
     double *items;
@@ -323,7 +310,6 @@ typedef struct {
     int64_t int_number;
     double double_number;
     Keyword keyword_type;
-    Internal_Var internal_var_type;
     Loc loc;
 } Lexer;
 
@@ -349,7 +335,7 @@ static const char *AVAILABLE_FUNCS[] = {
 };
 
 typedef struct {
-    const char* cf_filename;
+    double spectrum_frequency_max; 
     Funcalls fs;
 } Processing_Params;
 
@@ -518,13 +504,6 @@ bool get_token(Lexer *l) {
             if (strcasecmp(l->string_storage.items, KEYWORDS[i]) == 0) {
                 l->token_type = TOKEN_KEYWORD;
                 l->keyword_type = i; 
-            }
-        }
-
-        for (size_t i = 0; i < sizeof(INTERNAL_VARS)/sizeof(INTERNAL_VARS[0]); ++i) {
-            if (strcasecmp(l->string_storage.items, INTERNAL_VARS[i]) == 0) {
-                l->token_type = TOKEN_INTERNAL_VAR;
-                l->internal_var_type = i;
             }
         }
     }
@@ -710,7 +689,7 @@ void print_params(CalcParams *params) {
 
 void print_processing_params(Processing_Params *processing_params) {
     printf("Processing_Params:\n");
-    printf("  cf_filename: %s\n", processing_params->cf_filename);
+    printf("  spectrum_frequency_max: %.5e\n", processing_params->spectrum_frequency_max);
 
     for (size_t i = 0; i < processing_params->fs.count; ++i) {
         printf("  funcall: %s(%s)\n", processing_params->fs.items[i].name, processing_params->fs.items[i].arg);
@@ -869,8 +848,7 @@ void expect_token(Lexer *l, Token_Type expected)
                         TOKEN_TYPES[expected], l->double_number, TOKEN_TYPES[t]);
                break; 
            }
-           case TOKEN_FUNCALL: 
-           case TOKEN_INTERNAL_VAR: {
+           case TOKEN_FUNCALL: { 
                 PRINT0("ERROR: %s:%d:%d: expected token of type %s but got %s of type %s\n",
                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len + 1,
                        TOKEN_TYPES[expected], l->string_storage.items, TOKEN_TYPES[t]);
@@ -1145,8 +1123,8 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                 get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
 
                 switch (l->keyword_type) {
-                    case KEYWORD_CF_FILENAME: {
-                        processing_params->cf_filename = strdup(l->string_storage.items); break; 
+                    case KEYWORD_SPECTRUM_FREQUENCY_MAX: { 
+                        processing_params->spectrum_frequency_max = l->double_number; break; 
                     }
 
                     default: {
@@ -1399,17 +1377,32 @@ bool run_processing(Processing_Params *processing_params) {
             if (!writetxt(filename, sf->nu, sf->data, sf->len, NULL)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
-            } 
+            }
+
+           free_sfnc(*sf);
+
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
             expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SPECTRUM); 
             
             const char *filename = processing_params->fs.items[pc].arg;
-            Spectrum *sp = &tagged_item.item.sp; 
+            Spectrum *sp = &tagged_item.item.sp;
+
+            if (processing_params->spectrum_frequency_max > 0) {
+                assert(sp->len > 1);
+                double dnu = sp->nu[1] - sp->nu[0];
+                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                sp->len = (sp->len > n) ? n : sp->len;
+                
+                PRINT0("INFO: Applying frequency cut to spectrum nu = %.4e (setting npoints = %zu)\n", n*dnu, n);
+            }
+
             if (!writetxt(filename, sp->nu, sp->data, sp->len, NULL)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
-            } 
+            }
+
+            free_spectrum(*sp); 
 
         } else {
             PRINT0("\n\n");
