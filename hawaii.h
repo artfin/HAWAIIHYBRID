@@ -106,9 +106,10 @@ int syncfs(int);
 
 #define da_last(da) (da)->items[(da)->count - 1]
 
-extern int _wrank;
-extern int _wsize;
-extern int _print0_margin; 
+extern int  _wrank;
+extern int  _wsize;
+extern bool _print0_suppress_printing;
+extern int  _print0_margin; 
 
 #ifdef USE_MPI
 #define INIT_WRANK                          \
@@ -118,7 +119,7 @@ extern int _print0_margin;
     MPI_Comm_size(MPI_COMM_WORLD, &_wsize); \
 
 #define PRINT0(...)                                               \
-    if (_wrank == 0) {                                            \
+    if (_wrank == 0 && !_print0_suppress_printing) {              \
       if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
       printf(__VA_ARGS__);                                        \
     }
@@ -318,13 +319,17 @@ typedef struct {
     size_t ntraj; // # of calculated trajectories
 } CFncArray;
 
+// SFnc may originate from CFnc which itself was derived 
+// via multi-temperature reweighting. As a result its 'ntraj' 
+// turns out be floating-point value rather than an integer
 typedef struct {
     double *nu;
     double *data;
     size_t len;      // # of samples in *nu, *data
     size_t capacity; // capacity of *nu, *data
-    size_t ntraj;    // # of trajectories used for averaging
-    double Temperature;       
+    double ntraj;    // # of trajectories used for averaging
+    double Temperature;
+    bool normalized; 
 } SFnc;
 
 
@@ -491,11 +496,12 @@ CFnc copy_cfnc(CFnc cf);
 SFnc copy_sfnc(SFnc sf);
 Spectrum copy_spectrum(Spectrum sp); 
 
-// TODO: implement several versions of the function that accept file descriptor 
-//       or just filename 
-int write_correlation_function(FILE *fp, CFnc cf);
-// TODO: SFnc should contain enough information to be saved 'as is'...
-void write_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms); 
+bool write_correlation_function(const char *filename, CFnc cf);
+int write_correlation_function_ext(FILE *fp, CFnc cf);
+
+bool write_spectral_function(const char *filename, SFnc sf);
+int write_spectral_function_ext(FILE *fp, SFnc sf);
+
 // TODO:  'write_spectrum' ???
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 

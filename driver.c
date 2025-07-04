@@ -335,6 +335,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "D3",
     "WRITE_SPECTRUM",
     "DUP",
+    "INT3",
 };
 
 typedef struct {
@@ -1395,6 +1396,16 @@ bool run_processing(Processing_Params *processing_params) {
                     break;
                 } 
             }
+        } else if (strcasecmp(funcname, "INT3") == 0) {
+            PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
+            PRINT0("  Stack trace:\n");
+            for (size_t i = 0; i < stack.count; ++i) {
+                Loc *loc = &stack.items[i].loc;
+                PRINT0("    %zu: %s created at %s:%d:%d\n", 
+                        i, STACK_ITEM_TYPES[stack.items[i].typ], loc->input_path, loc->line_number, loc->line_offset);
+            }
+
+            exit(1);  
 
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
             CFncs cfncs = {0};
@@ -1467,12 +1478,10 @@ bool run_processing(Processing_Params *processing_params) {
             const char *filename = processing_params->fs.items[pc].arg;
             CFnc *cf = &tagged_item.item.cf; 
 
-            FILE *fp = fopen(filename, "w");
-            if (write_correlation_function(fp, *cf) < 0) {
+            if (!write_correlation_function(filename, *cf)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
             }
-            fclose(fp);
 
             free_cfnc(*cf);
          
@@ -1482,7 +1491,7 @@ bool run_processing(Processing_Params *processing_params) {
 
             const char *filename = processing_params->fs.items[pc].arg;
             SFnc *sf = &tagged_item.item.sf; 
-            if (!writetxt(filename, sf->nu, sf->data, sf->len, NULL)) {
+            if (!write_spectral_function(filename, *sf)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
             }
@@ -1526,7 +1535,7 @@ bool run_processing(Processing_Params *processing_params) {
     if (stack.count > 0) {
         PRINT0("\n\n");
         PRINT0("WARNING: Stack is not empty at the end of processing.\n");
-        PRINT0("  Stack state:\n");
+        PRINT0("  Stack trace:\n");
         for (size_t i = 0; i < stack.count; ++i) {
             Loc *loc = &stack.items[i].loc;
             PRINT0("    %zu: %s created at %s:%d:%d\n", 
@@ -1741,7 +1750,7 @@ int main(int argc, char* argv[])
             break;
         }
         case CALCULATION_PROCESSING: {
-            if (!run_processing(&processing_params)) {
+            if ((_wrank == 0) && !run_processing(&processing_params)) {
                 PRINT0("ERROR: could not run commands in PROCESSING block\n");
                 exit(1); 
             }

@@ -30,6 +30,7 @@ dpesPtr dpes     = NULL;
 
 int _wrank = 0;
 int _wsize = 1;
+bool _print0_suppress_printing = false;
 int _print0_margin = 0;
 
 static size_t INIT_SB_CAPACITY = 256;
@@ -2786,7 +2787,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                 }; 
 
                 PRINT0("Writing to '%s'\n", params->cf_filenames[st]); 
-                write_correlation_function(fps[st], cf);
+                write_correlation_function_ext(fps[st], cf);
             }
         }
 
@@ -3072,7 +3073,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
 
         if (_wrank == 0) {
-            write_correlation_function(fp, total_crln);
+            write_correlation_function_ext(fp, total_crln);
         }
     }
  
@@ -3896,7 +3897,8 @@ if (_wrank > 0) {
           double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
           double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 
-          printf("ITERATION %zu/%zu: accumulated %zu trajectories. Saving temporary result to '%s'\n", iter+1, params->niterations, sf_total.ntraj, params->sf_filename);
+          printf("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n", 
+                  iter+1, params->niterations, (int)sf_total.ntraj, params->sf_filename);
 
           time_t current_rawtime;
           time(&current_rawtime);
@@ -3921,7 +3923,7 @@ if (_wrank > 0) {
           printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
           printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
-          write_spectral_function(fp, sf_total, params, ms);
+          write_spectral_function_ext(fp, sf_total);
 
           arena_rewind(&a, iter_mark);
       }
@@ -4022,7 +4024,23 @@ size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n) {
     return v;
 }
 
-int write_correlation_function(FILE *fp, CFnc cf)
+bool write_correlation_function(const char *filename, CFnc cf) 
+{
+    FILE *fp = fopen(filename, "w");
+
+    _print0_suppress_printing = true;
+    int result = write_correlation_function_ext(fp, cf); 
+    _print0_suppress_printing = false;
+    
+    fclose(fp);
+    if (result < 0) return false;
+    
+    PRINT0("INFO: wrote %d characters to '%s'\n", result, filename);
+
+    return true; 
+}
+
+int write_correlation_function_ext(FILE *fp, CFnc cf)
 /*
  * Here we assume that values of the correlation function are UNnormalized by the number of trajectories
  * (which is set in clrn.ntraj)
@@ -4039,10 +4057,19 @@ int write_correlation_function(FILE *fp, CFnc cf)
 
     // resets the file position indicator
     rewind(fp);
+    
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
 
     size_t nchars = 0;
 
     nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+                      timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
     nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", cf.Temperature);
     // fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
     nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", cf.ntraj); 
@@ -4127,20 +4154,34 @@ int write_histogram(FILE *fp, gsl_histogram *h, int count)
 
     return 0;
 }
-            
-void write_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms) 
+ 
+bool write_spectral_function(const char *filename, SFnc sf) 
+{
+    FILE *fp = fopen(filename, "w");
+    
+    _print0_suppress_printing = true;
+    int result = write_spectral_function_ext(fp, sf);
+    _print0_suppress_printing = false;
+   
+    fclose(fp);
+    if (result < 0) return false; 
+    
+    PRINT0("INFO: wrote %d characters to '%s'\n", result, filename);
+
+    return true; 
+}
+
+int write_spectral_function_ext(FILE *fp, SFnc sf) 
 /*
  * Here we assume that values of the spectral function come in unnormalized by the number of trajectories
  * (which is set in sf.ntraj)
  */ 
 {
-    assert(sf.ntraj > 0);
-
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
         printf("ERROR: could not truncate file: %s\n", strerror(errno));
-        exit(1);
+        return -1; 
     }
     
     // resets the file position indicator
@@ -4151,39 +4192,43 @@ void write_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSyst
     time(&rawtime);
     timeinfo = localtime(&rawtime);
 
-    fprintf(fp, "# HAWAII HYBRID v0.1\n");
-    fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
-             timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-             timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+    size_t nchars = 0;
 
-    fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
-    fprintf(fp, "# AVERAGE OVER %zu TRAJECTORIES\n", sf.ntraj); 
-    fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", params->MaxTrajectoryLength);
-    fprintf(fp, "# INITIAL DISTANCE: %.3f\n", params->R0);
-    fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
+    nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+                      timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
 
-    if (params->average_time_between_collisions > 0) {
-        fprintf(fp, "# AVERAGE TIME BETWEEN COLLISIONS (POISSON DISTRIBUTION): %.3e\n", params->average_time_between_collisions);
-    }
-
-    if (ms->m1.torque_limit > 0) {
-        fprintf(fp, "# MONOMER 1: LIMITING VALUE OF TORQUE: %.5e\n", ms->m1.torque_limit); 
-    }
-
-    if (ms->m1.torque_cache_len > 0) {
-        fprintf(fp, "# MONOMER 1: TORQUE CACHE LENGTH TO TURN ON/OFF REQUANTIZATION: %zu\n", ms->m1.torque_cache_len);
-    }
+    nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
+    nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", sf.ntraj); 
+    nchars += fprintf(fp, "# SPECTRAL FUNCTION LENGTH: %zu\n", sf.len);
 
     for (size_t i = 0; i < sf.len; ++i) {
-        fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj); 
+        if (sf.normalized) {
+            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i]); 
+        } else {
+            assert(sf.ntraj > 0);
+            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj);
+        }
     }
 
-    fflush(fp);
+    // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
+    // and kernel may delay the committing its buffer to the filesystem for some reason 
+    if (fflush(fp) != 0) {
+        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+        return -1;
+    }
     
+    // so to force the kernel to commit the buffered data to the filesystem we have to 
+    // use 'syncfs' or 'sync' 
     if (syncfs(fd) < 0) {
         printf("ERROR: could not commit filesystem cache to disk\n");
-        exit(1);
+        return -1; 
     }
+
+    PRINT0("INFO: wrote %zu characters\n", nchars);
+
+    return nchars;
 }
 
 void sb_reserve(String_Builder *sb, size_t n)
