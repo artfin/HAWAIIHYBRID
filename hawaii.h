@@ -104,6 +104,8 @@ int syncfs(int);
         (da)->count++; \
     } while(0)
 
+#define da_last(da) (da)->items[(da)->count - 1]
+
 extern int _wrank;
 extern int _wsize;
 extern int _print0_margin; 
@@ -296,6 +298,12 @@ typedef struct {
     bool normalized; // flag that indicates whether the *data samples are normalized by # of trajectories 
 } CFnc;
 
+typedef struct {
+    CFnc **items;
+    size_t count;
+    size_t capacity;
+} CFncs;
+
 /*
  * An array of correlation functions for a fixed 'base temperature'
  * 'base temperature'      -- a temperature for which sampling of initial conditions is performed
@@ -319,6 +327,8 @@ typedef struct {
     double Temperature;       
 } SFnc;
 
+
+// TODO: needs to be consistent with CFnc/SFnc
 typedef struct {
     double *nu;
     double *data;
@@ -371,6 +381,12 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, do
 MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t seed);
 void free_ms(MoleculeSystem *ms);
 
+#ifdef USE_MPI
+CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature); 
+#endif // USE_MPI
+
 const char* display_monomer_type(MonomerType t);
 
 void put_qp_into_ms(MoleculeSystem *ms, Array qp);
@@ -411,33 +427,38 @@ double find_closest_half_integer(double j);
 
 void invert_momenta(MoleculeSystem *ms);
 
+double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
+
+// ----------------------------------------------------------
+// Spectral moments calculation 
+// ----------------------------------------------------------
+double integrate_composite_simpson(double *x, double *y, size_t len); 
+double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
+double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n);
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp); 
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
-
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);
-
-CFnc      calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
-SFnc      calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
-CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature); 
 #endif // USE_MPI
+// ----------------------------------------------------------
+
     
+int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
+
 double* linspace(double start, double end, size_t n);
 double* arena_linspace(Arena *a, double start, double end, size_t n); 
 size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n);
 
-double integrate_composite_simpson(double *x, double *y, size_t len); 
-double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
-double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n);
-
-void free_cfnc(CFnc cf);
-void free_cfnc_array(CFncArray ca);
-void free_sfnc(SFnc cf);
-void free_spectrum(Spectrum sp); 
+// ----------------------------------------------------------
+// Histogram manipulation
+// ----------------------------------------------------------
+void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
+gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins);
+int write_histogram(FILE *fp, gsl_histogram *h, int count);
+// ----------------------------------------------------------
 
 // ----------------------------------------------------------
 // String manipulation
@@ -463,22 +484,41 @@ void sb_reset(String_Builder *sb);
 void sb_free(String_Builder *sb);
 // ----------------------------------------------------------
 
-
 // ----------------------------------------------------------
 // Processing the results   
 // ----------------------------------------------------------
-int write_histogram(FILE *fp, gsl_histogram *h, int count);
+CFnc copy_cfnc(CFnc cf);
+SFnc copy_sfnc(SFnc sf);
+Spectrum copy_spectrum(Spectrum sp); 
 
-int save_correlation_function(FILE *fp, CFnc cf);
-void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms); 
+// TODO: implement several versions of the function that accept file descriptor 
+//       or just filename 
+int write_correlation_function(FILE *fp, CFnc cf);
+// TODO: SFnc should contain enough information to be saved 'as is'...
+void write_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms); 
+// TODO:  'write_spectrum' ???
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
+
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
-#define average_correlation_functions(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
+#define average_correlation_functions_ext(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
 int average_correlation_functions__impl(CFnc *average, int arg_count,  ...);
 
-int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance);
+bool average_correlation_functions(CFnc *average, CFncs cfncs);
+
+
+void free_cfnc(CFnc cf);
+void free_cfnc_array(CFncArray ca);
+void free_sfnc(SFnc cf);
+void free_spectrum(Spectrum sp); 
+
+
+
+
+
+
+
 
 extern WingParams INIT_WP;
 double wingmodel(WingParams *wp, double t);
@@ -491,8 +531,6 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
 
 void connes_apodization(Array a, double sampling_time); 
 
-gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins);
-void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
 static inline bool is_power_of_two(size_t n) {

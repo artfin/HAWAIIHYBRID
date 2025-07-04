@@ -334,6 +334,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "ALPHA",
     "D3",
     "WRITE_SPECTRUM",
+    "DUP",
 };
 
 typedef struct {
@@ -1276,7 +1277,10 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
         }
     }
 }
-    
+   
+void stack_push(Processing_Stack *stack, Tagged_Stack_Item tagged_item) {
+    da_append(stack, tagged_item);
+}
 
 void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ) 
 {
@@ -1311,6 +1315,10 @@ Tagged_Stack_Item *stack_peek_with_type(Processing_Stack *stack, size_t i, Loc l
     }
 
     return &stack->items[stack->count-1 - i];
+}
+
+Tagged_Stack_Item *stack_peek_top_with_type(Processing_Stack *stack) {
+    return &stack->items[stack->count - 1];
 }
 
 void expect_item_on_stack(Loc *loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
@@ -1348,7 +1356,38 @@ bool run_processing(Processing_Params *processing_params) {
             //}
 
             stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF);
-        
+       
+        } else if (strcasecmp(funcname, "DUP") == 0) {
+            Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
+            PRINT0("INFO: Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
+
+            switch (tagged_item->typ) {
+                case STACK_ITEM_CF: {
+                    CFnc cf_copy = copy_cfnc(tagged_item->item.cf);
+                    stack_push(&stack, (Tagged_Stack_Item) {
+                        .item.cf = cf_copy,
+                        .typ = STACK_ITEM_CF,
+                    });
+                    break;
+                }
+                case STACK_ITEM_SF: {
+                    SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
+                    stack_push(&stack, (Tagged_Stack_Item) {
+                        .item.sf = sf_copy,
+                        .typ = STACK_ITEM_SF,
+                    });
+                    break;
+                } 
+                case STACK_ITEM_SPECTRUM: {
+                    Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
+                    stack_push(&stack, (Tagged_Stack_Item) {
+                        .item.sp = sp_copy,
+                        .typ = STACK_ITEM_SPECTRUM,
+                    });
+                    break;
+                } 
+            }
+
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
             CFncs cfncs = {0};
 
@@ -1368,7 +1407,7 @@ bool run_processing(Processing_Params *processing_params) {
             } 
 
             CFnc average = {0};
-            if (!average_correlation_functions_from_da(&average, cfncs)) {
+            if (!average_correlation_functions(&average, cfncs)) {
                 PRINT0("ERROR: %s:%d:%d: An error occured during averaging of correlation functions\n",
                         loc->input_path, loc->line_number, loc->line_offset);
                 exit(1);
@@ -1475,6 +1514,15 @@ bool run_processing(Processing_Params *processing_params) {
         
         _print0_margin = 0;
     }
+
+    if (stack.count > 0) {
+        PRINT0("\n\n");
+        PRINT0("WARNING: Stack is not empty at the end of processing.\n");
+        PRINT0("  Stack state:\n");
+        for (size_t i = 0; i < stack.count; ++i) {
+            PRINT0("    %zu: %s\n", i, STACK_ITEM_TYPES[stack.items[i].typ]);
+        } 
+    } 
 
     return true;
     

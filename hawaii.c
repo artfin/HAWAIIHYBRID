@@ -2786,7 +2786,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                 }; 
 
                 PRINT0("Writing to '%s'\n", params->cf_filenames[st]); 
-                save_correlation_function(fps[st], cf);
+                write_correlation_function(fps[st], cf);
             }
         }
 
@@ -3072,7 +3072,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
 
         if (_wrank == 0) {
-            save_correlation_function(fp, total_crln);
+            write_correlation_function(fp, total_crln);
         }
     }
  
@@ -3921,7 +3921,7 @@ if (_wrank > 0) {
           printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
           printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
-          save_spectral_function(fp, sf_total, params, ms);
+          write_spectral_function(fp, sf_total, params, ms);
 
           arena_rewind(&a, iter_mark);
       }
@@ -4022,14 +4022,13 @@ size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n) {
     return v;
 }
 
-int save_correlation_function(FILE *fp, CFnc cf)
+int write_correlation_function(FILE *fp, CFnc cf)
 /*
  * Here we assume that values of the correlation function are UNnormalized by the number of trajectories
  * (which is set in clrn.ntraj)
  */ 
 {
     assert(cf.ntraj > 0);
-
 
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
@@ -4072,6 +4071,8 @@ int save_correlation_function(FILE *fp, CFnc cf)
         printf("ERROR: could not commit filesystem cache to disk\n");
         return -1; 
     }
+    
+    PRINT0("INFO: wrote %zu characters\n", nchars); 
 
     return nchars;
 }
@@ -4127,7 +4128,7 @@ int write_histogram(FILE *fp, gsl_histogram *h, int count)
     return 0;
 }
             
-void save_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms) 
+void write_spectral_function(FILE *fp, SFnc sf, CalcParams *params, MoleculeSystem *ms) 
 /*
  * Here we assume that values of the spectral function come in unnormalized by the number of trajectories
  * (which is set in sf.ntraj)
@@ -4509,6 +4510,83 @@ defer:
     return result;
 }
 
+bool average_correlation_functions(CFnc *average, CFncs cfncs)
+{
+    PRINT0("INFO: averaging %zu correlation functions...\n", cfncs.count);
+    
+    for (size_t i = 0; i < cfncs.count; ++i) {
+        CFnc *cf = cfncs.items[i]; 
+        
+        if (cf->ntraj <= 0) {
+            PRINT0("ERROR: # of trajectories for correlation function (%zu) is invalid: %.4e\n", i, cf->ntraj);
+            return false; 
+        } 
+    
+        if (i == 0) {
+            assert(cf->len > 1);
+            assert((cf->t[1] - cf->t[0]) > 0.0);
+            assert(cf->Temperature > 0);
+            assert(cf->normalized == true); // @todo: this case can be handled separately
+
+            if (average->len < cf->len) {
+                average->t        = (double*) realloc(average->t, cf->len*sizeof(double));
+                average->data     = (double*) realloc(average->data, cf->len*sizeof(double));
+                average->len      = cf->len;
+                average->capacity = cf->len;
+            }
+
+            memset(average->t,    0.0, average->len*sizeof(double));
+            memset(average->data, 0.0, average->len*sizeof(double));
+
+            memcpy(average->t, cf->t, cf->len*sizeof(double));
+            for (size_t i = 0; i < cf->len; ++i) {
+                average->data[i] += cf->ntraj * cf->data[i]; 
+            }
+
+            average->ntraj = cf->ntraj;
+            average->len = cf->len;
+            average->Temperature = cf->Temperature;
+        } else {
+            if (cf->len != average->len) {
+                PRINT0("ERROR: expected correlation functions to be of equal length, however cf.len = %zu and expected len = %zu\n", cf->len, average->len);
+                return false;
+            }
+        
+            if (fabs(cf->Temperature - average->Temperature) > 1e-10) {
+                printf("ERROR: it does not make much sense to average correlation functions with mismatching temperatures...\n");
+                printf("Got cf.Temperature = %.2e and expected Temperature = %.2e\n", cf->Temperature, average->Temperature);
+                return false;
+            }
+            
+            assert(cf->len > 1); 
+            double curr_dt = cf->t[1] - cf->t[0]; 
+            double average_dt = average->t[1] - average->t[0];
+            if (fabs(average_dt - curr_dt) > 1e-12) {
+                printf("ERROR: expected the time step for correlation functions to coincide, however timestep for CF(%zu) = %.3e and expected timestep = %.3e\n",
+                        i, curr_dt, average_dt);
+                return false;
+            }
+    
+            for (size_t i = 0; i < cf->len; ++i) {
+                average->data[i] += cf->ntraj * cf->data[i];
+            }
+
+            average->ntraj += cf->ntraj;
+        }
+    }
+
+    for (size_t i = 0; i < average->len; ++i) {
+        average->data[i] /= average->ntraj;
+    }
+    
+    // to indicate to 'save_correlation_function' that correlation function data are already
+    // normalized by the appropriate number of trajectories
+    average->normalized = true;
+
+    return true;
+}
+
+
 int average_correlation_functions__impl(CFnc *average, int arg_count,  ...)
 {
     va_list args;
@@ -4520,13 +4598,14 @@ int average_correlation_functions__impl(CFnc *average, int arg_count,  ...)
         CFnc cf = va_arg(args, CFnc);
         
         if (cf.ntraj <= 0) {
-            printf("ERROR: # of trajectories for correlation function is invalid: %lf\n", cf.ntraj);
+            printf("ERROR: # of trajectories for correlation function (%d) is invalid: %.4e\n", i, cf.ntraj);
             return -1; 
         } 
     
         if (i == 0) {
             assert(cf.len > 1);
             assert((cf.t[1] - cf.t[0]) > 0.0);
+            assert(cf.Temperature > 0);
             assert(cf.normalized == true); // @todo: this case can be handled separately
 
             if (average->len < cf.len) {
@@ -5527,4 +5606,51 @@ double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n)
     free(y);
 
     return Mn;
+}
+
+CFnc copy_cfnc(CFnc cf) {
+    CFnc cf_copy = {
+        .t           = malloc(cf.len*sizeof(double)),
+        .data        = malloc(cf.len*sizeof(double)),
+        .len         = cf.len,
+        .capacity    = cf.len,
+        .ntraj       = cf.ntraj,
+        .Temperature = cf.Temperature,
+        .normalized  = cf.normalized,
+    };
+
+    assert(cf_copy.t != NULL && "ASSERT: not enough memory"); 
+    assert(cf_copy.data != NULL && "ASSERT: not enough memory");
+
+    return cf_copy; 
+}
+
+SFnc copy_sfnc(SFnc sf) {
+    SFnc sf_copy = {
+        .nu          = malloc(sf.len*sizeof(double)),
+        .data        = malloc(sf.len*sizeof(double)),
+        .len         = sf.len,
+        .capacity    = sf.len,
+        .ntraj       = sf.ntraj,
+        .Temperature = sf.Temperature,
+    };
+
+    assert(sf_copy.nu != NULL && "ASSERT: not enough memory");
+    assert(sf_copy.data != NULL && "ASSERT: not enough memory");
+
+    return sf_copy;
+}
+
+Spectrum copy_spectrum(Spectrum sp) {
+    Spectrum spectrum_copy = {
+        .nu       = malloc(sp.len*sizeof(double)),
+        .data     = malloc(sp.len*sizeof(double)),
+        .len      = sp.len,
+        .capacity = sp.len,
+    };
+
+    assert(spectrum_copy.nu != NULL && "ASSERT: not enough memory");
+    assert(spectrum_copy.data != NULL && "ASSERT: not enough memory");
+
+    return spectrum_copy;
 }
