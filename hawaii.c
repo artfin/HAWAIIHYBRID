@@ -5667,6 +5667,9 @@ CFnc copy_cfnc(CFnc cf) {
     assert(cf_copy.t != NULL && "ASSERT: not enough memory"); 
     assert(cf_copy.data != NULL && "ASSERT: not enough memory");
 
+    memcpy(cf_copy.t, cf.t, cf.len*sizeof(double));
+    memcpy(cf_copy.data, cf.data, cf.len*sizeof(double));
+
     return cf_copy; 
 }
 
@@ -5683,19 +5686,25 @@ SFnc copy_sfnc(SFnc sf) {
     assert(sf_copy.nu != NULL && "ASSERT: not enough memory");
     assert(sf_copy.data != NULL && "ASSERT: not enough memory");
 
+    memcpy(sf_copy.nu, sf.nu, sf.len*sizeof(double));
+    memcpy(sf_copy.data, sf.data, sf.len*sizeof(double));
+
     return sf_copy;
 }
 
 Spectrum copy_spectrum(Spectrum sp) {
-    Spectrum spectrum_copy = {
+    Spectrum sp_copy = {
         .nu       = malloc(sp.len*sizeof(double)),
         .data     = malloc(sp.len*sizeof(double)),
         .len      = sp.len,
         .capacity = sp.len,
     };
 
-    assert(spectrum_copy.nu != NULL && "ASSERT: not enough memory");
-    assert(spectrum_copy.data != NULL && "ASSERT: not enough memory");
+    assert(sp_copy.nu != NULL && "ASSERT: not enough memory");
+    assert(sp_copy.data != NULL && "ASSERT: not enough memory");
 
-    return spectrum_copy;
+    memcpy(sp_copy.nu, sp.nu, sp.len*sizeof(double));
+    memcpy(sp_copy.data, sp.data, sp.len*sizeof(double));
+
+    return sp_copy;
 }
