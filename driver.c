@@ -363,6 +363,7 @@ const char *STACK_ITEM_TYPES[] = {
 typedef struct {
     Stack_Item item;
     Stack_Item_Type typ;
+    Loc loc;
 } Tagged_Stack_Item;
 
 typedef struct {
@@ -1282,10 +1283,11 @@ void stack_push(Processing_Stack *stack, Tagged_Stack_Item tagged_item) {
     da_append(stack, tagged_item);
 }
 
-void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ) 
+void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ, Loc *loc) 
 {
     Tagged_Stack_Item tagged_item = {
-        .typ = typ, 
+        .typ = typ,
+        .loc = *loc, 
     };
 
     switch (typ) {
@@ -1321,10 +1323,13 @@ Tagged_Stack_Item *stack_peek_top_with_type(Processing_Stack *stack) {
     return &stack->items[stack->count - 1];
 }
 
-void expect_item_on_stack(Loc *loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
+void expect_item_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
     if (tagged_item->typ != expected_type) {
-        PRINT0("ERROR: %s:%d:%d: corrupted stack: expected to find %s but found %s\n", 
-               loc->input_path, loc->line_number, loc->line_offset, STACK_ITEM_TYPES[expected_type], STACK_ITEM_TYPES[tagged_item->typ]);
+        PRINT0("ERROR: %s:%d:%d: corrupted stack: expected to find %s but found %s, which is created at\n", 
+               pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset, 
+               STACK_ITEM_TYPES[expected_type], STACK_ITEM_TYPES[tagged_item->typ]);
+        PRINT0("       %s:%d:%d\n", 
+                tagged_item->loc.input_path, tagged_item->loc.line_number, tagged_item->loc.line_offset);
         exit(1);
     }
 }
@@ -1337,7 +1342,7 @@ bool run_processing(Processing_Params *processing_params) {
 
     for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
         const char *funcname = processing_params->fs.items[pc].name;
-        Loc *loc = &processing_params->fs.items[pc].loc;
+        Loc *pc_loc = &processing_params->fs.items[pc].loc;
         PRINT0("\n");
         PRINT0("[%zu] %s\n", pc+1, funcname);
         _print0_margin = 2;
@@ -1355,7 +1360,7 @@ bool run_processing(Processing_Params *processing_params) {
             //    cf.t[i] = cf.t[i] * ATU; 
             //}
 
-            stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF);
+            stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
        
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
@@ -1367,6 +1372,7 @@ bool run_processing(Processing_Params *processing_params) {
                     stack_push(&stack, (Tagged_Stack_Item) {
                         .item.cf = cf_copy,
                         .typ = STACK_ITEM_CF,
+                        .loc = *pc_loc,
                     });
                     break;
                 }
@@ -1375,6 +1381,7 @@ bool run_processing(Processing_Params *processing_params) {
                     stack_push(&stack, (Tagged_Stack_Item) {
                         .item.sf = sf_copy,
                         .typ = STACK_ITEM_SF,
+                        .loc = *pc_loc,
                     });
                     break;
                 } 
@@ -1383,6 +1390,7 @@ bool run_processing(Processing_Params *processing_params) {
                     stack_push(&stack, (Tagged_Stack_Item) {
                         .item.sp = sp_copy,
                         .typ = STACK_ITEM_SPECTRUM,
+                        .loc = *pc_loc,
                     });
                     break;
                 } 
@@ -1394,8 +1402,8 @@ bool run_processing(Processing_Params *processing_params) {
             // peeking the CFnc elements on the stack to have their valid address in memory
             // to store these addresses in dynamic memory  
             for (size_t i = 0; i < stack.count; ++i) {
-                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *loc);
-                expect_item_on_stack(loc, tagged_item, STACK_ITEM_CF);
+                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *pc_loc);
+                expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_CF);
 
                 da_append(&cfncs, &tagged_item->item.cf);
                 
@@ -1409,7 +1417,7 @@ bool run_processing(Processing_Params *processing_params) {
             CFnc average = {0};
             if (!average_correlation_functions(&average, cfncs)) {
                 PRINT0("ERROR: %s:%d:%d: An error occured during averaging of correlation functions\n",
-                        loc->input_path, loc->line_number, loc->line_offset);
+                        pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
                 exit(1);
             }
 
@@ -1418,43 +1426,43 @@ bool run_processing(Processing_Params *processing_params) {
             }
             stack.count = 0; // manually resetting the state of the stack instead of 'pop'
 
-            stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF);
+            stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF, pc_loc);
 
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_CF); 
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
 
             CFnc *cf = &tagged_item.item.cf;
             SFnc sf = idct_cf_to_sf(*cf);
             free_cfnc(*cf);
 
-            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF);
+            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF);
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
 
             SFnc *sf = &tagged_item.item.sf;
             Spectrum sp = compute_alpha(*sf);
             free_sfnc(*sf);
 
-            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM);
+            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
             // TODO: allow expecting SF or Spectrum
             // TODO: implement another 'desymmetrize_schofield' that yields SF
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF);
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
             
             SFnc *sf = &tagged_item.item.sf;
             SFnc sfd3 = desymmetrize_schofield(*sf);
             free_sfnc(*sf);
 
-            stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF); 
+            stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF, pc_loc); 
         
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_CF); 
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
             
             const char *filename = processing_params->fs.items[pc].arg;
             CFnc *cf = &tagged_item.item.cf; 
@@ -1469,8 +1477,8 @@ bool run_processing(Processing_Params *processing_params) {
             free_cfnc(*cf);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SF); 
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
 
             const char *filename = processing_params->fs.items[pc].arg;
             SFnc *sf = &tagged_item.item.sf; 
@@ -1482,8 +1490,8 @@ bool run_processing(Processing_Params *processing_params) {
            free_sfnc(*sf);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *loc);
-            expect_item_on_stack(loc, &tagged_item, STACK_ITEM_SPECTRUM); 
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
             
             const char *filename = processing_params->fs.items[pc].arg;
             Spectrum *sp = &tagged_item.item.sp;
@@ -1520,7 +1528,15 @@ bool run_processing(Processing_Params *processing_params) {
         PRINT0("WARNING: Stack is not empty at the end of processing.\n");
         PRINT0("  Stack state:\n");
         for (size_t i = 0; i < stack.count; ++i) {
-            PRINT0("    %zu: %s\n", i, STACK_ITEM_TYPES[stack.items[i].typ]);
+            Loc *loc = &stack.items[i].loc;
+            PRINT0("    %zu: %s created at %s:%d:%d\n", 
+                   i, STACK_ITEM_TYPES[stack.items[i].typ], loc->input_path, loc->line_number, loc->line_offset);
+
+            switch (stack.items[i].typ) {
+                case STACK_ITEM_CF:       free_cfnc(stack.items[i].item.cf); break;
+                case STACK_ITEM_SF:       free_sfnc(stack.items[i].item.sf); break;
+                case STACK_ITEM_SPECTRUM: free_spectrum(stack.items[i].item.sp); break;
+            }
         } 
     } 
 
