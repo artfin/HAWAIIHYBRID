@@ -108,7 +108,7 @@ int syncfs(int);
 
 extern int  _wrank;
 extern int  _wsize;
-extern bool _print0_suppress_printing;
+extern bool _print0_suppress_info;
 extern int  _print0_margin; 
 
 #ifdef USE_MPI
@@ -118,15 +118,32 @@ extern int  _print0_margin;
 #define INIT_WSIZE                          \
     MPI_Comm_size(MPI_COMM_WORLD, &_wsize); \
 
+#define INFO(...)                                                   \
+    if ((_wrank == 0) && !_print0_suppress_info) {                  \
+        if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+        printf(__VA_ARGS__);                                        \
+    }
+
 #define PRINT0(...)                                               \
-    if (_wrank == 0 && !_print0_suppress_printing) {              \
+    if (_wrank == 0) {                                            \
       if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
       printf(__VA_ARGS__);                                        \
     }
+
 #else
 #define INIT_WRANK
 #define INIT_WSIZE
-#define PRINT0(...) printf(__VA_ARGS__)
+
+#define INFO(...)                                                   \
+    if (!_print0_suppress_info) {                                   \
+        if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+        printf(__VA_ARGS__);                                        \
+    }
+
+#define PRINT0(...)                                             \
+    if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+    printf(__VA_ARGS__);
+
 #endif
 
 #ifdef __cplusplus
@@ -339,6 +356,9 @@ typedef struct {
     double *data;
     size_t len;      // # of samples of *nu, *data
     size_t capacity; // capacity of *nu, *data
+    double ntraj;    // # of trajectories used for averaging
+    double Temperature;
+    bool normalized;
 } Spectrum;
 
 /*
@@ -496,35 +516,43 @@ CFnc copy_cfnc(CFnc cf);
 SFnc copy_sfnc(SFnc sf);
 Spectrum copy_spectrum(Spectrum sp); 
 
+void free_cfnc(CFnc cf);
+void free_cfnc_array(CFncArray ca);
+void free_sfnc(SFnc cf);
+void free_spectrum(Spectrum sp); 
+
+bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
+
 bool write_correlation_function(const char *filename, CFnc cf);
 int write_correlation_function_ext(FILE *fp, CFnc cf);
 
 bool write_spectral_function(const char *filename, SFnc sf);
 int write_spectral_function_ext(FILE *fp, SFnc sf);
 
-// TODO:  'write_spectrum' ???
+bool write_spectrum(const char *filename, Spectrum sp);
+int write_spectrum_ext(FILE *fp, Spectrum sp);
 
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
 
-bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header); 
+bool average_correlation_functions(CFnc *average, CFncs cfncs);
 #define average_correlation_functions_ext(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
 int average_correlation_functions__impl(CFnc *average, int arg_count,  ...);
 
-bool average_correlation_functions(CFnc *average, CFncs cfncs);
+void connes_apodization(Array a, double sampling_time); 
+double *dct(double *v, size_t len);
+double *idct(double *v, size_t len);
+CFnc dct_sf_to_cf(SFnc sf);
+SFnc idct_cf_to_sf(CFnc cf);
 
+Spectrum compute_alpha(SFnc sf); 
+SFnc desymmetrize_d2(SFnc sf); 
+SFnc desymmetrize_schofield(SFnc sf); 
+SFnc desymmetrize_egelstaff(SFnc sf);
+SFnc desymmetrize_frommhold(CFnc cf);
+CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
 
-void free_cfnc(CFnc cf);
-void free_cfnc_array(CFncArray ca);
-void free_sfnc(SFnc cf);
-void free_spectrum(Spectrum sp); 
-
-
-
-
-
-
-
+double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
 
 extern WingParams INIT_WP;
 double wingmodel(WingParams *wp, double t);
@@ -534,8 +562,6 @@ int wingmodel_df(const gsl_vector* x, void* data, gsl_matrix * J);
 
 void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params);
 WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN);
-
-void connes_apodization(Array a, double sampling_time); 
 
 
 /* Uses bit hack taken from: http://www.graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2 */ 
@@ -562,23 +588,6 @@ static inline unsigned int round_to_next_power_of_two(unsigned int n)
 
     return n;
 }
-
-double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
-
-double *dct(double *v, size_t len);
-double *idct(double *v, size_t len);
-
-CFnc dct_sf_to_cf(SFnc sf);
-SFnc idct_cf_to_sf(CFnc cf);
-
-CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
-
-SFnc desymmetrize_d2(SFnc sf); 
-SFnc desymmetrize_schofield(SFnc sf); 
-SFnc desymmetrize_egelstaff(SFnc sf);
-SFnc desymmetrize_frommhold(CFnc cf);
-
-Spectrum compute_alpha(SFnc sf); 
     
 #ifdef __cplusplus
 }

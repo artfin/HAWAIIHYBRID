@@ -1514,7 +1514,7 @@ bool run_processing(Processing_Params *processing_params) {
                 PRINT0("INFO: Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
             }
 
-            if (!writetxt(filename, sp->nu, sp->data, sp->len, NULL)) {
+            if (!write_spectrum(filename, *sp)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
             }

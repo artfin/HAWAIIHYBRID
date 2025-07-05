@@ -30,7 +30,7 @@ dpesPtr dpes     = NULL;
 
 int _wrank = 0;
 int _wsize = 1;
-bool _print0_suppress_printing = false;
+bool _print0_suppress_info = false;
 int _print0_margin = 0;
 
 static size_t INIT_SB_CAPACITY = 256;
@@ -3758,30 +3758,102 @@ size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n) {
     return v;
 }
 
+bool write_spectrum(const char *filename, Spectrum sp)
+{
+    FILE *fp = fopen(filename, "w");
+    
+    _print0_suppress_info = true;
+    int result = write_spectrum_ext(fp, sp); 
+    _print0_suppress_info = false;
+
+    fclose(fp);
+    if (result < 0) return false;
+
+    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
+
+    return true;
+}
+
+int write_spectrum_ext(FILE *fp, Spectrum sp)
+{
+    // truncate the file to a length of 0, effectively clearing its contents
+    int fd = fileno(fp); 
+    if (ftruncate(fd, 0) < 0) {
+        printf("ERROR: could not truncate file: %s\n", strerror(errno));
+        return -1; 
+    }
+    
+    // resets the file position indicator
+    rewind(fp);
+    
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    size_t nchars = 0;
+
+    nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+                      timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+    nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", sp.Temperature);
+    nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", sp.ntraj); 
+    
+    if (!sp.normalized) {
+        if (sp.ntraj <= 0) {
+            printf("ERROR: cannot normalize spectrum: trajectories count is %.2f\n",
+                    sp.ntraj);
+            exit(1);
+        }
+    }
+    
+    for (size_t i = 0; i < sp.len; ++i) {
+        if (sp.normalized) {
+            nchars += fprintf(fp, "%.2f %.10e\n", sp.nu[i], sp.data[i]);
+        } else {
+            nchars += fprintf(fp, "%.2f %.10e\n", sp.nu[i], sp.data[i] / sp.ntraj);
+        }
+    }
+   
+    // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
+    // and kernel may delay the committing its buffer to the filesystem for some reason 
+    if (fflush(fp) != 0) {
+        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+        return -1;
+    }
+   
+    // so to force the kernel to commit the buffered data to the filesystem we have to 
+    // use 'syncfs' or 'sync' 
+    if (syncfs(fd) < 0) {
+        printf("ERROR: could not commit filesystem cache to disk\n");
+        return -1; 
+    }
+    
+    INFO("INFO: wrote %zu characters\n", nchars); 
+
+    return nchars;
+}
+
 bool write_correlation_function(const char *filename, CFnc cf) 
 {
     FILE *fp = fopen(filename, "w");
 
-    _print0_suppress_printing = true;
+    _print0_suppress_info = true;
     int result = write_correlation_function_ext(fp, cf); 
-    _print0_suppress_printing = false;
+    _print0_suppress_info = false;
     
     fclose(fp);
     if (result < 0) return false;
     
-    PRINT0("INFO: wrote %d characters to '%s'\n", result, filename);
+    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
 
     return true; 
 }
 
 int write_correlation_function_ext(FILE *fp, CFnc cf)
-/*
- * Here we assume that values of the correlation function are UNnormalized by the number of trajectories
- * (which is set in clrn.ntraj)
- */ 
 {
-    assert(cf.ntraj > 0);
-
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
@@ -3808,9 +3880,15 @@ int write_correlation_function_ext(FILE *fp, CFnc cf)
     // fprintf(fp, "# PAIR STATE: %s\n", pair_state_name(params->ps));
     nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", cf.ntraj); 
     nchars += fprintf(fp, "# MAXIMUM TRAJECTORY LENGTH: %zu\n", cf.len);
-    //fprintf(fp, "# PARTIAL PARTITION FUNCTION: %.8e\n", params->partial_partition_function_ratio);
-    //fprintf(fp, "# CVODE TOLERANCE: %.2e\n", params->cvode_tolerance);
-
+    
+    if (!cf.normalized) {
+        if (cf.ntraj <= 0) {
+            printf("ERROR: cannot normalize correlation function: trajectories count is %.2f\n",
+                    cf.ntraj);
+            exit(1);
+        }
+    }
+    
     for (size_t i = 0; i < cf.len; ++i) {
         if (cf.normalized) {
             nchars += fprintf(fp, "%.2f %.10e\n", cf.t[i], cf.data[i]);
@@ -3833,7 +3911,79 @@ int write_correlation_function_ext(FILE *fp, CFnc cf)
         return -1; 
     }
     
-    PRINT0("INFO: wrote %zu characters\n", nchars); 
+    INFO("INFO: wrote %zu characters\n", nchars); 
+
+    return nchars;
+}
+
+bool write_spectral_function(const char *filename, SFnc sf) 
+{
+    FILE *fp = fopen(filename, "w");
+    
+    _print0_suppress_info = true;
+    int result = write_spectral_function_ext(fp, sf);
+    _print0_suppress_info = false;
+   
+    fclose(fp);
+    if (result < 0) return false; 
+    
+    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
+
+    return true; 
+}
+
+int write_spectral_function_ext(FILE *fp, SFnc sf) 
+{
+    // truncate the file to a length of 0, effectively clearing its contents
+    int fd = fileno(fp); 
+    if (ftruncate(fd, 0) < 0) {
+        printf("ERROR: could not truncate file: %s\n", strerror(errno));
+        return -1; 
+    }
+    
+    // resets the file position indicator
+    rewind(fp);
+    
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    size_t nchars = 0;
+
+    nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
+    nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+                      timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+    nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
+    nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", sf.ntraj); 
+    nchars += fprintf(fp, "# SPECTRAL FUNCTION LENGTH: %zu\n", sf.len);
+
+    for (size_t i = 0; i < sf.len; ++i) {
+        if (sf.normalized) {
+            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i]); 
+        } else {
+            assert(sf.ntraj > 0);
+            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj);
+        }
+    }
+
+    // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
+    // and kernel may delay the committing its buffer to the filesystem for some reason 
+    if (fflush(fp) != 0) {
+        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    // so to force the kernel to commit the buffered data to the filesystem we have to 
+    // use 'syncfs' or 'sync' 
+    if (syncfs(fd) < 0) {
+        printf("ERROR: could not commit filesystem cache to disk\n");
+        return -1; 
+    }
+
+    INFO("INFO: wrote %zu characters\n", nchars);
 
     return nchars;
 }
@@ -3889,81 +4039,6 @@ int write_histogram(FILE *fp, gsl_histogram *h, int count)
     return 0;
 }
  
-bool write_spectral_function(const char *filename, SFnc sf) 
-{
-    FILE *fp = fopen(filename, "w");
-    
-    _print0_suppress_printing = true;
-    int result = write_spectral_function_ext(fp, sf);
-    _print0_suppress_printing = false;
-   
-    fclose(fp);
-    if (result < 0) return false; 
-    
-    PRINT0("INFO: wrote %d characters to '%s'\n", result, filename);
-
-    return true; 
-}
-
-int write_spectral_function_ext(FILE *fp, SFnc sf) 
-/*
- * Here we assume that values of the spectral function come in unnormalized by the number of trajectories
- * (which is set in sf.ntraj)
- */ 
-{
-    // truncate the file to a length of 0, effectively clearing its contents
-    int fd = fileno(fp); 
-    if (ftruncate(fd, 0) < 0) {
-        printf("ERROR: could not truncate file: %s\n", strerror(errno));
-        return -1; 
-    }
-    
-    // resets the file position indicator
-    rewind(fp);
-    
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-
-    size_t nchars = 0;
-
-    nchars += fprintf(fp, "# HAWAII HYBRID v0.1\n");
-    nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
-                      timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-                      timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-
-    nchars += fprintf(fp, "# TEMPERATURE: %.2f\n", sf.Temperature);
-    nchars += fprintf(fp, "# AVERAGE OVER %.2f TRAJECTORIES\n", sf.ntraj); 
-    nchars += fprintf(fp, "# SPECTRAL FUNCTION LENGTH: %zu\n", sf.len);
-
-    for (size_t i = 0; i < sf.len; ++i) {
-        if (sf.normalized) {
-            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i]); 
-        } else {
-            assert(sf.ntraj > 0);
-            nchars += fprintf(fp, "%.10f   %.10e\n", sf.nu[i], sf.data[i] / sf.ntraj);
-        }
-    }
-
-    // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
-    // and kernel may delay the committing its buffer to the filesystem for some reason 
-    if (fflush(fp) != 0) {
-        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
-        return -1;
-    }
-    
-    // so to force the kernel to commit the buffered data to the filesystem we have to 
-    // use 'syncfs' or 'sync' 
-    if (syncfs(fd) < 0) {
-        printf("ERROR: could not commit filesystem cache to disk\n");
-        return -1; 
-    }
-
-    PRINT0("INFO: wrote %zu characters\n", nchars);
-
-    return nchars;
-}
 
 void sb_reserve(String_Builder *sb, size_t n)
 /*
@@ -5077,11 +5152,12 @@ SFnc idct_cf_to_sf(CFnc cf)
     
     PRINT0("INFO: Performing IDCT to transform CF to SF\n");
     SFnc sf = {
-        .nu   = (double*) malloc(cf.len * sizeof(double)),
-        .data = idct(cf.data, cf.len),
-        .len  = cf.len,
+        .nu          = (double*) malloc(cf.len * sizeof(double)),
+        .data        = idct(cf.data, cf.len),
+        .len         = cf.len,
         .Temperature = cf.Temperature,
-        .ntraj = cf.ntraj, 
+        .ntraj       = cf.ntraj,
+        .normalized  = cf.normalized,
     };
 
     double tmax = cf.len * dt;
@@ -5188,10 +5264,12 @@ SFnc idct_cf_to_sf(CFnc cf)
 SFnc desymmetrize_schofield(SFnc sf) 
 {
     SFnc sfd = {
-        .nu   = (double*) malloc(sf.len * sizeof(double)),
-        .data = (double*) malloc(sf.len * sizeof(double)),
-        .len  = sf.len,
+        .nu          = (double*) malloc(sf.len * sizeof(double)),
+        .data        = (double*) malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .ntraj       = sf.ntraj,
         .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
     };
 
     memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
@@ -5289,9 +5367,13 @@ SFnc desymmetrize_egelstaff(SFnc sf)
 Spectrum compute_alpha(SFnc sf) 
 {
     Spectrum sp = {
-        .nu   = (double*) malloc(sf.len * sizeof(double)),
-        .data = (double*) malloc(sf.len * sizeof(double)),
-        .len  = sf.len,
+        .nu          = (double*) malloc(sf.len * sizeof(double)),
+        .data        = (double*) malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .capacity    = sf.len,
+        .ntraj       = sf.ntraj,
+        .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
     };
 
     memcpy(sp.nu, sf.nu, sf.len * sizeof(double));
@@ -5415,6 +5497,7 @@ SFnc copy_sfnc(SFnc sf) {
         .capacity    = sf.len,
         .ntraj       = sf.ntraj,
         .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
     };
 
     assert(sf_copy.nu != NULL && "ASSERT: not enough memory");
@@ -5428,10 +5511,13 @@ SFnc copy_sfnc(SFnc sf) {
 
 Spectrum copy_spectrum(Spectrum sp) {
     Spectrum sp_copy = {
-        .nu       = malloc(sp.len*sizeof(double)),
-        .data     = malloc(sp.len*sizeof(double)),
-        .len      = sp.len,
-        .capacity = sp.len,
+        .nu          = malloc(sp.len*sizeof(double)),
+        .data        = malloc(sp.len*sizeof(double)),
+        .len         = sp.len,
+        .capacity    = sp.len,
+        .ntraj       = sp.ntraj,
+        .Temperature = sp.Temperature,
+        .normalized  = sp.normalized,
     };
 
     assert(sp_copy.nu != NULL && "ASSERT: not enough memory");
