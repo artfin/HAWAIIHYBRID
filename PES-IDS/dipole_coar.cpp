@@ -2,6 +2,9 @@
 #define DIPOLE_COAR
 
 #include <math.h>
+#include <Eigen/Dense>
+
+#include "angles_handler.hpp"
 
 // i.e. θ = 0 deg  and θ = 180 deg correspond to linear CO—Ar and Ar—CO, respectively
 // Dipole direction: -CO+
@@ -14,7 +17,40 @@ double arco_dipx_perm(double Rb, double theta);
 double arco_dipz_ind(double Rb, double theta);
 double arco_dipx_ind(double Rb, double theta);
 
+extern "C" void dipole_lab(double *q, double diplab[3]);
+
 #ifdef DIPOLE_COAR_IMPLEMENTATION
+
+
+extern "C" void dipole_lab(double *q, double diplab[3])
+{
+    double qmol[5];
+    linear_molecule_atom_lab_to_mol(q, qmol);
+    
+    double dipmol[3];
+    dipmol[0] = arco_dipx_ind(qmol[0] /* R */, qmol[4] /* Theta */);
+    dipmol[1] = 0.0; 
+    dipmol[2] = arco_dipz_ind(qmol[0] /* R */, qmol[4] /* Theta */);
+
+    double sinphiem, cosphiem;
+    double sinthetaem, costhetaem;
+    double sinpsiem, cospsiem;
+
+    sincos(qmol[1], &sinphiem, &cosphiem);
+    sincos(qmol[2], &sinthetaem, &costhetaem);
+    sincos(qmol[3], &sinpsiem, &cospsiem);
+
+    Sz_filler(Sphiem, sinphiem, cosphiem);
+    Sx_filler(Sthetaem, sinthetaem, costhetaem);
+    Sz_filler(Spsiem, sinpsiem, cospsiem);
+       
+    Eigen::Vector3d dipmol_eig = Eigen::Map<Eigen::Vector3d>(dipmol, 3);
+    Eigen::Vector3d diplab_eig = Sphiem.transpose() * Sthetaem.transpose() * Spsiem.transpose() * dipmol_eig; 
+   
+    diplab[0] = diplab_eig(0); 
+    diplab[1] = diplab_eig(1); 
+    diplab[2] = diplab_eig(2);
+}
 
 double arco_dipz_perm(double Rb, double theta)
 {
