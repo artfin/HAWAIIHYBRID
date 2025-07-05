@@ -1204,16 +1204,7 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                     get_and_expect_token(l, TOKEN_CPAREN);
                 }
 
-                if (strcasecmp(f.name, "READ_CF") == 0) {
-                    if (f.arg == NULL) {
-                        PRINT0("ERROR: %s:%d:%d: missing argument for READ_CF. A file path is required.\n",
-                                l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1);
-                        exit(1); 
-                    }
-                }
-
                 da_append(&processing_params->fs, f);
-
                 break;
             }
 
@@ -1335,6 +1326,14 @@ void expect_item_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, Stack_Ite
     }
 }
 
+void expect_arg(Funcall *func) {
+    if (func->arg == NULL) {
+        PRINT0("ERROR: %s:%d:%d: missing argument for %s\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name);
+        exit(1); 
+    }
+}
+
 bool run_processing(Processing_Params *processing_params) {
     print_processing_params(processing_params);
     PRINT0("\n\n");
@@ -1342,16 +1341,20 @@ bool run_processing(Processing_Params *processing_params) {
     Processing_Stack stack = {0};
 
     for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
-        const char *funcname = processing_params->fs.items[pc].name;
-        Loc *pc_loc = &processing_params->fs.items[pc].loc;
+        Funcall *func = &processing_params->fs.items[pc];
+        const char *funcname = func->name;
+        Loc *pc_loc = &func->loc;
+
         PRINT0("\n");
         PRINT0("[%zu] %s\n", pc+1, funcname);
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            CFnc cf = {0}; 
-
+            expect_arg(func);
             const char *filename = processing_params->fs.items[pc].arg;
+
+            CFnc cf = {0}; 
+            
             if (!read_correlation_function(filename, NULL, &cf)) {
                 PRINT0("ERROR: could not read the file '%s'!\n", filename);
                 return false; 
@@ -1475,6 +1478,7 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
             
+            expect_arg(func);
             const char *filename = processing_params->fs.items[pc].arg;
             CFnc *cf = &tagged_item.item.cf; 
 
@@ -1489,8 +1493,10 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
 
+            expect_arg(func);
             const char *filename = processing_params->fs.items[pc].arg;
             SFnc *sf = &tagged_item.item.sf; 
+            
             if (!write_spectral_function(filename, *sf)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
                 exit(1);
@@ -1502,6 +1508,7 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
             
+            expect_arg(func);
             const char *filename = processing_params->fs.items[pc].arg;
             Spectrum *sp = &tagged_item.item.sp;
 
