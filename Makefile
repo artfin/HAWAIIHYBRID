@@ -9,6 +9,8 @@ MPICXX ?= mpic++
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
+#FLAGS_DEBUG   := -Wall -fsanitize=address -Wextra -Wswitch-enum -ggdb -O0 
+#FLAGS_RELEASE := -Wall -fsanitize=address -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
 FLAGS := $(FLAGS_DEBUG)
 
@@ -17,6 +19,7 @@ LIB_GSL ?= -lgsl -lgslcblas
 -include Makefile.config
 
 INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL) -I./thirdparty/
+LIBS := $(LIB_SUNDIALS) $(LIB_GSL) -lm -lstdc++ 
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
             examples/mpi_phase_space_integration_co2_ar.exe  \
@@ -164,8 +167,11 @@ build/potv.o: ./PES-IDS/potv.f | build
 build/potv_d.o: ./PES-IDS/potv_d.f03 | build
 	$(F) -c -fPIC $< -o $@
 
-build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handler.o | build
+build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handler.o
 	$(CXX) $(INC_EIGEN) -shared -fPIC -I ./ -o $@ $^
+
+build/ind_dipole_coar.so: ./PES-IDS/dipole_coar.cpp build/angles_handler.o 
+	$(CXX) $(FLAGS) -shared -DDIPOLE_COAR_IMPLEMENTATION -I ./ -fPIC $(INC_EIGEN) -o $@ $^ -lm
 
 build/perm_dipole_coar.so: ./PES-IDS/perm_dipole_coar.c | build
 	$(CC) $(FLAGS) -shared -I./ -o $@ $^ -lm
@@ -334,10 +340,10 @@ examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/a
 	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
 driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl 
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl # -lasan 
 
 d4b.exe: d4b.c $(OBJ)
-	$(CC) -Wall -Wextra -ggdb $(INC) $^ -o $@ $(LIB_GSL) $(LIB_SUNDIALS) -lm -lstdc++
+	$(CC) $(FLAGS) $(INC) $^ -o $@ $(LIBS) #-lasan 
 
 
 build:

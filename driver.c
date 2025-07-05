@@ -12,14 +12,13 @@
 #include "hawaii.h"
 
 // TODO: add 'where_begin' field for token start in the Lexer
-// TODO: define a macro for 'expect_one_of_tokens' to not provide the number of varargs
 
 // TODO: add types of calculation for calculating phase moment M0 and M2
 // TODO: add type of calculation for running trajectory from specific phase-point 
 
 // TODO: we may want to have some predefined constants like 'l_H2' or 'm_H2'
-// and have a library of them (constants.h) instead of specifying them in raw
-// form in the configuration file
+// and have a library of them (we actually have one in constants.h) instead of specifying them as floats 
+// in the input file
 
 typedef struct {
     double reduced_mass;
