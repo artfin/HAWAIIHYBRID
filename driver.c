@@ -327,13 +327,14 @@ typedef struct {
 
 static const char *AVAILABLE_FUNCS[] = {
     "READ_CF",
-    "CF_TO_SF",
-    "AVERAGE_CFS",
     "WRITE_CF",
     "WRITE_SF",
+    "WRITE_SPECTRUM",
+    "FIT_BASELINE", // TODO: not descriptive
+    "CF_TO_SF",
+    "AVERAGE_CFS",
     "ALPHA",
     "D3",
-    "WRITE_SPECTRUM",
     "DUP",
     "INT3",
 };
@@ -1368,7 +1369,7 @@ bool run_processing(Processing_Params *processing_params) {
        
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
-            PRINT0("INFO: Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
+            INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
 
             switch (tagged_item->typ) {
                 case STACK_ITEM_CF: {
@@ -1421,7 +1422,7 @@ bool run_processing(Processing_Params *processing_params) {
 
                 da_append(&cfncs, &tagged_item->item.cf);
                 
-                PRINT0("INFO: Popped CF (i: %zu) from processing stack: ntraj = %.4e\n", cfncs.count, da_last(&cfncs)->ntraj);
+                INFO("Popped CF (i: %zu) from processing stack: ntraj = %.4e\n", cfncs.count, da_last(&cfncs)->ntraj);
             }
 
             for (size_t i = 0; i < cfncs.count; ++i) {
@@ -1441,6 +1442,21 @@ bool run_processing(Processing_Params *processing_params) {
             stack.count = 0; // manually resetting the state of the stack instead of 'pop'
 
             stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF, pc_loc);
+
+        } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+          
+            size_t EXT_RANGE_MIN = 8192;
+            INFO("Using points starting from %zu for CF extrapolation\n", EXT_RANGE_MIN); 
+            CFnc *cf = &tagged_item.item.cf; 
+            WingParams wp = fit_baseline(cf, EXT_RANGE_MIN);
+
+            for (size_t i = 0; i < cf->len; ++i) {
+                cf->data[i] -= wingmodel(&wp, cf->t[i]);
+            }
+            
+            stack_push_with_type(&stack, (void*) cf, STACK_ITEM_CF, pc_loc);
 
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
@@ -1518,7 +1534,7 @@ bool run_processing(Processing_Params *processing_params) {
                 size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
                 sp->len = (sp->len > n) ? n : sp->len;
                 
-                PRINT0("INFO: Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                INFO("Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
             }
 
             if (!write_spectrum(filename, *sp)) {

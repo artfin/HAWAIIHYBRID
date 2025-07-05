@@ -4241,8 +4241,8 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
     sb_append_null(sb);
   
-    PRINT0("INFO: Reading correlation function from '%s'\n", filename); 
-    PRINT0("INFO: # of lines in header: %zu\n", header_lines);
+    INFO("Reading correlation function from '%s'\n", filename); 
+    INFO("# of lines in header: %zu\n", header_lines);
     
     regex_t regex = {0};
     int ret;
@@ -4268,7 +4268,7 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
             matched_string[len] = '\0';
 
             cf->ntraj = strtod(matched_string, NULL);
-            PRINT0("INFO: Captured number of trajectories: %lf\n", cf->ntraj);
+            INFO("Captured number of trajectories: %lf\n", cf->ntraj);
         } else if (ret == REG_NOMATCH) {
             PRINT0("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
         } else {
@@ -4301,9 +4301,9 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
             matched_string[len] = '\0';
 
             cf->Temperature = strtod(matched_string, NULL);
-            PRINT0("INFO: Captured temperature: %lf\n", cf->Temperature);
+            INFO("Captured temperature: %lf\n", cf->Temperature);
         } else if (ret == REG_NOMATCH) {
-            PRINT0("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
+            WARNING("No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
         } else {
             char error[256];
             regerror(ret, &regex, error, sizeof(error));
@@ -4366,7 +4366,7 @@ defer:
 
 bool average_correlation_functions(CFnc *average, CFncs cfncs)
 {
-    PRINT0("INFO: averaging %zu correlation functions...\n", cfncs.count);
+    INFO("averaging %zu correlation functions...\n", cfncs.count);
     
     for (size_t i = 0; i < cfncs.count; ++i) {
         CFnc *cf = cfncs.items[i]; 
@@ -4446,7 +4446,7 @@ int average_correlation_functions__impl(CFnc *average, int arg_count,  ...)
     va_list args;
     va_start(args, arg_count);
 
-    printf("INFO: averaging %d correlation functions...\n", arg_count);
+    INFO("averaging %d correlation functions...\n", arg_count);
 
     for (int i = 0; i < arg_count; ++i) {
         CFnc cf = va_arg(args, CFnc);
@@ -4632,7 +4632,7 @@ bool writetxt(const char *filename, double *x, double *y, size_t len, const char
         return_defer(false); 
     }
 
-    PRINT0("INFO: wrote %zu characters to '%s'\n", nchars, filename); 
+    INFO("wrote %zu characters to '%s'\n", nchars, filename); 
 
 defer:
     if (fp) fclose(fp);
@@ -4915,10 +4915,10 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
         if (wasnegative && (cf->data[k] > CFmax2)) { CFmax2 = cf->data[k]; max2time = cf->t[k]; }
     } 
 
-    printf("INFO: CFmin    = %.10e\n", CFmin); 
-    printf("INFO: CFmax    = %.10e\n", CFmax);
-    printf("INFO: max2time = %.10e\n", max2time / ATU); 
-    printf("INFO: CFmax2   = %.10e\n", CFmax2);
+    INFO("CFmin    = %.10e\n", CFmin); 
+    INFO("CFmax    = %.10e\n", CFmax);
+    INFO("max2time = %.10e\n", max2time); 
+    INFO("CFmax2   = %.10e\n", CFmax2);
     
     assert(cf->len > EXT_RANGE_MIN);
     
@@ -4938,7 +4938,7 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
         .C = fmax(ydat2[itotal-1], INIT_WP.C)
     }; 
     
-    printf("Initial parameter values: %.5e %.5e %.5e\n", wp.A, wp.B, wp.C);
+    INFO("Initial parameter values: %.5e %.5e %.5e\n", wp.A, wp.B, wp.C);
 
     gsl_nonlinear_opt(itotal, xdat2, ydat2, &wp);
 
@@ -4946,13 +4946,11 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     //assert(wp.B > 0);
     //assert(wp.C > 0);
     if (wp.C < 0) {
-        printf("\n");
-        printf("!!! WingParams.C is negative! Deal with it. Continuing...\n\n");
+        WARNING("!!! WingParams.C is negative! Deal with it. Continuing...\n\n");
     }
 
     if (wp.B < 0) {
-        printf("\n");
-        printf("!!! WingParams.B is negative! Probably the Lorentzian model is not applicable in selected range. Consider fitting only the constant. Continuing...\n\n");
+        WARNING("!!! WingParams.B is negative! Probably the Lorentzian model is not applicable in selected range. Consider fitting only the constant. Continuing...\n\n");
     }
 
     max2time = max2time / ATU;
@@ -5146,11 +5144,11 @@ SFnc idct_cf_to_sf(CFnc cf)
     double Xscale = 1.0 / LightSpeed_cm / ATU / 2.0 / M_PI;
     double Yscale = ATU * ADIPMOMU * ADIPMOMU / (4.0 * M_PI * EPSILON0);
 
-    PRINT0("INFO: Applying Connes apodization to CF\n");
+    INFO("Applying Connes apodization to CF\n");
     double dt = (cf.t[1] - cf.t[0]); 
     connes_apodization((Array) {.data = cf.data, .n = cf.len }, dt);
     
-    PRINT0("INFO: Performing IDCT to transform CF to SF\n");
+    INFO("Performing IDCT to transform CF to SF\n");
     SFnc sf = {
         .nu          = (double*) malloc(cf.len * sizeof(double)),
         .data        = idct(cf.data, cf.len),
@@ -5196,7 +5194,7 @@ CFnc dct_sf_to_cf(SFnc sf)
         
         nustep = sf.nu[1] - sf.nu[0];
         numax = nustep * (padded_len - 1);
-        printf("INFO: dct_sf_to_cf: padding SF to the length = %zu with numax = %.5e\n", padded_len, numax);
+        INFO("dct_sf_to_cf: padding SF to the length = %zu with numax = %.5e\n", padded_len, numax);
 
         cf.data = dct(padded, padded_len);
         cf.len = padded_len;

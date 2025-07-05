@@ -121,7 +121,15 @@ extern int  _print0_margin;
 #define INFO(...)                                                   \
     if ((_wrank == 0) && !_print0_suppress_info) {                  \
         if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
-        printf(__VA_ARGS__);                                        \
+        printf("INFO: "); printf(__VA_ARGS__);                      \
+    }
+
+#define WARNING(...)                                                \
+    if ((_wrank == 0) && !_print0_suppress_info) {                  \
+        if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+        printf("\n");                                               \
+        printf("WARNING: "); printf(__VA_ARGS__);                   \
+        printf("\n");                                               \
     }
 
 #define PRINT0(...)                                               \
