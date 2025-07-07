@@ -10,6 +10,7 @@
 
 #define USE_MPI
 #include "hawaii.h"
+#include "hep_hawaii.h"
 
 // TODO: add 'where_begin' field for token start in the Lexer
 
@@ -953,6 +954,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_CORRELATION_SINGLE;
                 } else if (strcasecmp(l->string_storage.items, "CORRELATION_ARRAY") == 0) {
                     params->calculation_type = CALCULATION_CORRELATION_ARRAY;
+                } else if (strcasecmp(l->string_storage.items, "CALCULATE_PHASE_SPACE_M0") == 0) {
+                    params->calculation_type = CALCULATION_PHASE_SPACE_M0;
                 } else if (strcasecmp(l->string_storage.items, "PROCESSING") == 0) {
                     params->calculation_type = CALCULATION_PROCESSING;
                 } else {
@@ -1813,7 +1816,38 @@ int main(int argc, char* argv[])
             break; 
         } 
         case CALCULATION_PHASE_SPACE_M0: {
-            assert(false); 
+            setup_dipole(&input_block);
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+        
+            size_t hep_m0_niterations = 12;
+            if (calc_params.hep_m0_niterations > 0) hep_m0_niterations = calc_params.hep_m0_niterations;
+
+            size_t hep_m0_npoints = 1000000;
+            if (calc_params.hep_m0_npoints > 0) hep_m0_npoints = calc_params.hep_m0_npoints;
+
+            if (calc_params.sampler_Rmin <= 0.0) {
+                PRINT0("ERROR: minimum value for R throught integration (sampler_Rmin) must be set\n");
+                exit(1);
+            }
+            
+            if (calc_params.sampler_Rmax <= 0.0) {
+                PRINT0("ERROR: maximum value for R throught integration (sampler_Rmin) must be set\n");
+                exit(1);
+            }
+
+            double pf_analytic = analytic_full_partition_function_by_V(&ms, input_block.Temperature);
+            INFO("Analytic partition function divided by V: %.5e\n", pf_analytic);
+
+            double hep_M0, hep_M0_err; 
+            c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, input_block.Temperature, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
+
+            hep_M0     *= ZeroCoeff / pf_analytic;
+            hep_M0_err *= ZeroCoeff / pf_analytic;
+            INFO("T = %.2e => M0: %.5e\n", input_block.Temperature, hep_M0);
+
+            break;
         }
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
