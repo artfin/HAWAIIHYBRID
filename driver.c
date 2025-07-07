@@ -330,6 +330,8 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_SF",
     "WRITE_SPECTRUM",
     "FIT_BASELINE", // TODO: not descriptive
+    "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE",
+    "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE",
     "CF_TO_SF",
     "AVERAGE_CFS",
     "ALPHA",
@@ -512,18 +514,33 @@ bool get_token(Lexer *l) {
     if (is_identifier_begin(c)) {
         (*l).token_type = TOKEN_STRING;
         (*l).string_storage.count = 0;
-        
-        for (c = peek_char(l); is_identifier(c); c = peek_char(l)) {
+     
+        c = peek_char(l); 
+        while (is_identifier(c)) { 
             da_append(&l->string_storage, c);
             skip_char(l);
+            c = peek_char(l);
         }
 
         da_append(&l->string_storage, 0);
+   
+        // looking for a "(" to gather the information that we have a function call  
+        {
+            char *saved_parse_point = l->parse_point;
+            Loc saved_loc = l->loc;
+            size_t saved_token_len = l->token_len;     
 
-        skip_whitespaces(l);
-        c = peek_char(l);
-        if (c == '(') {
-            (*l).token_type = TOKEN_FUNCALL;
+            // here we may consume new line and completely mess up the location of what is 
+            // actually just a string and not a function call 
+            skip_whitespaces(l);
+            c = peek_char(l);
+            if (c == '(') {
+                l->token_type = TOKEN_FUNCALL;
+            } else {
+                l->parse_point = saved_parse_point;
+                l->loc         = saved_loc;
+                l->token_len   = saved_token_len;
+            }
         }
 
         if (strcasecmp(l->string_storage.items, "true") == 0) {
@@ -1442,6 +1459,20 @@ bool run_processing(Processing_Params *processing_params) {
 
             stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF, pc_loc);
 
+        } else if (strcasecmp(funcname, "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+            double M0 = compute_Mn_from_sf_using_classical_detailed_balance(tagged_item.item.sf, 0);
+            INFO("M0 = %.5e\n", M0); 
+        
+        } else if (strcasecmp(funcname, "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+            double M2 = compute_Mn_from_sf_using_classical_detailed_balance(tagged_item.item.sf, 2);
+            INFO("M2 = %.5e\n", M2); 
+
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
@@ -1751,10 +1782,12 @@ int main(int argc, char* argv[])
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
             calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
-            
-            if (!run_processing(&processing_params)) {
-                PRINT0("ERROR: could not run commands in PROCESSING block\n");
-                exit(1); 
+           
+            if (_wrank == 0) { 
+                if (!run_processing(&processing_params)) {
+                    PRINT0("ERROR: could not run commands in PROCESSING block\n");
+                    exit(1); 
+                }
             }
 
             break;
@@ -1779,6 +1812,9 @@ int main(int argc, char* argv[])
 
             break; 
         } 
+        case CALCULATION_PHASE_SPACE_M0: {
+            assert(false); 
+        }
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
