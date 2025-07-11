@@ -986,6 +986,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_CORRELATION_ARRAY;
                 } else if (strcasecmp(l->string_storage.items, "CALCULATE_PHASE_SPACE_M0") == 0) {
                     params->calculation_type = CALCULATION_PHASE_SPACE_M0;
+                } else if (strcasecmp(l->string_storage.items, "CALCULATE_PHASE_SPACE_M2") == 0) {
+                    params->calculation_type = CALCULATION_PHASE_SPACE_M2;
                 } else if (strcasecmp(l->string_storage.items, "PROCESSING") == 0) {
                     params->calculation_type = CALCULATION_PROCESSING;
                 } else {
@@ -1839,12 +1841,13 @@ int main(int argc, char* argv[])
             break; 
         }
         case CALCULATION_CORRELATION_SINGLE: {
-            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
-                PRINT0("ERROR: for CORRELATION_SINGLE calculation *for now* we expect to have only one dipole\n");
-                exit(1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            if (input_block.so_dipole_2 != NULL) {
+                setup_dipole(input_block.so_dipole_2, &dipole_2);
+            } else {
+                dipole_2 = dipole_1;
             }
 
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1883,7 +1886,53 @@ int main(int argc, char* argv[])
             }
 
             break; 
-        } 
+        }
+        case CALCULATION_PHASE_SPACE_M2: {
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            if (input_block.so_dipole_2 != NULL) {
+                setup_dipole(input_block.so_dipole_2, &dipole_2);
+            } else {
+                dipole_2 = dipole_1;
+            }
+            
+            setup_pes(&input_block);
+            
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+            
+            size_t hep_m2_niterations = 12;
+            if (calc_params.hep_m2_niterations > 0) hep_m2_niterations = calc_params.hep_m2_niterations;
+            
+            size_t hep_m2_npoints = 1000000;
+            if (calc_params.hep_m2_npoints > 0) hep_m2_npoints = calc_params.hep_m2_npoints;
+            
+            if (calc_params.sampler_Rmin <= 0.0) {
+                PRINT0("ERROR: minimum value for R throught integration (sampler_Rmin) must be set\n");
+                exit(1);
+            }
+            
+            if (calc_params.sampler_Rmax <= 0.0) {
+                PRINT0("ERROR: maximum value for R throught integration (sampler_Rmin) must be set\n");
+                exit(1);
+            }
+
+            if (input_block.Temperature > 0) {
+                double T = input_block.Temperature; 
+                double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+                INFO("Analytic partition function divided by V: %.5e\n", pf_analytic);
+
+                double hep_M2, hep_M2_err; 
+                c_mpi_perform_integration(&ms, INTEGRAND_M2, &calc_params, T, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
+
+                hep_M2     *= SecondCoeff / pf_analytic;
+                hep_M2_err *= SecondCoeff / pf_analytic;
+                INFO("T = %.2e => M2: %.5e\n", T, hep_M2);
+            } else {
+                PRINT0("ERROR: no temperature is provided to run CALCULATION_PHASE_SPACE_M2\n");
+                exit(1); 
+            }
+
+            break;
+        }
         case CALCULATION_PHASE_SPACE_M0: {
             setup_dipole(input_block.so_dipole_1, &dipole_1);
             if (input_block.so_dipole_2 != NULL) {

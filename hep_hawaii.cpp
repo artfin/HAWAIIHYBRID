@@ -195,9 +195,11 @@ double integrand_M2(hep::mc_point<double> const& x)
     double h = 1.0e-3;
     
     // TODO: move the memory allocation outside this function
-    gsl_matrix *D           = gsl_matrix_alloc(gms->Q_SIZE, 3);
-    gsl_matrix *dHdp        = gsl_matrix_alloc(1, gms->Q_SIZE);
-    gsl_matrix *dip_lab_dot = gsl_matrix_alloc(1, 3);
+    gsl_matrix *D1 = gsl_matrix_alloc(gms->Q_SIZE, 3);
+    gsl_matrix *D2 = gsl_matrix_alloc(gms->Q_SIZE, 3);
+    gsl_matrix *dHdp = gsl_matrix_alloc(1, gms->Q_SIZE);
+    gsl_matrix *dip_lab_dot1 = gsl_matrix_alloc(1, 3);
+    gsl_matrix *dip_lab_dot2 = gsl_matrix_alloc(1, 3);
     
     double jac;
     double qp[gms->QP_SIZE];
@@ -220,39 +222,49 @@ double integrand_M2(hep::mc_point<double> const& x)
     }
             
     extract_q_and_write_into_ms(gms);
-            
-    double dp[3];
-    double dm[3];
-
+    
+    double dp1[3];
+    double dm1[3];
+    double dp2[3];
+    double dm2[3];
     for (size_t i = 0; i < gms->Q_SIZE; ++i) {
         double tmp = gms->intermediate_q[i];
-        
-        gms->intermediate_q[i] = tmp + h;
-        (*dipole_1)(gms->intermediate_q, dp);
-        
-        gms->intermediate_q[i] = tmp - h;
-        (*dipole_1)(gms->intermediate_q, dm);
 
-        gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
-        gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
-        gsl_matrix_set(D, i, 2, (dp[2] - dm[2])/(2.0*h)); 
+        gms->intermediate_q[i] = tmp + h;
+        (*dipole_1)(gms->intermediate_q, dp1);
+        (*dipole_2)(gms->intermediate_q, dp2);
+
+        gms->intermediate_q[i] = tmp - h;
+        (*dipole_1)(gms->intermediate_q, dm1);
+        (*dipole_2)(gms->intermediate_q, dm2);
+
+        gsl_matrix_set(D1, i, 0, (dp1[0] - dm1[0])/(2.0*h)); 
+        gsl_matrix_set(D1, i, 1, (dp1[1] - dm1[1])/(2.0*h)); 
+        gsl_matrix_set(D1, i, 2, (dp1[2] - dm1[2])/(2.0*h)); 
+        
+        gsl_matrix_set(D2, i, 0, (dp2[0] - dm2[0])/(2.0*h)); 
+        gsl_matrix_set(D2, i, 1, (dp2[1] - dm2[1])/(2.0*h)); 
+        gsl_matrix_set(D2, i, 2, (dp2[2] - dm2[2])/(2.0*h)); 
 
         gms->intermediate_q[i] = tmp;
     } 
 
     compute_dHdp(gms, dHdp); 
+    
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D1, 0.0, dip_lab_dot1);
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D2, 0.0, dip_lab_dot2);
 
-    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, dHdp, D, 0.0, dip_lab_dot);
-            
-    double dipsq = gsl_matrix_get(dip_lab_dot, 0, 0)*gsl_matrix_get(dip_lab_dot, 0, 0) + \
-                   gsl_matrix_get(dip_lab_dot, 0, 1)*gsl_matrix_get(dip_lab_dot, 0, 1) + \
-                   gsl_matrix_get(dip_lab_dot, 0, 2)*gsl_matrix_get(dip_lab_dot, 0, 2);
+    double dipsq = gsl_matrix_get(dip_lab_dot1, 0, 0)*gsl_matrix_get(dip_lab_dot2, 0, 0) + \
+                   gsl_matrix_get(dip_lab_dot1, 0, 1)*gsl_matrix_get(dip_lab_dot2, 0, 1) + \
+                   gsl_matrix_get(dip_lab_dot1, 0, 2)*gsl_matrix_get(dip_lab_dot2, 0, 2);
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
     
-    gsl_matrix_free(D);
+    gsl_matrix_free(D1);
+    gsl_matrix_free(D2);
     gsl_matrix_free(dHdp);
-    gsl_matrix_free(dip_lab_dot);
+    gsl_matrix_free(dip_lab_dot1);
+    gsl_matrix_free(dip_lab_dot2);
 
     return jac * dipsq * std::exp(-energy * HkT / gT);
 }
