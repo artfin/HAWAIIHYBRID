@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     INIT_WRANK;
     INIT_WSIZE;
 
-    uint32_t seed = 42; // mt_goodseed();
+    uint32_t seed = 43; // mt_goodseed();
     
     pes_init(false); 
     dipole_init(false);
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = BOUND;
     params.sampler_Rmin                     = 4.5;
     params.sampler_Rmax                     = 40.0;
     params.initialM0_npoints                = 10000000;
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     // ------------------------------------------------------------------------------------
     double hep_M0, hep_M0_err; 
     hep::mpi_vegas_callback<double>(hep::mpi_vegas_verbose_callback<double>);
-    mpi_perform_integration(&ms, integrand_M0, &params, T, 12, 1e6, &hep_M0, &hep_M0_err);
+    mpi_perform_integration(&ms, integrand_M0, &params, T, 12, 1e3, &hep_M0, &hep_M0_err);
 
     double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
 
@@ -88,16 +88,22 @@ int main(int argc, char *argv[])
     PRINT0("HEP M0: %.5e +/- %.5e\n\n", hep_M0, hep_M0_err);
 
     double hep_M2, hep_M2_err;
-    mpi_perform_integration(&ms, integrand_M2, &params, T, 9, 1e6, &hep_M2, &hep_M2_err);
+    mpi_perform_integration(&ms, integrand_M2, &params, T, 9, 1e3, &hep_M2, &hep_M2_err);
 
     hep_M2     *= SecondCoeff / pf_analytic;
     hep_M2_err *= SecondCoeff / pf_analytic;
     PRINT0("HEP M2: %.5e +/- %.5e\n\n", hep_M2, hep_M2_err);
 
-    double hep_ppf, hep_ppf_err;
-    mpi_perform_integration(&ms, integrand_pf, &params, T, 12, 1e6, &hep_ppf, &hep_ppf_err);
-    double ppf_ratio = hep_ppf / pf_analytic;
-    PRINT0("PPF ratio: %.5e\n\n", ppf_ratio); 
+    double ppf_ratio;
+    for (size_t i = 0; i < 10; ++i) {
+        double T = 70.0 + i * 10.0;
+        double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+
+        double hep_ppf, hep_ppf_err;
+        mpi_perform_integration(&ms, integrand_pf, &params, T, 18, 1e6, &hep_ppf, &hep_ppf_err);
+        ppf_ratio = hep_ppf / pf_analytic;
+        PRINT0("T = %.3e => PPF ratio: %.5e\n\n", T, ppf_ratio);
+    } 
     // ------------------------------------------------------------------------------------
     
     params.partial_partition_function_ratio = ppf_ratio;

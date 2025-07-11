@@ -35,7 +35,7 @@ extern "C" {
 #define DIPOLE_COAR_IMPLEMENTATION
 #include "dipole_coar.c"
 
-double pes(double *q) {
+double pes_lab(double *q) {
     static double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
 
@@ -51,7 +51,7 @@ double pes(double *q) {
 	return r;
 } 
 
-void dpes(double *q, double *dpesdq) {
+void dpes_lab(double *q, double *dpesdq) {
     static Eigen::Matrix<double, 5, 5> jac;
     static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
     static double qmol[5];
@@ -132,12 +132,18 @@ void dipole_lab(double *q, double diplab[3])
 #endif
 }
 
-int main2()
+int main()
 {
+    printf("II(CO) = %.15e\n", II_CO*AMU*ALU*ALU);
+
+    double MU = m_CO * m_Ar / (m_CO + m_Ar); 
+    printf("mu(CO) = %.15e a.m.u.\n", MU);
+
     double D_kHz = 183.5058;
     double D_cm = D_kHz*1e3 / LightSpeed_cm;
     printf("D(CO) = %.5e cm-1\n", D_cm); 
 
+    printf("tau = %.15e\n", 0.988e-10 / ATU);
 
 
     double B_MHz = Planck/(8.0*M_PI*M_PI*II_CO*AMU*ALU*ALU) / 1e6; // MHz 
@@ -160,7 +166,7 @@ int main2()
 }
 
 
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
@@ -175,10 +181,12 @@ int main(int argc, char *argv[])
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE_REQ_INTEGER, ATOM, I1, NULL, seeds[_wrank]);
     ms.m1.DJ = D_CO;
 
+    pes = pes_lab;
+    dpes = dpes_lab;
     dipole = dipole_lab;
 
     CalcParams params = {};
-    params.ps = FREE_AND_METASTABLE;
+    params.ps = PAIR_STATE_FREE_AND_METASTABLE;
     // TODO:
     // used in q_generator to generate phase-point for pr/mu and then overwritten, which should probably be corrected
     // however, these values are used to obtain phase-space estimates for M0/M2, so they are needed anyway  

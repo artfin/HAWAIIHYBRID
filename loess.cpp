@@ -61,8 +61,6 @@ LS_METHOD ls_method = LS_COMPLETE_ORTHOGONAL_DECOMPOSITION;
         (da)->count++;                                                                               \
     } while(0)
 
-#define da_last(da) (da)->items[(da)->count - 1]
-
 
 #ifndef _OPENMP
 int omp_get_num_threads() { return 1; }

@@ -142,7 +142,8 @@ double integrand_pf(hep::mc_point<double> const& x)
 
 double integrand_M0(hep::mc_point<double> const& x) 
 {
-    assert(dipole != NULL);
+    assert(dipole_1 != NULL);
+    assert(dipole_2 != NULL);
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
@@ -167,11 +168,15 @@ double integrand_M0(hep::mc_point<double> const& x)
         if (energy > 0.0) return 0.0; 
     }
     
-    double dip[3];
     extract_q_and_write_into_ms(gms);
-    (*dipole)(gms->intermediate_q, dip);
     
-    double dipsq = dip[0]*dip[0] + dip[1]*dip[1] + dip[2]*dip[2]; 
+    double dip1[3];
+    (*dipole_1)(gms->intermediate_q, dip1);
+    
+    double dip2[3];
+    (*dipole_2)(gms->intermediate_q, dip2);
+    
+    double dipsq = dip1[0]*dip2[0] + dip1[1]*dip2[1] + dip1[2]*dip2[2]; 
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
 
@@ -180,7 +185,9 @@ double integrand_M0(hep::mc_point<double> const& x)
 
 double integrand_M2(hep::mc_point<double> const& x)
 {
-    assert(dipole != NULL);
+    // TODO: adapt for 2 dipoles
+    assert(dipole_1 != NULL);
+
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
@@ -221,10 +228,10 @@ double integrand_M2(hep::mc_point<double> const& x)
         double tmp = gms->intermediate_q[i];
         
         gms->intermediate_q[i] = tmp + h;
-        (*dipole)(gms->intermediate_q, dp);
+        (*dipole_1)(gms->intermediate_q, dp);
         
         gms->intermediate_q[i] = tmp - h;
-        (*dipole)(gms->intermediate_q, dm);
+        (*dipole_1)(gms->intermediate_q, dm);
 
         gsl_matrix_set(D, i, 0, (dp[0] - dm[0])/(2.0*h)); 
         gsl_matrix_set(D, i, 1, (dp[1] - dm[1])/(2.0*h)); 
@@ -255,6 +262,9 @@ void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams
     gms = ms;
     gparams = params;
     gT = Temperature;
+    
+    assert(gparams->sampler_Rmin > 0);
+    assert(gparams->sampler_Rmax > 0);
 
     auto results = hep::mpi_vegas(
         MPI_COMM_WORLD,

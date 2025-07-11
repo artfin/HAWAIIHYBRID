@@ -24,7 +24,8 @@ int main(int argc, char *argv[])
     MoleculeSystem ms = init_ms(MU, ATOM, ATOM, NULL, NULL, seed);
 
     CalcParams params = {};
-    params.ps                = PAIR_STATE_FREE_AND_METASTABLE;
+    //params.ps                = PAIR_STATE_FREE_AND_METASTABLE;
+    params.ps                = PAIR_STATE_ALL;
     params.sampler_Rmin      = 4.0;
     params.sampler_Rmax      = 50.0;
     params.initialM0_npoints = 10000000;
@@ -35,7 +36,8 @@ int main(int argc, char *argv[])
     hep::mpi_vegas_callback<double>(hep::mpi_vegas_verbose_callback<double>);
     
     double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
-    
+    PRINT0("analytic pf = %.5e\n", pf_analytic);
+
     double hep_ppf, hep_ppf_err;    
     mpi_perform_integration(&ms, integrand_pf, &params, T, 15, 10e6, &hep_ppf, &hep_ppf_err);
     double ppf_ratio = hep_ppf / pf_analytic;
@@ -49,10 +51,7 @@ int main(int argc, char *argv[])
     hep_M0_err *= ZeroCoeff / pf_analytic;
     PRINT0("HEP M0: %.5e +/- %.5e\n\n", hep_M0, hep_M0_err);
 
-
-    
     // ------------------------------------------------------------------------------------
-
     params.partial_partition_function_ratio = ppf_ratio;
 
     double M0, M0_std;

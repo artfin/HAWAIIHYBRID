@@ -4,14 +4,14 @@
 # MPICC  := ...path.../mpicc
 # MPICXX := ...path.../mpic++
 
-INC_SUNDIALS := -I/home/qwan/lib/sundials-5.2.0/include
-INC_GSL := -I/home/qwan/include
+INC_SUNDIALS := -I/home/asekacheva/FUNCHAL/deps/sundials/install/include
 
-INC_EIGEN    := -I/home/qwan/include/eigen3
-INC_HEP      := -I/home/qwan/include/hep-mc-0.7/include/
+
+INC_EIGEN    := -I/home/asekacheva/FUNCHAL/deps/sundials/install/include
+INC_HEP      := -I/home/asekacheva/FUNCHAL/deps/hep/src/hep/include
 #INC          := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL)
-LIB_GSL      := -L/home/qwan/lib -lgsl -lgslcblas
-LIB_SUNDIALS := /home/qwan/lib/sundials-5.2.0/lib/libsundials_nvecserial.a /home/qwan/lib/sundials-5.2.0/lib/libsundials_cvode.a
+LIB_GSL      :=  -lgsl -lgslcblas
+LIB_SUNDIALS := /home/asekacheva/FUNCHAL/deps/sundials/install/lib/libsundials_nvecserial.a /home/asekacheva/FUNCHAL/deps/sundials/install/lib/libsundials_cvode.a
 
 
 # INC_SUNDIALS := -I/...path.../sundials-5.2.0/instdir/include/path

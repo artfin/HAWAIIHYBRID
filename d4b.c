@@ -17,7 +17,7 @@ typedef struct {
 
 /* D0 AND D1 TEMPERATURE DEPENDENCE */
 #define MULTITEMP_NPARAMS 4 
-#define MULTITEMP_INITIAL_VALUES {1.0, 7.5, 10.0, 2500.0}
+#define MULTITEMP_INITIAL_VALUES {1.0, 7.5, 10.0, 50.0}
 
 double compute_d0_from_params(const gsl_vector *x, double T) {
     double d00 = gsl_vector_get(x, 0);
@@ -30,7 +30,7 @@ double compute_d0_from_params(const gsl_vector *x, double T) {
 double compute_d1_from_params(const gsl_vector *x, double T) {
     double d11 = gsl_vector_get(x, 3);
 
-    return d11/(2500.0 + T*T); 
+    return d11/T/T;
 }
 
 void gsl_multifit_callback_multitemp(const size_t iter, void* params, const gsl_multifit_nlinear_workspace* w)
@@ -67,6 +67,7 @@ void desymmetrize_d4b(CFnc cf, double d0, double d1, double *m0, double *m1, Spe
     };
 
     double cc = HBar / Boltzmann / cf.Temperature / ATU / 2.0;
+    //double cc = HBar / Boltzmann / ATU / 2.0;
     //printf("INFO: time shift constant = %.10e\n", cc);
 
     size_t cursor = 0;
@@ -292,7 +293,7 @@ void optimize_one_by_one()
     //double Temperatures[] = {50.0, 70.0, 90.0, 110.0, 130.0, 150.0, 
     //                         170.0, 190.0, 210.0, 230.0, 250.0, 270.0, 290.0};
         
-    double Temperatures[] = { 1000.0 };
+    double Temperatures[] = { 600.0 };
     size_t nTemperatures = sizeof(Temperatures)/sizeof(Temperatures[0]);
 
     String_Builder filename = {0};
@@ -360,11 +361,11 @@ void optimize_one_by_one()
             //8.028564262e-06, // 450
             //8.375901722e-06, // 470
             //8.723952993e-06, // 490, quantum
-            //1.064821641e-05, // 600, hbar^4
+            1.064821641e-05, // 600, hbar^4
             //1.240792216e-05, // 700, hbar^4
             //1.417303674e-05, // 800, hbar^4
             //1.594058518e-05, // 900, hbar^4
-            1.770851147e-05, // 1000, hbar^4
+            //1.770851147e-05, // 1000, hbar^4
             //5.194223359e-05, // 3000 
             //4.090103806e-05, // 3000, RMIN = 4.0 
         }; 
@@ -393,11 +394,11 @@ void optimize_one_by_one()
             //3.023134226e-04, // 450
             //3.136243093e-04, // 470
             //3.248917000e-04, // 490
-            //3.860833542e-04, // 600, hbar^4 
+            3.860833542e-04, // 600, hbar^4 
             //4.406031116e-04, // 700, hbar^4
             //4.940992375e-04, // 800, hbar^4
             //5.466124826e-04, // 900, hbar^4
-            5.981823007e-04, // 1000, hbar^4
+            //5.981823007e-04, // 1000, hbar^4
             //0.0014748392, // 3000, hbar^4  
             //0.001248770302, // 3000, RMIN = 4.0 
         };
@@ -649,7 +650,7 @@ void optimize_all_temperatures()
         sb_append_format(&filename, "d4b/SPD4b-T-He-Ar-%.1f-multifit-inverseT.txt", T);
         writetxt(filename.items, sp.nu, sp.data, sp.len, NULL); 
 
-        sb_append_format(&output, "T = %.2f :: d0 = %.5f, d1 = %.5f, M0 (ref) = %.8e, M0 = %.8e, M1 (ref) = %.8e, M1 = %.8e\n", T, d0, d1, m0ref[i], m0, m1ref[i], m1);
+        sb_append_format(&output, "T = %.2f :: d0 = %.5f, d1 = %.5e, M0 (ref) = %.8e, M0 = %.8e, M1 (ref) = %.8e, M1 = %.8e\n", T, d0, d1, m0ref[i], m0, m1ref[i], m1);
         fprintf(fp, "%.2f %.5f %.5f\n", T, d0, d1);
 
         free_spectrum(sp);
@@ -671,8 +672,8 @@ void optimize_all_temperatures()
 
 int main()
 {
-    //optimize_one_by_one();
-    optimize_all_temperatures();
+    optimize_one_by_one();
+    //optimize_all_temperatures();
  
     /*
     CFnc cf = {0};   

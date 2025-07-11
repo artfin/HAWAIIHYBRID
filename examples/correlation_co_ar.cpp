@@ -33,9 +33,9 @@ extern "C" {
 }
 
 #define DIPOLE_COAR_IMPLEMENTATION
-#include "dipole_coar.c"
+#include "dipole_coar.cpp"
 
-double pes(double *q) {
+double pes_lab(double *q) {
     static double qmol[5];
     linear_molecule_atom_lab_to_mol(q, qmol);
 
@@ -48,10 +48,11 @@ double pes(double *q) {
 
     double r;
 	potv(&r, &_r1, &_r2, &_xcos2);
+    //printf("r = %.3e, theta = %.3e => V = %.3e cm-1\n", _r2, qmol[4], r*HTOCM);
 	return r;
 } 
 
-void dpes(double *q, double *dpesdq) {
+void dpes_lab(double *q, double *dpesdq) {
     static Eigen::Matrix<double, 5, 5> jac;
     static Eigen::Matrix<double, 5, 1> derivatives_mol, derivatives_lab; 
     static double qmol[5];
@@ -93,35 +94,6 @@ void dpes(double *q, double *dpesdq) {
     
     derivatives_lab = jac * derivatives_mol;
     Eigen::VectorXd::Map(dpesdq, 5) = derivatives_lab;
-}
-
-void dipole_lab(double *q, double diplab[3]) {
-    double qmol[5];
-    linear_molecule_atom_lab_to_mol(q, qmol);
-    
-    double dipmol[3];
-    dipmol[0] = arco_dipx_ind(qmol[0] /* R */, qmol[4] /* Theta */);
-    dipmol[1] = 0.0; 
-    dipmol[2] = arco_dipz_ind(qmol[0] /* R */, qmol[4] /* Theta */);
-
-    double sinphiem, cosphiem;
-    double sinthetaem, costhetaem;
-    double sinpsiem, cospsiem;
-
-    sincos(qmol[1], &sinphiem, &cosphiem);
-    sincos(qmol[2], &sinthetaem, &costhetaem);
-    sincos(qmol[3], &sinpsiem, &cospsiem);
-
-    Sz_filler(Sphiem, sinphiem, cosphiem);
-    Sx_filler(Sthetaem, sinthetaem, costhetaem);
-    Sz_filler(Spsiem, sinpsiem, cospsiem);
-       
-    Eigen::Vector3d dipmol_eig = Eigen::Map<Eigen::Vector3d>(dipmol, 3);
-    Eigen::Vector3d diplab_eig = Sphiem.transpose() * Sthetaem.transpose() * Spsiem.transpose() * dipmol_eig; 
-   
-    diplab[0] = diplab_eig(0); 
-    diplab[1] = diplab_eig(1); 
-    diplab[2] = diplab_eig(2); 
 }
 
 const char *var_to_cstring(int n) {
@@ -183,6 +155,10 @@ void test_trajectory()
     double MU = m_CO * m_Ar / (m_CO + m_Ar); 
     double I1[2] = {II_CO, II_CO};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
+    
+    pes = pes_lab;
+    dpes = dpes_lab;
+    dipole = dipole_lab;
 
     Array qp = create_array(ms.QP_SIZE);
     double data[] = {
@@ -238,7 +214,7 @@ void test_trajectory()
         extract_q_and_write_into_ms(&ms);
         dipole_lab(ms.intermediate_q, dipt);
 
-        printf("%10.1lf \t %12.10lf \t %12.15lf %.10f %.10f %.10f\n", t, ms.intermolecular_qp[IR], E-E0, dipt[0], dipt[1], dipt[2]);
+        printf("%10.1lf \t %12.10lf \t %10.12lf \t %.10f %.10f %.10f\n", t, ms.intermolecular_qp[IR], E-E0, dipt[0], dipt[1], dipt[2]);
 
         if (ms.intermolecular_qp[IR] > 30.0) break;
 
@@ -266,13 +242,20 @@ int main(int argc, char *argv[])
     double I1[2] = {II_CO, II_CO};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seeds[_wrank]);
 
+    dipole_1 = dipole_lab;
+    dipole_2 = dipole_CO_lab;
+    pes = pes_lab;
+    dpes = dpes_lab;
+    
+    pes = pes_lab;
+    dpes = dpes_lab;
     dipole = dipole_lab;
 
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
     CalcParams params = {};
-    params.ps                               = FREE_AND_METASTABLE;
+    params.ps                               = PAIR_STATE_FREE_AND_METASTABLE;
     params.sampler_Rmin                     = 4.0;
     params.sampler_Rmax                     = 30.0;
     params.niterations                      = 3;
@@ -286,6 +269,17 @@ int main(int argc, char *argv[])
     params.initialM2_npoints                = 1000000;
     params.pesmin                           = -105.0 / HTOCM;
     params.cf_filename                      = "./CF-CO-Ar-F-300.0.txt";
+    
+    printf("MU = %.5e\n", MU);
+    printf("II_CO = %.5e\n", II_CO);
+    printf("pesmin = %.5e\n", params.pesmin);
+
+
+    ms.m1.apply_requantization = true;  
+    ms.m1.torque_cache_len = 30;      
+    ms.m1.torque_cache = (double*)malloc(ms.m1.torque_cache_len * sizeof(double));
+    memset(ms.m1.torque_cache, 0, ms.m1.torque_cache_len * sizeof(double));
+    ms.m1.torque_limit = 5e-6;
 
     double Temperature = 300.0;
     
@@ -301,7 +295,8 @@ int main(int argc, char *argv[])
 
     free_trajectory(&traj);
     free_ms(&ms);
-    free_cfnc(cf); 
+    free_cfnc(cf);
+    free(ms.m1.torque_cache);
 
     MPI_Finalize();
 

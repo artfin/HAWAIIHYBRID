@@ -125,7 +125,7 @@ bool write_averaged_cfs_for_CH4_CO2(double T)
         sb_reset(&filename); 
     }
 
-    if (average_correlation_functions(&average, cf1, cf2, cf3, cf4, cf5, cf6, cf7, cf8, cf9) < 0) {
+    if (average_correlation_functions_ext(&average, cf1, cf2, cf3, cf4, cf5, cf6, cf7, cf8, cf9) < 0) {
         printf("ERROR: could not average functions\n");
         return_defer(false);
     }
@@ -134,15 +134,13 @@ bool write_averaged_cfs_for_CH4_CO2(double T)
         sb_append_cstring(&filename, "MT_CH4_CO2/bound-final/CF-CH4-CO2-B-");
         sb_append_format(&filename, "%.1f", T);
         sb_append_cstring(&filename, ".txt");
-        FILE *fp = fopen(filename.items, "w");
 
-        int ret = save_correlation_function(fp, average); 
+        int ret = write_correlation_function(filename.items, average); 
         if (ret < 0) {
             printf("ERROR: could not write averaged correlation function to %s\n", filename.items); 
         } 
 
         printf("INFO: wrote %d characters to %s\n", ret, filename.items); 
-        fclose(fp);
     }
 
 defer:
@@ -175,9 +173,9 @@ bool process_bound_cf_for_CH4_CO2(double T)
     
     printf("INFO: Loaded correlation function from %s\n", filename);
     
-    for (size_t i = 0; i < cf.len; ++i) {
-        cf.t[i] = cf.t[i] * ATU; 
-    }
+    // for (size_t i = 0; i < cf.len; ++i) {
+    //     cf.t[i] = cf.t[i] * ATU; 
+    // }
     
     printf("Number of samples: %zu\n", cf.len);
     printf("t range: %.3e...%.3e\n", cf.t[0], cf.t[cf.len - 1]);
@@ -187,11 +185,15 @@ bool process_bound_cf_for_CH4_CO2(double T)
     SFnc sf = idct_cf_to_sf(cf);
     
     Spectrum spraw = compute_alpha(sf);
-    filename = "MT_CH4_CO2/b-zim-p1/SPD3-B-CH4-CO2-300.0-raw.txt";
+    spraw.len = 10000;
+
+    filename = "MT_CH4_CO2/b-zim-p1/SPD3-B-CH4-CO2-300.0-raw.txt.2";
     if (!writetxt(filename, spraw.nu, spraw.data, spraw.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
-    
+   
+    return true;
+
     {
         Smoothing_Config config = {
             .degree = 3, 
@@ -225,7 +227,7 @@ bool process_bound_cf_for_CH4_CO2(double T)
     //spraw.len = 5000;
     // printf("INFO: cutting the raw spectrum at %.3e cm-1\n", spraw.nu[spraw.len - 1]);
    
-    filename = "MT_CH4_CO2/b-zim-p1/SPD3-B-CH4-CO2-300.0.txt";
+    filename = "MT_CH4_CO2/b-zim-p1/SPD3-B-CH4-CO2-300.0.txt.2";
     if (!writetxt(filename, sp.nu, sp.data, sp.len, sb.items)) {
         printf("ERROR: could not write into the file '%s'!\n", filename);
     }
@@ -460,22 +462,18 @@ bool write_averaged_cfs_for_N2_Ar(double T)
         sb_reset(&filename); 
     }
     
-    if (average_correlation_functions(&average, cf3) < 0) {
+    if (average_correlation_functions_ext(&average, cf3) < 0) {
         printf("ERROR: could not average functions\n");
         return_defer(false);
     }
     
     {
         sb_append_format(&filename, "MT_N2_Ar/bound-final/CF-N2-Ar-B-%.1f.txt");
-        FILE *fp = fopen(filename.items, "w");
 
-        int ret = save_correlation_function(fp, average); 
+        int ret = write_correlation_function(filename.items, average); 
         if (ret < 0) {
             printf("ERROR: could not write averaged correlation function to %s\n", filename.items); 
         } 
-
-        printf("INFO: wrote %d characters to %s\n", ret, filename.items); 
-        fclose(fp);
     }
 
 defer:
@@ -924,7 +922,7 @@ void process_spectral_function()
 int main()
 {
     // He-Ar
-    process_cf_for_He_Ar(1000.0);
+    //process_cf_for_He_Ar(1000.0);
 
     // N2-Ar
     // {
@@ -936,7 +934,7 @@ int main()
 
     // CH4-CO2
     //write_averaged_cfs_for_CH4_CO2(300.0);
-    //process_bound_cf_for_CH4_CO2(300.0);
+    process_bound_cf_for_CH4_CO2(300.0);
     /*
     {
         size_t ntemps = 1;
