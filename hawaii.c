@@ -24,7 +24,11 @@
 #define ARENA_IMPLEMENTATION
 #include "thirdparty/arena.h"
 
+// TODO: remove and go through all the places that call 'dipole'
 dipolePtr dipole = NULL;
+
+dipolePtr dipole_1 = NULL;
+dipolePtr dipole_2 = NULL;
 pesPtr pes       = NULL;
 dpesPtr dpes     = NULL;
 
@@ -49,8 +53,9 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "CORRELATION_SINGLE",
     "CORRELATION_ARRAY",
     "PROCESSING",
+    "CALCULATE_PHASE_SPACE_M0", 
 };
-static_assert(CALCULATION_TYPES_COUNT == 5, "");
+static_assert(CALCULATION_TYPES_COUNT == 6, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -2622,7 +2627,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("T = %.2e => M2: %.5e\n", Temperature, hep_M2);
     } 
 
-
     // TODO: handle the distribution of trajectories between processes so that in total we 
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
     //       the case when total_trajectories is not divisible by niterations. 
@@ -2807,7 +2811,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         }
 
         if (_wrank == 0) {
-            write_correlation_function_ext(fp, total_crln);
+            _print0_suppress_info = true;
+            int r = write_correlation_function_ext(fp, total_crln);
+            _print0_suppress_info = false;
+
+            INFO("Wrote %d characters to '%s'\n", r, params->cf_filename);
         }
     }
  
@@ -3142,7 +3150,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     
     if (params->partial_partition_function_ratio == 0) {
         PRINT0("\n\n");
-        PRINT0("INFO: no value of the ratio of partial partition function (ppf) to full partition function is provided\n");
+        INFO("No value of the ratio of partial partition function (ppf) to full partition function is provided\n");
         PRINT0("Invoking estimation of ppf using adaptive Monte Carlo integration\n");
     
         double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
@@ -3769,7 +3777,7 @@ bool write_spectrum(const char *filename, Spectrum sp)
     fclose(fp);
     if (result < 0) return false;
 
-    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
+    INFO("Wrote %d characters to '%s'\n", result, filename);
 
     return true;
 }
@@ -3847,7 +3855,7 @@ bool write_correlation_function(const char *filename, CFnc cf)
     fclose(fp);
     if (result < 0) return false;
     
-    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
+    INFO("Wrote %d characters to '%s'\n", result, filename);
 
     return true; 
 }
@@ -3927,7 +3935,7 @@ bool write_spectral_function(const char *filename, SFnc sf)
     fclose(fp);
     if (result < 0) return false; 
     
-    INFO("INFO: wrote %d characters to '%s'\n", result, filename);
+    INFO("Wrote %d characters to '%s'\n", result, filename);
 
     return true; 
 }

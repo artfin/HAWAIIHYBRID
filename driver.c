@@ -24,8 +24,11 @@
 typedef struct {
     double reduced_mass;
     double Temperature;
+    double *temperatures;
+    size_t num_temperatures;
     const char* so_potential;
-    const char* so_dipole;
+    const char* so_dipole_1;
+    const char* so_dipole_2;
 } InputBlock;
 
 typedef struct {
@@ -103,8 +106,11 @@ typedef enum {
     KEYWORD_PAIR_REDUCED_MASS,
     KEYWORD_SO_POTENTIAL,
     KEYWORD_SO_DIPOLE,
+    KEYWORD_SO_DIPOLE_1,
+    KEYWORD_SO_DIPOLE_2,
 
     KEYWORD_TEMPERATURE,
+    KEYWORD_TEMPERATURES,
     KEYWORD_SATELLITE_TEMPERATURES,
     
     KEYWORD_NITERATIONS,
@@ -173,7 +179,10 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_PAIR_REDUCED_MASS]               = "PAIR_REDUCED_MASS",
     [KEYWORD_SO_POTENTIAL]                    = "SO_POTENTIAL",
     [KEYWORD_SO_DIPOLE]                       = "SO_DIPOLE",
+    [KEYWORD_SO_DIPOLE_1]                     = "SO_DIPOLE.1",
+    [KEYWORD_SO_DIPOLE_2]                     = "SO_DIPOLE.2",
     [KEYWORD_TEMPERATURE]                     = "TEMPERATURE",
+    [KEYWORD_TEMPERATURES]                    = "TEMPERATURES",
     [KEYWORD_SATELLITE_TEMPERATURES]          = "SATELLITE_TEMPERATURES",
     [KEYWORD_NITERATIONS]                     = "NITERATIONS",
     [KEYWORD_TOTAL_TRAJECTORIES]              = "TOTAL_TRAJECTORIES",
@@ -222,7 +231,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
 }; 
-static_assert(KEYWORD_COUNT == 51, "");
+static_assert(KEYWORD_COUNT == 54, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -230,7 +239,10 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_PAIR_REDUCED_MASS]               = TOKEN_FLOAT,
     [KEYWORD_SO_POTENTIAL]                    = TOKEN_DQSTRING,
     [KEYWORD_SO_DIPOLE]                       = TOKEN_DQSTRING,
+    [KEYWORD_SO_DIPOLE_1]                     = TOKEN_DQSTRING,
+    [KEYWORD_SO_DIPOLE_2]                     = TOKEN_DQSTRING,
     [KEYWORD_TEMPERATURE]                     = TOKEN_FLOAT,
+    [KEYWORD_TEMPERATURES]                    = TOKEN_OCURLY,
     [KEYWORD_SATELLITE_TEMPERATURES]          = TOKEN_OCURLY,
     [KEYWORD_NITERATIONS]                     = TOKEN_INTEGER,
     [KEYWORD_TOTAL_TRAJECTORIES]              = TOKEN_INTEGER,
@@ -285,6 +297,12 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Satellite_Temperatures;
+
+typedef struct {
+    double *items;
+    size_t count;
+    size_t capacity;
+} Temperatures;
 
 typedef struct {
     char **items;
@@ -460,7 +478,7 @@ bool is_identifier_begin(char c) {
 }
 
 bool is_identifier(char c) {
-    return isalnum(c) || c == '_';
+    return isalnum(c) || c == '_' || c == '.';
 }
 
 bool get_token(Lexer *l) {
@@ -665,8 +683,19 @@ bool get_token(Lexer *l) {
 void print_input_block(InputBlock *input_block) {
     printf("Input Block:\n");
     printf("  reduced_mass = %.5e\n", input_block->reduced_mass);
+    printf("  Temperature = %.2e\n", input_block->Temperature);
+    
+    printf("  num_temperatures = %zu\n", input_block->num_temperatures);
+    printf("  temperatures = {");
+    for (size_t i = 0; i < input_block->num_temperatures; ++i) {
+        printf("%.2e", input_block->temperatures[i]);
+        if (i < input_block->num_temperatures - 1) printf(", ");
+    }
+    printf("}\n");
+    
     printf("  so_potential = %s\n", input_block->so_potential);
-    printf("  so_dipole    = %s\n", input_block->so_dipole);
+    printf("  so_dipole_1  = %s\n", input_block->so_dipole_1);
+    printf("  so_dipole_2  = %s\n", input_block->so_dipole_2);
 }
 
 void print_monomer(Monomer *monomer) {
@@ -927,7 +956,8 @@ void get_and_expect_token(Lexer *l, Token_Type token) {
 
 void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
 {
-    Satellite_Temperatures st = {0}; 
+    Satellite_Temperatures st = {0};
+    Temperatures temperatures = {0}; 
     CF_Filenames cf_filenames = {0};
     Partial_Partition_Function_Ratios ppfs = {0};
 
@@ -993,8 +1023,29 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             }
             case KEYWORD_PAIR_REDUCED_MASS:       input_block->reduced_mass = l->double_number; break;
             case KEYWORD_SO_POTENTIAL:            input_block->so_potential = strdup(l->string_storage.items); break;
-            case KEYWORD_SO_DIPOLE:               input_block->so_dipole = strdup(l->string_storage.items); break;
-            case KEYWORD_TEMPERATURE:             input_block->Temperature = l->double_number; break;
+            case KEYWORD_SO_DIPOLE: {
+                 input_block->so_dipole_1 = strdup(l->string_storage.items); 
+                 input_block->so_dipole_2 = strdup(l->string_storage.items); 
+                 break;
+            }
+            case KEYWORD_SO_DIPOLE_1: input_block->so_dipole_1 = strdup(l->string_storage.items); break; 
+            case KEYWORD_SO_DIPOLE_2: input_block->so_dipole_2 = strdup(l->string_storage.items); break;
+
+            case KEYWORD_TEMPERATURE: input_block->Temperature = l->double_number; break;
+            case KEYWORD_TEMPERATURES: {
+               while(true) {
+                   get_and_expect_token(l, TOKEN_FLOAT);
+                   da_append(&temperatures, l->double_number);
+   
+                   get_token(l); 
+                   expect_one_of_tokens(l, 2, TOKEN_COMMA, TOKEN_CCURLY);
+                   if (l->token_type == TOKEN_CCURLY) break;
+               }
+
+               input_block->temperatures = temperatures.items; 
+               input_block->num_temperatures = temperatures.count;
+               break;
+            }
             case KEYWORD_SATELLITE_TEMPERATURES:  {
                while(true) {
                    get_and_expect_token(l, TOKEN_FLOAT);
@@ -1278,12 +1329,13 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
     if (calc_params->calculation_type == CALCULATION_NONE) {
         PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_CALCULATION_TYPE]);
         exit(1); 
-    } else if (calc_params->calculation_type != CALCULATION_PROCESSING) {
+    } else if ((calc_params->calculation_type != CALCULATION_PROCESSING) && 
+               (calc_params->calculation_type != CALCULATION_PHASE_SPACE_M0)) {
         if (calc_params->ps == PAIR_STATE_NONE) {
             PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_PAIR_STATE]);
             exit(1);
         }
-
+        
         if (input_block->Temperature <= 0.0) {
             PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_TEMPERATURE]);
             exit(1);
@@ -1627,13 +1679,13 @@ void *load_symbol(void *handle, const char *symbol_name, bool allow_undefined)
     return symbol;
 }
 
-void setup_dipole(InputBlock *input_block)
+void setup_dipole(const char *filepath, dipolePtr *dipole_func)
 {
     PRINT0("\n\n");
     PRINT0("*****************************************************\n");
-    PRINT0("Loading dipole from shared library: %s\n", input_block->so_dipole);
+    PRINT0("Loading dipole from shared library: %s\n", filepath);
 
-    void *so_handle = dlopen(input_block->so_dipole, RTLD_LAZY);
+    void *so_handle = dlopen(filepath, RTLD_LAZY);
     if (!so_handle) {
         PRINT0("ERROR: dlopen: %s\n", dlerror());
         exit(1);
@@ -1660,7 +1712,7 @@ void setup_dipole(InputBlock *input_block)
         PRINT0("INFO: no 'dipole_init' function found\n");
     }
     
-    dipole = (dipolePtr) load_symbol(so_handle, "dipole_lab", must_be_defined);
+    *dipole_func = (dipolePtr) load_symbol(so_handle, "dipole_lab", must_be_defined);
 
     PRINT0("Successfully loaded\n");
     PRINT0("*****************************************************\n");
@@ -1761,6 +1813,7 @@ int main(int argc, char* argv[])
     Processing_Params processing_params = {0};
     parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
+    print_input_block(&input_block);
     /*
     print_params(&params); 
     print_input_block(&input_block);
@@ -1770,7 +1823,13 @@ int main(int argc, char* argv[])
 
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
-            setup_dipole(&input_block);
+            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
+                PRINT0("ERROR: for PR_MU calculation we expect to have only one dipole\n");
+                exit(1);
+            }
+            
+            assert(input_block.so_dipole_1 != NULL);
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1780,7 +1839,12 @@ int main(int argc, char* argv[])
             break; 
         }
         case CALCULATION_CORRELATION_SINGLE: {
-            setup_dipole(&input_block);
+            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
+                PRINT0("ERROR: for CORRELATION_SINGLE calculation *for now* we expect to have only one dipole\n");
+                exit(1);
+            }
+
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1796,7 +1860,12 @@ int main(int argc, char* argv[])
             break;
         } 
         case CALCULATION_CORRELATION_ARRAY: {
-            setup_dipole(&input_block);
+            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
+                PRINT0("ERROR: for CORRELATION_ARRAY calculation *for now* we expect to have only one dipole\n");
+                exit(1);
+            }
+
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1816,7 +1885,13 @@ int main(int argc, char* argv[])
             break; 
         } 
         case CALCULATION_PHASE_SPACE_M0: {
-            setup_dipole(&input_block);
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            if (input_block.so_dipole_2 != NULL) {
+                setup_dipole(input_block.so_dipole_2, &dipole_2);
+            } else {
+                dipole_2 = dipole_1;
+            }
+
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1837,15 +1912,34 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            double pf_analytic = analytic_full_partition_function_by_V(&ms, input_block.Temperature);
-            INFO("Analytic partition function divided by V: %.5e\n", pf_analytic);
+            if (input_block.num_temperatures > 0) {
+                for (size_t i = 0; i < input_block.num_temperatures; ++i) {
+                    double T = input_block.temperatures[i]; 
+                    double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+                    INFO("Analytic partition function divided by V: %.5e\n", pf_analytic);
+                    
+                    double hep_M0, hep_M0_err; 
+                    c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
+                    
+                    hep_M0     *= ZeroCoeff / pf_analytic;
+                    hep_M0_err *= ZeroCoeff / pf_analytic;
+                    INFO("T = %.2e => M0: %.5e\n", T, hep_M0);
+                }
+            } else if (input_block.Temperature > 0) {
+                double T = input_block.Temperature; 
+                double pf_analytic = analytic_full_partition_function_by_V(&ms, T);
+                INFO("Analytic partition function divided by V: %.5e\n", pf_analytic);
 
-            double hep_M0, hep_M0_err; 
-            c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, input_block.Temperature, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
+                double hep_M0, hep_M0_err; 
+                c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
-            hep_M0     *= ZeroCoeff / pf_analytic;
-            hep_M0_err *= ZeroCoeff / pf_analytic;
-            INFO("T = %.2e => M0: %.5e\n", input_block.Temperature, hep_M0);
+                hep_M0     *= ZeroCoeff / pf_analytic;
+                hep_M0_err *= ZeroCoeff / pf_analytic;
+                INFO("T = %.2e => M0: %.5e\n", T, hep_M0);
+            } else {
+                PRINT0("ERROR: no temperature is provided to run CALCULATION_PHASE_SPACE_M0\n");
+                exit(1); 
+            }
 
             break;
         }

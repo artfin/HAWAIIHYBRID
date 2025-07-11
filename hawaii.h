@@ -248,6 +248,7 @@ typedef enum {
     CALCULATION_CORRELATION_SINGLE,
     CALCULATION_CORRELATION_ARRAY,
     CALCULATION_PROCESSING,
+    CALCULATION_PHASE_SPACE_M0,
     CALCULATION_TYPES_COUNT,
 } CalculationType;
 
@@ -401,7 +402,8 @@ typedef struct {
 /*    User-Supplied Functions: loaded from dynamic libs  */
 /* ----------------------------------------------------  */
 typedef void (*dipolePtr)(double*, double[3]);
-extern dipolePtr dipole;
+extern dipolePtr dipole_1;
+extern dipolePtr dipole_2;
 
 typedef double (*pesPtr)(double*);
 extern pesPtr pes;
