@@ -1885,12 +1885,14 @@ int main(int argc, char* argv[])
             break;
         } 
         case CALCULATION_CORRELATION_ARRAY: {
-            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
-                PRINT0("ERROR: for CORRELATION_ARRAY calculation *for now* we expect to have only one dipole\n");
-                exit(1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            
+            if (input_block.so_dipole_2 != NULL) {
+                setup_dipole(input_block.so_dipole_2, &dipole_2);
+            } else {
+                dipole_2 = dipole_1;
             }
 
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
