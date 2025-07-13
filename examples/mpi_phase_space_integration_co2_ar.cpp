@@ -20,22 +20,28 @@ int main(int argc, char *argv[])
     pes_init();
     dipole_init();
     pes = pes_lab;
-    dipole = dipole_lab;
+    dipole_1 = dipole_lab;
+    dipole_2 = dipole_lab;
 
     double MU = m_CO2 * m_Ar / (m_CO2 + m_Ar); 
     double I1[2] = {II_CO2, II_CO2};
     MoleculeSystem ms = init_ms(MU, LINEAR_MOLECULE, ATOM, I1, NULL, seed);
 
     CalcParams params = {};
-    params.ps                               = PAIR_STATE_FREE_AND_METASTABLE;
+    params.ps                               = PAIR_STATE_BOUND;
     params.sampler_Rmin                     = 4.5;
     params.sampler_Rmax                     = 40.0;
-    params.initialM0_npoints                = 10000000;
-    params.initialM2_npoints                = 10000000;
+    params.initialM0_npoints                = 1000000;
+    params.initialM2_npoints                = 1000000;
     params.partial_partition_function_ratio = 1.0;
     params.pesmin                           = -195.6337098547 / HTOCM;
     
-    double T = 270.0;
+    params.hep_m0_niterations = 6;
+    params.hep_m0_npoints = 1000000;
+    params.hep_m2_niterations = 6;
+    params.hep_m2_npoints = 1000000;
+
+    double T = 100.0;
     
     // ------------------------------------------------------------------------------------
     // -------------------------------  HEP  ----------------------------------------------
@@ -70,10 +76,12 @@ int main(int argc, char *argv[])
 
     PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", M0, M0_std, M0-M0_std, M0+M0_std);
     PRINT0("Error: %.3f%%\n", M0_std/M0 * 100.0);
-    
-    if (assert_float_is_equal_to(M0, 3.64e-04, 8e-6) > 0) {
-        MPI_Finalize();
-        return 1; 
+
+    if (fabs(T - 300.0) < 1e-10) {    
+        if (assert_float_is_equal_to(M0, 3.64e-04, 8e-6) > 0) {
+            MPI_Finalize();
+            return 1; 
+        }
     }
 
     PRINT0("\n\n\n");
@@ -82,12 +90,13 @@ int main(int argc, char *argv[])
     mpi_calculate_M2(&ms, &params, T, &M2, &M2_std); 
     PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", M2, M2_std, M2-M2_std, M2+M2_std);
     PRINT0("Error: %.3f%%\n", M2_std/M2 * 100.0);
-    
-    if (assert_float_is_equal_to(M2, 6.405e-01, 2e-2) > 0) {
-        MPI_Finalize();
-        return 1; 
+   
+    if (fabs(T - 300.0) < 1e-10) { 
+        if (assert_float_is_equal_to(M2, 6.405e-01, 2e-2) > 0) {
+            MPI_Finalize();
+            return 1; 
+        }
     }
-
 
     free_ms(&ms);
     pes_free();

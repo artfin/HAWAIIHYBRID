@@ -1520,14 +1520,36 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
 
-            double M0 = compute_Mn_from_sf_using_classical_detailed_balance(tagged_item.item.sf, 0);
+            SFnc *sf = &tagged_item.item.sf;
+
+            if (processing_params->spectrum_frequency_max > 0) {
+                assert(sf->len > 1);
+                double dnu = sf->nu[1] - sf->nu[0];
+                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                sf->len = (sf->len > n) ? n : sf->len;
+                
+                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+            }
+
+            double M0 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 0);
             INFO("M0 = %.5e\n", M0); 
         
         } else if (strcasecmp(funcname, "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+            
+            SFnc *sf = &tagged_item.item.sf;
 
-            double M2 = compute_Mn_from_sf_using_classical_detailed_balance(tagged_item.item.sf, 2);
+            if (processing_params->spectrum_frequency_max > 0) {
+                assert(sf->len > 1);
+                double dnu = sf->nu[1] - sf->nu[0];
+                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                sf->len = (sf->len > n) ? n : sf->len;
+                
+                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+            }
+
+            double M2 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 2);
             INFO("M2 = %.5e\n", M2); 
 
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {

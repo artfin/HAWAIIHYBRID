@@ -1522,30 +1522,75 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
             if (params->ps == PAIR_STATE_BOUND) {
                 if (energy > 0.0) continue;
             }
-    
+   
             extract_q_and_write_into_ms(ms);
-            (*dipole_1)(ms->intermediate_q, d1);
-            (*dipole_2)(ms->intermediate_q, d2);
-            
-            fval = d1[0]*d2[0] + d1[1]*d2[1] + d1[2]*d2[2]; 
+
+            if (dipole_1 != dipole_2) { 
+                (*dipole_1)(ms->intermediate_q, d1);
+                (*dipole_2)(ms->intermediate_q, d2);
+
+                fval = d1[0]*d2[0] + d1[1]*d2[1] + d1[2]*d2[2]; 
+            } else {
+                (*dipole_1)(ms->intermediate_q, d1);
+
+                fval = d1[0]*d1[0] + d1[1]*d1[1] + d1[2]*d1[2]; 
+            }
+
             double diff = fval - ml;
             ml += diff / (integral_counter + 1.0);
             ql += diff * diff * (integral_counter / (integral_counter + 1.0));
             integral_counter++;
 
             if (integral_counter % print_every_nth_iteration == 0) {
-                double M0_est    = ml * ZeroCoeff * params->partial_partition_function_ratio;
-                double M0std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
-                PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", _wsize*integral_counter, params->initialM0_npoints, M0_est, M0std_est);
+                if (_wrank == 0) {
+                    *m = ml;
+                    *q = ql;
+
+                    MPI_Status status;
+                    double results[2];
+                    for (int i = 1; i < _wsize; ++i) {
+                        MPI_Recv(results, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+                        *m += results[0];
+                        *q += results[1];
+                    }
+
+                    *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
+                    *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+
+                    PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", 
+                            _wsize*integral_counter, params->initialM0_npoints, *m, *q);
+                } else {
+                    double results[2] = {ml, ql};
+                    MPI_Send(results, 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+                }
             }
         }
     } 
 
-    MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-     
-    *m = (ml/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
-    *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+    if (_wrank == 0) {
+        *m = ml;
+        *q = ql;
+
+        MPI_Status status;
+        double results[2];
+        for (int i = 1; i < _wsize; ++i) {
+            MPI_Recv(results, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            *m += results[0];
+            *q += results[1];
+        }
+
+        *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
+        *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+
+        PRINT0("[mpi_calculate_M0] Final result over %zu points: \t M0 = %.5e +/- %.5e\n", _wsize*integral_counter, *m, *q);
+    } else {
+        double results[2] = {ml, ql};
+        MPI_Send(results, 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    }
+         
+    int broadcast_root = 0;
+    MPI_Bcast(m, 1, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD); 
+    MPI_Bcast(q, 1, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD); 
 }
 
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
@@ -2582,7 +2627,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
-	    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+	if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         assert(ms->m1.torque_cache_len > 0);
         assert(ms->m1.torque_limit > 0);
 
@@ -2608,20 +2653,17 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("Analytic partition function divided by V: %.5e\n", pf_analytic);
         
         size_t hep_ppf_niterations = 12;
-        if (params->hep_ppf_niterations > 0) {
-            hep_ppf_niterations = params->hep_ppf_niterations;
-        } 
+        if (params->hep_ppf_niterations > 0) hep_ppf_niterations = params->hep_ppf_niterations;
 
         size_t hep_ppf_npoints = 1000000;
-        if (params->hep_ppf_npoints > 0) {
-            hep_ppf_npoints = params->hep_ppf_npoints;
-        } 
+        if (params->hep_ppf_npoints > 0) hep_ppf_npoints = params->hep_ppf_npoints;
 
         double hep_ppf, hep_ppf_err;    
         c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
         params->partial_partition_function_ratio = hep_ppf / pf_analytic;
-        PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
+        //PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
+        printf("rank = %d => T = %.2e => PPF ratio: %.5e\n", _wrank, Temperature, params->partial_partition_function_ratio);
     }       
 
     double hep_M0 = 0.0;
