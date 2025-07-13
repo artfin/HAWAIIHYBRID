@@ -1277,8 +1277,27 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
     double Mval = exp(-pesmin * HkT / Temperature); 
     double M = PRECAUTION_FACTOR * Mval;
 
-    double proposal = exp(-kinetic_energy(ms) * HkT / Temperature); 
-    double desired  = exp(-Hamiltonian(ms) * HkT / Temperature);
+    double kin_part = kinetic_energy(ms); 
+    extract_q_and_write_into_ms(ms);
+    double pot_part = pes(ms->intermediate_q);
+
+    if (pot_part < pesmin) {
+        String_Builder sb_for_q = {0};
+        for (size_t i = 0; i < ms->Q_SIZE; ++i) {
+            sb_append_format(&sb_for_q, "%.5e", ms->intermediate_q[i]); 
+            if (i != ms->Q_SIZE - 1) {
+                sb_append_cstring(&sb_for_q, ", ");
+            } 
+        }
+        
+        WARNING("rejection step :: Found potential energy value (%.5e) smaller than provided minimum (%.5e) at configuration:\n %s\n",
+                pot_part, pesmin, sb_for_q.items);
+
+        sb_free(&sb_for_q);
+    } 
+
+    double proposal = exp(-kin_part * HkT / Temperature); 
+    double desired  = exp(-(kin_part + pot_part) * HkT / Temperature);
 
     double weight = desired / proposal / M;
     return weight < u;
@@ -2662,8 +2681,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
         params->partial_partition_function_ratio = hep_ppf / pf_analytic;
-        //PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
-        printf("rank = %d => T = %.2e => PPF ratio: %.5e\n", _wrank, Temperature, params->partial_partition_function_ratio);
+        PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
     }       
 
     double hep_M0 = 0.0;
@@ -2878,7 +2896,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
                     9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
 
-            PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_crln_est_11pt, hep_M2, (M2_crln_est_11pt - hep_M2)/hep_M2*100.0);
+            PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_11pt, hep_M2, (M2_crln_est_11pt - hep_M2)/hep_M2*100.0);
         }
 
         if (_wrank == 0) {
@@ -2886,7 +2904,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             int r = write_correlation_function_ext(fp, total_crln);
             _print0_suppress_info = false;
 
-            INFO("Wrote %d characters to '%s'\n", r, params->cf_filename);
+            INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
         }
     }
  
