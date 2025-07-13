@@ -247,10 +247,6 @@ int main(int argc, char *argv[])
     pes = pes_lab;
     dpes = dpes_lab;
     
-    pes = pes_lab;
-    dpes = dpes_lab;
-    dipole = dipole_lab;
-
     double tolerance = 1e-12;
     Trajectory traj = init_trajectory(&ms, tolerance);
    
@@ -274,12 +270,6 @@ int main(int argc, char *argv[])
     printf("II_CO = %.5e\n", II_CO);
     printf("pesmin = %.5e\n", params.pesmin);
 
-
-    ms.m1.apply_requantization = true;  
-    ms.m1.torque_cache_len = 30;      
-    ms.m1.torque_cache = (double*)malloc(ms.m1.torque_cache_len * sizeof(double));
-    memset(ms.m1.torque_cache, 0, ms.m1.torque_cache_len * sizeof(double));
-    ms.m1.torque_limit = 5e-6;
 
     double Temperature = 300.0;
     

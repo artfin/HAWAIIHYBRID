@@ -624,7 +624,7 @@ bool get_token(Lexer *l) {
                     skip_char(l);
                 } 
             
-                l->double_number += fraction/divisor;
+                l->double_number += sign * fraction/divisor;
             } 
             
             if (peek_char(l) == 'e' || peek_char(l) == 'E') {
