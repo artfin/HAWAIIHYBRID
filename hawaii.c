@@ -2818,6 +2818,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
     } 
 
+    String_Builder sb_datetime = {0};
+
     for (size_t iter = 0; iter < params->niterations; ++iter) 
     {
         size_t counter = 0;
@@ -2896,6 +2898,27 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, (size_t)total_crln.ntraj, params->cf_filename);
+
+        time_t current_rawtime;
+        time(&current_rawtime);
+        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime); 
+        
+        sb_reset(&sb_datetime);
+        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+        
+        if (iter == 0) {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
+        } else {
+            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+           
+            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+            sb_reset(&sb_datetime);
+            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
+        }
+
+        ms->temp_rawtime = current_rawtime;
+
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
 
@@ -2934,6 +2957,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     free(local_crln);
     free_cfnc(total_crln_iter);
     free(buf);
+    sb_free(&sb_datetime); 
 
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         total_crln.data[i] /= total_crln.ntraj;
