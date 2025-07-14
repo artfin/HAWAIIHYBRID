@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass[color]{article}
 
 \usepackage{amsmath}
 \usepackage{graphicx} % Required for inserting images
@@ -7,6 +7,8 @@
 \usepackage{xfrac}
 \usepackage{booktabs}
 \usepackage{rotating}
+\usepackage{float}
+\usepackage{enumitem} 
 
 \usepackage{amssymb}
 
@@ -39,6 +41,43 @@
 
 \newcommand{\libname}{\texttt{Hawaii Hybrid}\,}
 
+\usepackage{listings}
+\usepackage{xcolor} % For colored syntax highlighting
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{inputstyle}{
+    backgroundcolor=\color{backcolour},   
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    commentstyle=\color{codegreen},
+    escapeinside={\%*}{*)},          
+    frame=single,
+    keepspaces=true,                 
+    keywordstyle=\color{blue},
+    numbers=left,                    
+    numberstyle=\tiny\color{codegray},
+    rulecolor=\color{black},         
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    stringstyle=\color{codepurple},
+    tabsize=2,
+    % Custom keywords for your format
+    morekeywords={
+        INPUT, END, MONOMER, PAIR_STATE, CALCULATION_TYPE,
+        TEMPERATURES, pair_reduced_mass, so_potential, so_dipole,
+        sampler_Rmin, sampler_Rmax, hep_m0_npoints, hep_m0_niterations,
+        MONOMER_TYPE, II
+    },
+    morecomment=[l]{!}, % Define ! as comment symbol
+    morestring=[b]"     % Define strings in quotes
+}
 
 \title{Documentation for \libname v.0.1}
 \author{A. Finenko and D. Chistikov}
@@ -87,6 +126,164 @@ where the absorption coefficient is
 \end{gather}
 %
 and $\rho_1$ and $\rho_2$ are gas densities in mixture. We will express the binary absorption coefficient as per convention in cm$^{-1}$Amagat$^{-2}$.
+
+\section{Input file format}
+\label{sec:input-file-format}
+
+This section provides an overview of the input file format, including its structures, features, and supported data types.
+The format uses \texttt{\&SECTION\_NAME} and \texttt{\&END} delimiters to define sections containing case-insensitive key-value pairs (assigned with \texttt{=}) or function calls. Comments are indicated with  exclamation marks \texttt{!} throughout the input file. The input file parser enforces type safety, requiring each key to have a value of the expected type; any type mismatch triggers an error message and terminates program execution. \\
+
+\noindent
+Supported data types include integers, floating-point values, boolean values, strings and arrays. Underscores may be used in integers for readability (e.g., \texttt{1\_000\_000}). For floating point values the scientific notation may be used (e.g., \texttt{1e2} instead of \texttt{100}). The arrays are denoted with curly braces \texttt{\{\}}.  
+\\
+
+\noindent
+\texttt{\&INPUT} section provides overall control of the calculation, for example, calculation type, pair state, reduced mass, paths to dynamic libraries containing potential energy and induced dipole functions, and output files. The available input parameters are described in Section \ref{subsec:input-section}. \\  
+
+\noindent
+\texttt{\&MONOMER} section specifies the types of interacting monomers through the \texttt{MONOMER\_TYPE} field along with their molecular constants such as inertia tensor values and centrifugal constant. The available paramters are listed in Section \ref{subsec:monomer-section}. \\
+
+\noindent
+\texttt{\&PROCESSING} section configures the data pipeline using a stack machine model, where each command manipulates the implicit data stack. Unlike the \texttt{\&INPUT} and \texttt{\&MONOMER} sections, the \texttt{\&PROCESSING} section also contains an order-sensitive sequence of commands that execute sequentially, consuming inputs from the top of the stack and pushing the results back for subsequent commands. A typical pipeline begins with loading data using \texttt{read\_cf}, which pushes a correlation function onto the stack. Then \texttt{cf\_to\_sf} consumes the correlation function and pushes corresponding spectral function. Commands like \texttt{compute\_m0\_classical\_detailed\_balance} and \texttt{compute\_m2\_classical\_detailed\_balance} consume the spectral function, requiring the user to first call \texttt{dup()} to preserve the original spectral function if further commands will be operating on it. By the end of the processing script, the stack must be empty, ensuring all data has been processed or saved. The available functions are described in Section \ref{subsec:processing-section}. \\
+
+\subsection{\texttt{INPUT} section}
+\label{subsec:input-section}
+
+Here we provide a detailed description of keywords handled in the \texttt{INPUT} block.
+
+\begin{table}[H]
+  \begin{tabular}{ll}
+    \texttt{\#1} & \texttt{CALCULATION\_TYPE} \\
+    \texttt{\#2} & \texttt{PAIR\_STATE} \\
+    \texttt{\#3} & \texttt{PAIR\_REDUCED\_MASS} \\
+    \texttt{\#4} & \texttt{SO\_POTENTIAL} \\
+    \texttt{\#5a} & \texttt{SO\_DIPOLE} \\
+    \texttt{\#5b} & \texttt{SO\_DIPOLE.1} \\
+    \texttt{\#5c} & \texttt{SO\_DIPOLE.2} \\
+    \texttt{\#6} & \texttt{TEMPERATURE} \\
+    \texttt{\#7} & \texttt{TEMPERATURES} \\
+    \texttt{\#8} & \texttt{SATELLITE\_TEMPERATURES} \\
+    \texttt{\#9} & \texttt{TOTAL\_TRAJECTORIES} \\
+    \texttt{\#10} & \texttt{CVODE\_TOLERANCE} \\
+    \texttt{\#11} & \texttt{SAMPLING\_TIME} \\
+    \texttt{\#12} & \texttt{MAXTRAJECTORYLENGTH} \\
+    \texttt{\#13} & \texttt{SAMPLER\_RMIN} \\
+    \texttt{\#14} & \texttt{SAMPLER\_RMAX} \\
+    \texttt{\#15} & \texttt{PESMIN} \\
+    \texttt{\#16} & \texttt{INITIALM0\_NPOINTS} \\
+    \texttt{\#17} & \texttt{INITIALM2\_NPOINTS} \\
+    \texttt{\#18} & \texttt{HEP\_M0\_NPOINTS} \\
+    \texttt{\#19} & \texttt{HEP\_M0\_NITERATIONS} \\
+    \texttt{\#20} & \texttt{HEP\_M2\_NPOINTS} \\
+    \texttt{\#21} & \texttt{HEP\_M2\_NITERATIONS} \\
+    \texttt{\#22} & \texttt{HEP\_PPF\_NITERATIONS} \\
+    \texttt{\#23} & \texttt{HEP\_PPF\_NPOINTS} \\
+    \texttt{\#24} & \texttt{SF\_FILENAME} \\
+    \texttt{\#25} & \texttt{CF\_FILENAME} \\
+    \texttt{\#26} & \texttt{CF\_FILENAMES} \\
+    \texttt{\#27} & \texttt{R0} \\
+    \texttt{\#28} & \texttt{RCUT} \\
+    \texttt{\#29} & \texttt{PARTIAL\_PARTITION\_FUNCTION\_RATIO} \\
+    \texttt{\#30} & \texttt{PARTIAL\_PARTITION\_FUNCTION\_RATIOS} \\
+    \texttt{\#31} & \texttt{APPROXIMATEFREQUENCYMAX} \\
+    \texttt{\#32} & \texttt{ODD\_J\_SPIN\_WEIGHT} \\
+    \texttt{\#33} & \texttt{EVEN\_J\_SPIN\_WEIGHT} \\
+    \texttt{\#34} & \texttt{USE\_ZIMMERMANN\_TRICK} \\
+    \texttt{\#35} & \texttt{AVERAGE\_TIME\_BETWEEN\_COLLISIONS} \\
+  \end{tabular}
+\end{table}
+
+\noindent
+\texttt{\#1. CALCULATION\_TYPE}. The program performs calculations based on the specified \texttt{CALCULATION\_TYPE}. This field is required and expected to be a plain string (no quotation marks). Note that there is no default value - the field must be explicitly provided. Supported calculation types:
+
+\begin{enumerate}[itemsep=-3pt]
+    \item \texttt{CALCULATION\_PR\_MU} 
+    \item \texttt{CALCULATION\_CORRELATION\_SINGLE} 
+    \item \texttt{CALCULATION\_CORRELATION\_ARRAY}
+    \item \texttt{CALCULATION\_PROCESSING} 
+    \item \texttt{CALCULATION\_PHASE\_SPACE\_M0}
+    \item \texttt{CALCULATION\_PHASE\_SPACE\_M2}
+\end{enumerate}
+
+\noindent
+\texttt{\#2. PAIR\_STATE}. The pair state is specified using the keyword \texttt{PAIR\_STATE} as a plain string (no quotation marks). This field is required, no default value is implied. This parameter is applicable for all calculation types except for \texttt{CALCULATION\_PROCESSING}, where it's ignored. Available pair states: 
+
+\begin{enumerate}[itemsep=-3pt]
+    \item \texttt{FREE\_AND\_METASTABLE}
+    \item \texttt{BOUND}
+    \item \texttt{ALL}
+\end{enumerate}
+
+\noindent
+\texttt{\#3. PAIR\_REDUCED\_MASS}. The reduced mass for a pair is specified as a floating-point number. This parameter is applicable for all calculation types except for \texttt{CALCULATION\_PROCESSING}. \\
+
+\noindent
+\texttt{\#4. SO\_POTENTIAL} specifies a double-quoted string path to a dynamic library containing the required symbols \texttt{double pes\_lab(double* )} and \texttt{void dpes\_lab(double*, double*)}. Missing symbols trigger immediate termination. Functions \texttt{pes\_lab} and \texttt{dpes\_lab} operate on laboratory-frame coordinates and compute the potential energy and its derivative (outputted through the second pointer), respectively. If present, a symbol \texttt{void pes\_init(void)} will be executed before any calls \texttt{pes\_lab} and \texttt{dpes\_lab} will be issued, enabling library initialization (e.g., loading the parameters from file). \\
+
+\noindent
+\texttt{\#5a. SO\_DIPOLE} specifies a double-quoted string path to a dynamic library implementing the required symbol \texttt{void dipole\_lab(double *, double [3])}, which computes laboratory-frame dipole moment components from input coordinates in the laboratory frame of reference. Missing symbol trigger immediate termination. The loaded function is assigned to \texttt{dipole\_1} and \texttt{dipole\_2}, enabling calculation of autocorrelation functions. if present, a symbol \texttt{void dipole\_init(void)} will be executed before any calls \texttt{dipole\_lab} will be issued, enabling library initialization. This setting  is equivalent to assigning the same path to both \texttt{SO\_DIPOLE.1} and \texttt{SO\_DIPOLE.2}. \\
+
+\noindent
+\texttt{\#5b, c. SO\_DIPOLE.1, SO\_DIPOLE.2} specify independent paths to dipole function implementations as dynamic libraries. The required and optional symbols match those mentioned in \texttt{\#5.a}. Setting these paths to different dynamic libraries enables the calculation of mixed correlation correlation. \\ 
+
+\noindent
+\texttt{\#6. TEMPERATURE}
+
+\subsection{\texttt{MONOMER} section}
+\label{subsec:monomer-section}
+
+Here we provide a detailed description of keywords handled in the \texttt{MONOMER} block.
+
+\begin{table}[H]
+  \begin{tabular}{ll}
+    \texttt{\#36} & \texttt{MONOMER\_TYPE} \\
+    \texttt{\#37} & \texttt{DJ} \\
+    \texttt{\#38} & \texttt{II} \\
+    \texttt{\#39} & \texttt{INITIAL\_J} \\
+    \texttt{\#40} & \texttt{TORQUE\_CACHE\_LEN} \\
+    \texttt{\#41} & \texttt{TORQUE\_LIMIT} \\
+    \texttt{\#42} & \texttt{NSWITCH\_HISTOGRAM\_BINS} \\
+    \texttt{\#43} & \texttt{NSWITCH\_HISTOGRAM\_MAX} \\
+    \texttt{\#44} & \texttt{NSWITCH\_HISTOGRAM\_FILENAME} \\
+    \texttt{\#45} & \texttt{JINI\_HISTOGRAM\_BINS} \\
+    \texttt{\#46} & \texttt{JINI\_HISTOGRAM\_MAX} \\
+    \texttt{\#47} & \texttt{JINI\_HISTOGRAM\_FILENAME} \\
+    \texttt{\#48} & \texttt{JFIN\_HISTOGRAM\_BINS} \\
+    \texttt{\#49} & \texttt{JFIN\_HISTOGRAM\_MAX} \\
+    \texttt{\#50} & \texttt{JFIN\_HISTOGRAM\_FILENAME} \\
+  \end{tabular}
+\end{table}
+
+\subsection{\texttt{PROCESSING} section}
+\label{subsec:processing-section}
+
+Here we provide a detailed description of keywords 
+%
+\begin{table}[H]
+  \begin{tabular}{ll}
+    \texttt{\#51} & \texttt{SPECTRUM\_FREQUENCY\_MAX}
+  \end{tabular}
+\end{table}
+%
+and internal functions handled in the \texttt{MONOMER} block.
+%
+\begin{table}[H]
+  \begin{tabular}{ll}
+    \texttt{\#52} & \texttt{READ\_CF(\textbackslash 1)} \\
+    \texttt{\#53} & \texttt{DUP()} \\
+    \texttt{\#54} & \texttt{INT3()} \\
+    \texttt{\#55} & \texttt{AVERAGE\_CFS()} \\
+    \texttt{\#56} & \texttt{COMPUTE\_M0\_CLASSICAL\_DETAILED\_BALANCE()} \\
+    \texttt{\#57} & \texttt{COMPUTE\_M2\_CLASSICAL\_DETAILED\_BALANCE()} \\
+    \texttt{\#58} & \texttt{FIT\_BASELINE()} \\
+    \texttt{\#59} & \texttt{CF\_TO\_SF()} \\
+    \texttt{\#60} & \texttt{ALPHA()} \\
+    \texttt{\#61} & \texttt{D3()} \\
+    \texttt{\#62} & \texttt{WRITE\_CF(\textbackslash 1)} \\
+    \texttt{\#63} & \texttt{WRITE\_SF(\textbackslash 1)} \\
+    \texttt{\#64} & \texttt{WRITE\_SPECTRUM(\textbackslash 1)} \\
+  \end{tabular}
+\end{table}
 
 \section{Examples}
 \label{sec:serial-examples}
@@ -182,6 +379,7 @@ The integral is evaluated using \texttt{mpi\_perform\_integration}, whereas the 
 \begin{longtable}{lp{15cm}}
     Fields & \texttt{MonomerType t} \\
            &  \texttt{double I[3]} -- values of tensor of inertia \\
+           & \texttt{double DJ} -- centrifugal distortion constant \\
            &  \texttt{double *qp} -- dynamic variables  {\color{red} (currently, Euler angles and conjugated momenta)} at the current step of simulation\\
            & \texttt{double *dVdq} -- the derivatives of potential energy with respect to coordinates pertaining to this monomer (the order of coordinates is the same as for \texttt{qp}) \\
            &  \texttt{bool apply\_requantization} \\
@@ -458,8 +656,9 @@ Function \recttext{\texttt{compute\_numerical\_rhs}} \vspace*{-0.25em}
 \noindent
 Function \recttext{\texttt{j\_monomer}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{double j\_monomer(m);} \\
+    Call & \texttt{void j\_monomer(m, j);} \\
     Arguments & \texttt{Monomer m} \\
+              & \texttt{double j[3]} \\
     Description &  Computes the magnitude of angular momentum of passed-in monomer. {\color{red} Currently, implemented only for linear molecules.} 
     \begin{gather}
         [\textrm{linear molecule}]: j = \begin{bmatrix}
@@ -490,13 +689,13 @@ Function \recttext{\texttt{find\_closest\_integer}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
     Call & \texttt{double find\_closest\_integer(j);} \\
     Arguments & \texttt{double j} \\
-    Description & Requantizes a given value of the angular momentum to the nearest integer, effectively rounding to the closest whole number (0, 1, 2, 3 ...). Note that the value returned as double-precision value.
+    Description & Requantizes a given value of the angular momentum to the nearest integer, effectively rounding to the closest whole number (0, 1, 2, 3 ...). Note that the value returned as double-precision value. Using the \texttt{floor} function as the implementation results in artifact trajectories with angular momentum being brought to zero.
 \end{longtable} 
 
 \noindent
 Function \recttext{\texttt{find\_closest\_half\_integer}} \vspace*{-0.25em}
 \begin{longtable}{lp{15cm}}
-    Call & \texttt{double find\_closest\_integer(j);} \\
+    Call & \texttt{double find\_closest\_half\_integer(j);} \\
     Arguments & \texttt{double j} \\
     Description & Requantizes a given value of the angular momentum to the nearest half-integer, effectively rounding to the closest value of the form (0, 1.5, 2.5, 3.5...). Note that 0.5 is skipped to represent the S-band rotational structure of the homonuclear diatomics (see Sokolov coursework).  
 \end{longtable} 
@@ -672,6 +871,7 @@ Function \recttext{\texttt{mpi\_perform\_integration}} \vspace*{-0.25em}
            & \texttt{/* trajectory */} \\
            & \texttt{double sampling\_time} \\
            & \texttt{size\_t MaxTrajectoryLength} \\
+           & \texttt{bool allow\_truncating\_trajectories\_at\_length\_limit} \\
            & \texttt{double cvode\_tolerance} \\
            & \texttt{/* applicable to both correlation function AND spectral function calculations */} \\
            & \texttt{size\_t niterations} \\
@@ -683,6 +883,7 @@ Function \recttext{\texttt{mpi\_perform\_integration}} \vspace*{-0.25em}
            & \texttt{const char *sf\_filename} \\
            & \texttt{double ApproximateFrequencyMax // cm-1} \\
            & \texttt{double R0 // initial distance, a.u.} \\
+           & \texttt{double average\_time\_between\_collisions // a.t.u.} \\
            & \texttt{/*correlation function array ONLY */} \\
            & \texttt{double* partial\_partition\_function\_ratios} \\
            & \texttt{double *satellite\_temperatures} \\
@@ -797,7 +998,18 @@ MPI Function \recttext{\texttt{ calculate\_spectral\_function\_using\_prmu\_repr
               & \texttt{CalcParams *params} \\
               & \texttt{double Temperature} \\
     Description & First, we check that \texttt{params.ApproximateFrequencyMax} is less than Nyquist frequency of the signal that will be sampled with requested \texttt{params.sampling\_time}. Then, based on the calculated frequency step, a length of the frequency array is calculated. Since the frequency step depends on the \texttt{params.sampling\_time} and \texttt{params.MaxTrajectoryLength}, the maximum frequency of the calculated spectral function will be somewhat close to the requested \texttt{params.ApproximateFrequencyMax} (as close as possible using the frequency step). The estimates of the zeroth and second spectral moments are obtained using \texttt{params.initialM0\_npoints} and \texttt{params.initialM2\_npoints}, respectively. The accumulation of \texttt{params.total\_trajectories} is divided into \texttt{params.niterations}. For each trajectory the intermolecular distance is set to \texttt{params.R0}. The trajectory is cut at the same distance \texttt{params.R0}. 
-    Connes apodization is applied to time dependencies of Cartesian components of dipole throughout collisional trajectory before applying Fourier transform to them. The length of the dipole array which is equal to \texttt{params.MaxTrajectoryLength} needs to be a power of 2. The current estimate of the spectral function is saved to \texttt{params.sf\_filename} at the end of each iteration. The zeroth and second spectral moments are obtained from the current estimate of the spectral function and compared to the values obtained through static phase-space sampling.     
+    Connes apodization is applied to time dependencies of Cartesian components of dipole throughout collisional trajectory before applying Fourier transform to them. The length of the dipole array which is equal to \texttt{params.MaxTrajectoryLength} needs to be a power of 2. The current estimate of the spectral function is saved to \texttt{params.sf\_filename} at the end of each iteration. The zeroth and second spectral moments are obtained from the current estimate of the spectral function and compared to the values obtained through static phase-space sampling. \\[1em]
+    & When requantization is enabled, the inertia tensor value is adjusted to account for the effect of centrifugal distortion. The line position of rotational transition is given by 
+    \begin{gather}
+        \tilde{\nu}_{J'\leftarrow J''} = 2B(J'' + 1) - 4D(J'' + 1)^3 = 2 B_\text{eff} (J'' + 1).
+    \end{gather}
+    %
+    The line position can be expressed in terms of the effective rotational constant, $B_\text{eff}$, which depends on the  rotational quantum number:
+    \begin{gather}
+        B_\text{eff} = B - 2D(J + 1)^2.
+    \end{gather}
+    %
+    To enable the adjustment of the inertia tensor, the \texttt{DJ} field must be set, and the \texttt{MonomerType} must be either \texttt{LINEAR\_MOLECULE\_REQ\_INTEGER} or \texttt{LINEAR\_MOLECULE\_REQ\_HALFINTEGER}.
 \end{longtable} 
 
 
@@ -1341,6 +1553,7 @@ Function \recttext{\texttt{sb\_free}} \vspace*{-0.25em}
     \item spherical decomposition for \textit{ab initio} IDS for CO$-$Ar (Rizzo)
     \item PIP-NN representation for \textit{ab initio} PES surface for N$_2-$Ar (Finenko)
     \item PIP-NN representation for \textit{ab initio} IDS surface for N$_2-$Ar (Finenko)
+    \item PIP-NN representation for \textit{ab initio} IDS for H$_2-$Ar (Meyer/Finenko)
 \end{enumerate}
 
 \noindent
@@ -1351,7 +1564,6 @@ Function \recttext{\texttt{sb\_free}} \vspace*{-0.25em}
 \item spherical decomposition for long-range $\textrm{d}\mu/\textrm{d}r$ surface for N$_2-$Ar (Wang)
 \item spherical decomposition for long-range IDS for H$_2-$Ar (Kalugina)
 \item spherical decomposition for \textit{ab initio} induced dipole for H$_2-$Ar (Meyer)
-\item PIP-NN representation for \textit{ab initio} IDS for H$_2-$Ar (Meyer/Finenko)
 \item spherical decomposition for \textit{ab initio} PES for CO$_2-$CO$_2$ (Kalugina/Lokshtanov)
 \item spherical decomposition for \textit{ab initio} IDS for CO$_2-$CO$_2$ (Kalugina/Lokshtanov)
 \item spherical decomposition for \textit{ab initio} PES for N$_2-$N$_2$ (Karman/Chistikov)
@@ -1420,7 +1632,7 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
     \item [01.02.2025] During the correlation and pr-mu calculations for CO$_2-$Ar on cluster, the file with temporary result is not written (at least for several iterations at the end of which the file is supposed to be written). Turns out that if stream is flushed using \texttt{fflush} and filesystem caches for a given file descriptor are forced to be committed to disk using \texttt{syncfs} the problem is resolved.
     \item [01.02.2025] \texttt{calculate\_correlation\_array\_and\_save} produces spectral profiles for CO$_2-$Ar (unbound states) that are in close agreement with the results obtained in 2021. Ensemble of approximately 8 million trajectories was used. {\color{red} Need to check for bound states as well.}
     \item [06.02.2025] CO-Ar 300K: $\text{M}_0 = 1.850 \cdot 10^{-4}$, $\text{M}_2 = 1.884$. 
-    \item [08.02.2025] the factor by ALU$^3$ is moved from \texttt{save\_correlation\_function} to \texttt{correlation\_eval}. {\color{red} correctness: check that after moving the factor ALU$^3$ here, the produced correlation functions are correct for both single-correlation function and correlation-array calculations}
+    \item [08.02.2025] the factor by ALU$^3$ is moved from \texttt{save\_correlation\_function} to \texttt{correlation\_eval}. 
     \item [09.02.2025] added \texttt{normalized} flag to CFnc, changed reading/saving correlation function from/to file ({\color{red} not documented})
     \item [09.02.2025] added parsing Temperature and ntraj from header of the file using regex and added averaging of correlation functions
     \item [09.02.2025] rewrite of LOESS code to better understand what's going on there: prepare for OpenMP parallelization, check out different approaches to solve the weighted linear squares problem
@@ -1431,12 +1643,26 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
     \item [12.03.2025] calculated correlation functions for He-Ar at 50K and 300K using 500mln and 300mln trajectories, respectively. At 300K we achieved a decent looking spectrum, however at 50K it still looks not converged at large frequencies. Moreover, the correlation function at 50K exhibits pulsing (beating) oscillations which result in some spectral feature at 3.5 cm-1. What is it? Is it reproducible in quantum calculation? {\color{red} It is somewhat reproduced in quantum calculation. More investigation is needed. Probably should be discussed in separate paper on He-Ar calculations with spectra provided in wide temperature range.}
     \item [16.03.2025] \texttt{hawaii}: use appropriate partial partition function for each temperature when calculating M$_0$ before proceeding to propagate trajectories
     \item [18.03.2025] Caught this mysterious error during bound states calculation for CH$_4-$CO$_2$: \texttt{[n01p012:2488401:0:2488401] Caught signal 7 (Bus error: nonexistent physical address)}. No stack trace, location of error unknown.
-    \item [23.03.2025] Added functions to perform D4 and D4a desymmetrization. {\color{red} Found out to be erroneous when performing calculations for He-Ar. FIX IS NEEDED.}
+    \item [23.03.2025] Added functions to perform D4 and D4a desymmetrization. Some fixes included as of 26.06 (d4b file).
     \item [02.05.2025] N$_2-$Ar PIP-NN potential and dipole are added. N$_2-$Ar 300K: M$_0$ = 3.833$\cdot$10$^{-5}$, M$_2$ = 0.2321.
     \item [03.05.2025] When performing calculation of the correlation function, garbage-like values were found in the correlation accumulator. Fixed: forgot to \texttt{memset} before use. Also call to \texttt{memset} is added in \texttt{calculate\_correlation\_array\_and\_save}.
     \item [03.05.2025] Call to \texttt{MPI\_Reduce} is changed to the \texttt{MPI\_Send}/\texttt{MPI\_Recv} pair in \texttt{calculate\_correlation\_and\_save}.
     \item [14.05.2025] Applying requantization to H$_2-$Ar trajectory.
-    \item [18.05.2025] Added some timestamps for HAWAII output and when saving spectral function to file in prmu-representation. {\color{red} Need to use to do the same for correlation function and correlation function arrays.}
+    \item [18.05.2025] Added some timestamps for HAWAII output and when saving spectral function to file in prmu-representation. Added the same timestamps for correlation function and correlation function arrays.
+    \item [19.05.2025] Added PIP-NN representation of the H$_2-$Ar \textit{ab initio} induced dipole. Checked that it produces the same values as in FUNCHAL. 
+    \item [19.05.2025] experimenting with the Poisson distribution for free path in prmu representation
+    \item [19.05.2025] reviewed molecular constants for CO. {\color{red} Be careful with modifying molecular constants, since potential or dipole function may heavily rely on the very specific values. It's not the case for PES for CO-Ar but may easily be in other cases.}  
+    \item [19.05.2025] MPI\_AllReduce $\rightarrow$ MPI\_Send/Recv for calculation using prmu representation. {\color{red} Need to check that after this change procedure produces correctly normalized results}
+    \item [22.05.2025] Analytic consideration of the part of the trajectory when the linear molecule rotates freely
+    \item [24.05.2025] Receive packets out-of-order from slave processes in \texttt{calculate\_spectral\_function\_using\_prmu\_representation\_and\_save}
+    \item [26.05.2025] Fixed \texttt{gsl\_histogram\_extend\_right}
+    \item [26.05.2025] Introduced Arena allocator and handled the extension of the histogram when received on the master process
+    \item [26.05.2025] Introduced histograms of initial and final angular momenta in \texttt{calculate\_spectral\_function\_using\_prmu\_representation\_and\_save}. For now, they are printed in the output file (stdout stream). {\color{red} We need to redirect them in the corresponding files and allow to customize the path throw some variable in \texttt{CalcParams}}.
+    \item [27.05.2025] Fixed a bug in the logic of turning on/off requantization in \texttt{calculate\_spectral\_function\_using\_prmu\_representation\_and\_save}. It was noticed when histogram of the number of requantization switches has become available. After the fix the intensity distribution of requantized lines in the rotational band of CO-Ar became more logical and resembling the HITRAN one.
+    \item [28.05.2025] Account for the effect of centrifugal distortion when requantization is applied. The line positions of CO became in excellent agreement with those from HITRAN spectra
+    \item [13.07.2025] fixed parsing error in negative floating-point numbers in \texttt{driver}
+    \item [13.07.2025] fixed printing accumulated results in \texttt{mpi\_calculate\_M0}
+    \item [13.07.2025] mixed spectral moments for CO-Ar at 300 K are M$_0 (\textrm{mixed}) = 5.44\cdot 10^{-5}$, M$_2 (\textrm{mixed}) = 1.46\cdot 10^{-1}$.
 \end{enumerate}
 
 \section{Todo's}
@@ -1444,25 +1670,21 @@ Call \texttt{init\_ms} specifying types of monomers, their tensors of inertia, t
 \begin{itemize}
     \item Investigate whether two-peak structure appears for He$-$Ne CIA in trajectory-based calculation using Karman PES \& IDS surfaces
     \item Investigate three-body He$-$He$-$He CIA \cite{Kowalski2014}
-    \item Correct D4/D4a desymmetrization
     \item When processing correlation function, add the Q-branch to the spectral function. I expect that part of the Q-branch is seen for CH$_4-$CO$_2$ after numerical FFT, but it's analytical part is missing. 
     \item Support N$_2$ vibration for N$_2-$Ar calculation 
     \item \texttt{mpi\_calculate\_M0}/\texttt{mpi\_calculate\_M2}: the temporary result is not accumulated over communicator, it is printed only for values accumulated only for zeroth process.
-    \item think about adding more information to output file
+    \item log more information in the output file
     \item get rid of OpenMP magic in LOESS and instead use explicitly \texttt{pthread} library 
     \item Allow providing the value (values) of zeroth and second spectral moment to \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. {\color{red} For CH$_4-$CO$_2$ the calculation of second moments is time-consuming, so the values should probably be cached somehow. Honestly, calculating zeroth moments for 10+ temperatures is also no joke. It should be possible to cache these values as well.}
     \item CO$_2-$CO$_2$ in 200-300K range: communicate with Wishnow about the possibility to conduct an experiment. And write a small article about trajectory-based results?
-    \item How to go about computing cross-term? We need to allow to have 2 dipole functions
     \item How to organize and store the calculated results for examples? The results include CFs, SFs, spectra, spectral moments and partial partition functions.
     \item We should store the results of individual iterations of \texttt{calculate\_correlation\_and\_save} and \texttt{calculate\_correlation\_array\_and\_save}. Maybe use SQL database for this?
     \item Arena Allocator for storing some temporary strings and small arrays. At the moment, there are waaaay too many mallocs/frees. 
     \item Saving the contributions of free and metastable states in correlation function separately. How can we pass in the information about the desired filenames? How to organize the storage for these contributions? 
     \item The information about the number of turning points could be saved into gsl\_histogram, and then partially displayed in the output file and saved to file system
     \item We are using MPI\_Allreduce mechanism for broadcasting. This should be changed to direct MPI\_Send / MPI\_Recv calls. {\color{red} It is changed in \texttt{calculate\_correlation\_and\_save}.}
-    \item Can the \texttt{hawaii.h} file be used without constructing the MoleculeSystem? I moved code for processing correlation function there, but it can't be used without creating stubs for PES/dPES functions. Should \texttt{hawaii} create stubs when certain macro is in place? 
     \item Maybe we need a check that processes in the communicator get different seeds each?
     \item In case when correlation function is calculated for bound states, we can separate the contributions for bound-bound and bound-free transitions (Fakhardji trick)
-    \item In case when correlation function is calculated for bound states, we should use the Zimmermann trick (use any point of trajectory as a 'starting point' of the correlation function). This should be the default approach for this correlation. 
     \item Adapt transforming angles between frames of reference for linear molecule-linear molecule
     \item How to organize Makefiles for use in different environments (several clusters)? If we push the changes to remote git repo on the remote machine, the local changes get overriden, thus removing the changes made to local Makefile. Annoying... 
     \item I would like to make a graphical shell in which it will be possible to set parameters for calculation (for example, in the form of a list with available options for each parameter). The program is given paths to files (or drag-and-dropped) with potential and dipole functions and it assembles an executable file. Here I make an assumption that it is better to have the potential to be statically compiled with the rest of the code rather than dynamically loading it from library. It would probably be nice to be able to run the trajectory program from graphical shell locally and display the calculation result. If the correlation function is calculated, then there is no need to add its processing within the same "stage". Let the correlation function be calculated separately, then the result should be loaded and converted into a spectrum. In the case of calculating the spectral function in the pr-mu representation, smoothing is also required, it is also carried out in a separate "stage". This would enable us to have a starting point for a graphical shell that can demonstrate some of the features of the library without overcomplicating from the very beginning. Later on, we could think about establishing TCP connection between shell and the main program running remotely enabling the user to setup the calculation with the desired parameters and monitor the calculation. 
@@ -1480,4 +1702,3 @@ Usage of GNU profiler (gprof):
 
 
 \end{document}
-
