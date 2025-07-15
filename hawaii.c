@@ -1997,6 +1997,13 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     double dip1_0[3], dip1_t[3];
     double dip2_0[3], dip2_t[3];
     extract_q_and_write_into_ms(ms);
+	    // Initialize torque cache if needed
+    double *torque_cache = NULL;
+    size_t switch_counter = 0;
+    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        torque_cache = (double*)malloc(ms->m1.torque_cache_len * sizeof(double));
+        memset(torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+    }
 
     if (dipole_1 != dipole_2) {
         (*dipole_1)(ms->intermediate_q, dip1_0);
@@ -2055,6 +2062,38 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             }
             printf("\n");
             return 1;         
+        }
+
+	            // Handle requantization if needed
+        if (torque_cache != NULL) {
+            double torq = torque_monomer(ms->m1);
+            torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+            bool all_less_than_limit = true;
+            bool all_more_than_limit = true;
+            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+                if (torque_cache[i] > ms->m1.torque_limit) {
+                    all_less_than_limit = false;
+                }
+                if (torque_cache[i] < ms->m1.torque_limit) {
+                    all_more_than_limit = false;
+                }
+            }
+
+            if (all_less_than_limit) {
+                if (!ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+                    ms->m1.apply_requantization = true;
+                    switch_counter++;
+                }
+            }
+            else if (all_more_than_limit) {
+                if (ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+                    ms->m1.apply_requantization = false;
+                    switch_counter++;
+                }
+            }
         }
 
         if (dipole_1 != dipole_2) {
@@ -2144,6 +2183,38 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+
+	            // Handle requantization if needed
+        if (torque_cache != NULL) {
+            double torq = torque_monomer(ms->m1);
+            torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+            bool all_less_than_limit = true;
+            bool all_more_than_limit = true;
+            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+                if (torque_cache[i] > ms->m1.torque_limit) {
+                    all_less_than_limit = false;
+                }
+                if (torque_cache[i] < ms->m1.torque_limit) {
+                    all_more_than_limit = false;
+                }
+            }
+
+            if (all_less_than_limit) {
+                if (!ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'true': switch counter = %zu\n", switch_counter);
+                    ms->m1.apply_requantization = true;
+                    switch_counter++;
+                }
+            }
+            else if (all_more_than_limit) {
+                if (ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'false': switch counter = %zu\n", switch_counter);
+                    ms->m1.apply_requantization = false;
+                    switch_counter++;
+                }
+            }
+        }
     
         if (dipole_1 != dipole_2) {        
             (*dipole_2)(ms->intermediate_q, dip2_t);
@@ -2198,6 +2269,10 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         if (ms->intermolecular_qp[IR] > params->Rcut) break;
     }
 
+	  if (torque_cache != NULL) {
+        free(torque_cache);
+    }
+	
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
        // printf("(TEST) CRLN_VALUE: %e\n",crln[i]);
@@ -2846,12 +2921,26 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     if (energy > 0.0) continue;
                 }
 
+                // Initialize torque cache if needed
+                double *torque_cache = NULL;
+                size_t switch_counter = 0;
+                if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                    torque_cache = (double*)malloc(ms->m1.torque_cache_len * sizeof(double));
+                    memset(torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+                }
+
                 int status;
                 if (params->use_zimmermann_trick) {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
+
+                // Clean up torque cache if it was allocated
+                if (torque_cache != NULL) {
+                    free(torque_cache);
+                }
+
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
