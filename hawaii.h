@@ -568,6 +568,7 @@ double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len);
 
 extern WingParams INIT_WP;
 double wingmodel(WingParams *wp, double t);
+double wingmodel_image(WingParams *wp, double nu);
 
 int wingmodel_f(const gsl_vector* x, void* data, gsl_vector* f);
 int wingmodel_df(const gsl_vector* x, void* data, gsl_matrix * J);
