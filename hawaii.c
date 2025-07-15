@@ -2007,8 +2007,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     } else {
         (*dipole_1)(ms->intermediate_q, dip1_0);
         
-        correlation_forw[0] = dip1_0[0]*dip1_0[0] + dip1_0[1]*dip1_0[1] + dip1_0[1]*dip1_0[1];
-        correlation_back[0] = dip1_0[0]*dip1_0[0] + dip1_0[1]*dip1_0[1] + dip1_0[1]*dip1_0[1];
+        correlation_forw[0] = dip1_0[0]*dip1_0[0] + dip1_0[1]*dip1_0[1] + dip1_0[2]*dip1_0[2];
+        correlation_back[0] = dip1_0[0]*dip1_0[0] + dip1_0[1]*dip1_0[1] + dip1_0[2]*dip1_0[2];
     }
    
     Array qp = create_array(ms->QP_SIZE);
@@ -2074,7 +2074,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2];
         } else {
             prev_value = curr_value;
-            curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[1]*dip1_t[1];
+            curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[2]*dip1_t[2];
         } 
 
         if (fabs(curr_value) > 1e100) {
@@ -2162,7 +2162,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2];
         } else {
             prev_value = curr_value;
-            curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[1]*dip1_t[1];
+            curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[2]*dip1_t[2];
         }
       
         if (fabs(curr_value) > 1e100) {
