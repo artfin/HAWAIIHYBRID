@@ -12,9 +12,17 @@
 #include "hawaii.h"
 #include "hep_hawaii.h"
 
+// TODO: investigate the UNREACHABLE
+// &INPUT
+//  PAIR_STATE = ALL
+//  CALCULATION_TYPE = CORRELATION_SINGLE
+//  TEMPERATURE = 300
+//&END
+
+
+
 // TODO: add 'where_begin' field for token start in the Lexer
 
-// TODO: add types of calculation for calculating phase moment M0 and M2
 // TODO: add type of calculation for running trajectory from specific phase-point 
 
 // TODO: we may want to have some predefined constants like 'l_H2' or 'm_H2'
@@ -1009,6 +1017,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->ps = PAIR_STATE_FREE_AND_METASTABLE;
                 } else if (strcasecmp(l->string_storage.items, "BOUND") == 0) {
                     params->ps = PAIR_STATE_BOUND;
+                } else if (strcasecmp(l->string_storage.items, "ALL") == 0) {
+                    params->ps = PAIR_STATE_ALL;
                 } else {
                     PRINT0("ERROR: %s:%d:%d: unknown pair state '%s'\n", 
                             l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
@@ -1400,6 +1410,42 @@ void expect_item_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, Stack_Ite
     }
 }
 
+void expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, int count, ...)
+{
+    va_list args;
+    va_start(args, count);
+
+    for (int i = 0; i < count; ++i) {
+        Stack_Item_Type expected_typ = va_arg(args, Stack_Item_Type);
+        if (tagged_item->typ == expected_typ) {
+            va_end(args);
+            return;
+        }
+    }
+    
+    // constructing error message 
+    va_start(args, count); // reset va_args
+
+    String_Builder sb_expected_types = {0};
+
+    for (int i = 0; i < count; ++i) {
+        Stack_Item_Type expected_typ = va_arg(args, Stack_Item_Type);
+
+        sb_append_format(&sb_expected_types, "'%s'", STACK_ITEM_TYPES[expected_typ]);
+        if (i < count - 1) sb_append_cstring(&sb_expected_types, " or ");
+    }
+
+    va_end(args);
+
+    PRINT0("ERROR: %s:%d:%d: corrupted stack: expected to find one of [%s] but found '%s', which is created at\n",
+            pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset,
+            sb_expected_types.items, STACK_ITEM_TYPES[tagged_item->typ]);
+    PRINT0("       %s:%d:%d\n", tagged_item->loc.input_path, tagged_item->loc.line_number, tagged_item->loc.line_offset);
+
+    sb_free(&sb_expected_types);
+    exit(1);
+}
+
 void expect_arg(Funcall *func) {
     if (func->arg == NULL) {
         PRINT0("ERROR: %s:%d:%d: missing argument for %s\n",
@@ -1518,39 +1564,56 @@ bool run_processing(Processing_Params *processing_params) {
 
         } else if (strcasecmp(funcname, "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+            expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
 
-            SFnc *sf = &tagged_item.item.sf;
+            if (tagged_item.typ == STACK_ITEM_SF) {
+                SFnc *sf = &tagged_item.item.sf;
 
-            if (processing_params->spectrum_frequency_max > 0) {
-                assert(sf->len > 1);
-                double dnu = sf->nu[1] - sf->nu[0];
-                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                sf->len = (sf->len > n) ? n : sf->len;
-                
-                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                if (processing_params->spectrum_frequency_max > 0) {
+                    assert(sf->len > 1);
+                    double dnu = sf->nu[1] - sf->nu[0];
+                    size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                    sf->len = (sf->len > n) ? n : sf->len;
+                    
+                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                }
+
+                double M0 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 0);
+                INFO("M0 BASED ON SPECTRAL FUNCTION = %.5e\n", M0); 
+            } else if (tagged_item.typ == STACK_ITEM_CF) {
+                CFnc *cf = &tagged_item.item.cf;
+
+                double M0;
+                compute_Mn_from_cf_using_classical_detailed_balance(*cf, 0, &M0);
+                INFO("M0 BASED ON CORRELATION FUNCTION = %.5e\n", M0);
             }
-
-            double M0 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 0);
-            INFO("M0 = %.5e\n", M0); 
         
         } else if (strcasecmp(funcname, "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+            expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
             
-            SFnc *sf = &tagged_item.item.sf;
+            if (tagged_item.typ == STACK_ITEM_SF) { 
+                SFnc *sf = &tagged_item.item.sf;
 
-            if (processing_params->spectrum_frequency_max > 0) {
-                assert(sf->len > 1);
-                double dnu = sf->nu[1] - sf->nu[0];
-                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                sf->len = (sf->len > n) ? n : sf->len;
-                
-                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                if (processing_params->spectrum_frequency_max > 0) {
+                    assert(sf->len > 1);
+                    double dnu = sf->nu[1] - sf->nu[0];
+                    size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                    sf->len = (sf->len > n) ? n : sf->len;
+                    
+                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                }
+
+                double M2 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 2);
+                INFO("M2 = %.5e\n", M2); 
+            } else if (tagged_item.typ == STACK_ITEM_CF) {
+                CFnc *cf = &tagged_item.item.cf;
+      
+                double M2; 
+                if (compute_Mn_from_cf_using_classical_detailed_balance(*cf, 2, &M2)) {
+                    INFO("M2 BASED ON CORRELATION FUNCTION = %.5e\n", M2);
+                }
             }
-
-            double M2 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 2);
-            INFO("M2 = %.5e\n", M2); 
 
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
@@ -1837,8 +1900,8 @@ int main(int argc, char* argv[])
     Processing_Params processing_params = {0};
     parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
-    print_input_block(&input_block);
     /*
+    print_input_block(&input_block);
     print_params(&params); 
     print_input_block(&input_block);
     print_monomer(&monomer1);

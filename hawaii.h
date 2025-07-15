@@ -469,6 +469,7 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
 // Spectral moments calculation 
 // ----------------------------------------------------------
 double integrate_composite_simpson(double *x, double *y, size_t len); 
+bool compute_Mn_from_cf_using_classical_detailed_balance(CFnc cf, size_t n, double *result);
 double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n);
 double compute_Mn_from_sf_using_quantum_detailed_balance(SFnc sf, size_t n);
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q);

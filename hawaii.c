@@ -2922,22 +2922,25 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
 
-        if (params->MaxTrajectoryLength >= 5) {
-            double M2_crln_est_5pt = -SecondCoeff * (-14350.0*total_crln.data[0] + 8064.0*2.0*total_crln.data[1] - 1008.0*2.0*total_crln.data[2] + \
-                   128.0*2.0*total_crln.data[3] - 9.0*2.0*total_crln.data[4])/5040.0/params->sampling_time/params->sampling_time/ALU/ALU/ALU/ total_crln.ntraj;
-            PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_5pt, hep_M2, (M2_crln_est_5pt - hep_M2)/hep_M2*100.0);
-        } else {
-            PRINT0("Trajectory is too short to estimate M2\n");
-        }
+        {
+            if (total_crln.len >= 5) {
+                size_t saved_len = total_crln.len;
+                total_crln.len = 5;
 
-        if (params->MaxTrajectoryLength >= 11) {
-            double M2_crln_est_11pt = -(-31752*total_crln.data[10]+784000*total_crln.data[9]-9426375*total_crln.data[8]+73872000*total_crln.data[7]-
-                    427329000*total_crln.data[6]+1969132032*total_crln.data[5]-7691922000*total_crln.data[4]+27349056000*total_crln.data[3]-99994986000*total_crln.data[2]+
-                    533306592000*total_crln.data[1]-909151481810*total_crln.data[0]+533306592000*total_crln.data[1]-99994986000*total_crln.data[2]+
-                    27349056000*total_crln.data[3]-7691922000*total_crln.data[4]+1969132032*total_crln.data[5]-427329000*total_crln.data[6]+73872000*total_crln.data[7]-
-                    9426375*total_crln.data[8]+784000*total_crln.data[9]-31752*total_crln.data[10])/(293318625600*params->sampling_time*params->sampling_time)/ALU/ALU/ALU*1.385614560E13/1E6/ total_crln.ntraj;
+                double M2_9pt;
+                compute_Mn_from_cf_using_classical_detailed_balance(total_crln, 2, &M2_9pt); 
+                PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_9pt, hep_M2, (M2_9pt - hep_M2)/hep_M2*100.0);
 
-            PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_11pt, hep_M2, (M2_crln_est_11pt - hep_M2)/hep_M2*100.0);
+                total_crln.len = saved_len;
+            } else {
+                PRINT0("Trajectory is too short to estimate M2\n");
+            }
+
+            if (total_crln.len >= 11) {
+                double M2_21pt;
+                compute_Mn_from_cf_using_classical_detailed_balance(total_crln, 2, &M2_21pt); 
+                PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_21pt, hep_M2, (M2_21pt - hep_M2)/hep_M2*100.0);
+            } 
         }
 
         if (_wrank == 0) {
@@ -5545,6 +5548,42 @@ double integrate_composite_simpson(double *x, double *y, size_t len)
     
     return sum * 3.0 * h / 8.0;
 } 
+
+bool compute_Mn_from_cf_using_classical_detailed_balance(CFnc cf, size_t n, double *result)
+{
+    if (n == 0) {
+        *result = cf.data[0] * ZeroCoeff / ALU/ALU/ALU;
+        if (!cf.normalized) *result /= cf.ntraj;
+
+        return true;
+    } else if (n == 2) {
+        assert(cf.len >= 1);
+        double dt = cf.t[1] - cf.t[0];
+
+        if (cf.len >= 11) {
+            *result = -SecondCoeff * (-31752*cf.data[10]+784000*cf.data[9]-9426375*cf.data[8]+73872000*cf.data[7]-
+                    427329000*cf.data[6]+1969132032*cf.data[5]-7691922000*cf.data[4]+27349056000*cf.data[3]-99994986000*cf.data[2]+
+                    533306592000*cf.data[1]-909151481810*cf.data[0]+533306592000*cf.data[1]-99994986000*cf.data[2]+
+                    27349056000*cf.data[3]-7691922000*cf.data[4]+1969132032*cf.data[5]-427329000*cf.data[6]+73872000*cf.data[7]-
+                    9426375*cf.data[8]+784000*cf.data[9]-31752*cf.data[10])/(293318625600*dt*dt)/ALU/ALU/ALU;
+            if (!cf.normalized) *result /= cf.ntraj;
+
+            return true;
+        } else if (cf.len >= 5) {
+            *result = -SecondCoeff * (-14350.0*cf.data[0] + 8064.0*2.0*cf.data[1] - 1008.0*2.0*cf.data[2] + \
+                    128.0*2.0*cf.data[3] - 9.0*2.0*cf.data[4])/5040.0/dt/dt/ALU/ALU/ALU;
+            if (!cf.normalized) *result /= cf.ntraj; 
+
+            return true;
+        } else {
+            PRINT0("ERROR: length of correlation function (%zu) is too short to estimate M2\n", cf.len);
+            return false;
+        }
+    } else {
+        PRINT0("ERROR: estimating spectral moment of order %zu is not implemented\n", n);
+        exit(1);
+    }
+}
 
 double compute_Mn_from_sf_using_classical_detailed_balance(SFnc sf, size_t n)
 {
