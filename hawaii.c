@@ -4856,13 +4856,18 @@ void free_spectrum(Spectrum sp) {
 }
 
 WingParams INIT_WP = {
-  .A = 1.0, 
-  .B = 2.0, 
-  .C = 3.0,
+  .A = 0.1, 
+  .B = 0.1, 
+  .C = 1.0,
 };
 
 double wingmodel(WingParams *wp, double t) {
     return wp->C + wp->A / (1.0 + wp->B * wp->B * t * t);
+}
+
+double wingmodel_image(WingParams *wp, double nu) {
+    //printf("exp_arg = %.5e\n",1.0/wp->B);
+    return wp->A/(2.0*wp->B) * exp(-nu/wp->B);
 }
 
 int wingmodel_f(const gsl_vector* x, void* data, gsl_vector* f)
@@ -5013,9 +5018,10 @@ void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params)
 
     double dof = n - nparams;
     double c = fmax(1.0, sqrt(chisq / dof));
-    
+   
+    // negative value of B does not make much sense
     wing_params->A = gsl_vector_get(w->x, 0);
-    wing_params->B = gsl_vector_get(w->x, 1);
+    wing_params->B = fabs(gsl_vector_get(w->x, 1));
     wing_params->C = gsl_vector_get(w->x, 2);
 
     fprintf(stderr, "chisq / dof = %g\n", chisq / dof);
@@ -5065,7 +5071,7 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     INFO("CFmax    = %.10e\n", CFmax);
     INFO("max2time = %.10e\n", max2time); 
     INFO("CFmax2   = %.10e\n", CFmax2);
-    
+
     assert(cf->len > EXT_RANGE_MIN);
     
     size_t itotal = cf->len - EXT_RANGE_MIN + 1;
@@ -5088,23 +5094,14 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
 
     gsl_nonlinear_opt(itotal, xdat2, ydat2, &wp);
 
-    //assert(wp.A > 0);
-    //assert(wp.B > 0);
-    //assert(wp.C > 0);
     if (wp.C < 0) {
         WARNING("!!! WingParams.C is negative! Deal with it. Continuing...\n\n");
     }
 
-    if (wp.B < 0) {
-        WARNING("!!! WingParams.B is negative! Probably the Lorentzian model is not applicable in selected range. Consider fitting only the constant. Continuing...\n\n");
-    }
-
-    max2time = max2time / ATU;
-
     // descale parameters after optimization
-    wp.A *= CFmax2;
-    wp.B /= max2time;
-    wp.C *= CFmax2;
+    wp.A = wp.A * CFmax2;
+    wp.B = wp.B / max2time;
+    wp.C = wp.C * CFmax2;
 
     free(xdat2);
     free(ydat2);

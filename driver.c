@@ -400,6 +400,9 @@ typedef struct {
     Tagged_Stack_Item *items; 
     size_t count; 
     size_t capacity;
+
+    // additional elements
+    WingParams wing_params;
 } Processing_Stack;
 
 Lexer lexer_new(const char *input_path, const char *input_stream, char *eof)
@@ -1618,16 +1621,24 @@ bool run_processing(Processing_Params *processing_params) {
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
-          
-            size_t EXT_RANGE_MIN = 8192;
+
+            // TODO: make this parameter adjustable from &PROCESSING section          
+            //size_t EXT_RANGE_MIN = 8192;
+            size_t EXT_RANGE_MIN = 16384; 
             INFO("Using points starting from %zu for CF extrapolation\n", EXT_RANGE_MIN); 
             CFnc *cf = &tagged_item.item.cf; 
-            WingParams wp = fit_baseline(cf, EXT_RANGE_MIN);
+
+            // I don't want to create an additional Stack_Item for these parameters, so
+            // just saving them into Processing_Stack to make them available in the 
+            // 'CF_TO_SF' call 
+            stack.wing_params = fit_baseline(cf, EXT_RANGE_MIN);
 
             for (size_t i = 0; i < cf->len; ++i) {
-                cf->data[i] -= wingmodel(&wp, cf->t[i]);
+                double wing_value = wingmodel(&stack.wing_params, cf->t[i]); 
+                //printf("i = %zu => CF = %.5e, wing = %.5e\n", i, cf->data[i], wing_value);
+                cf->data[i] -= wing_value; 
             }
-            
+
             stack_push_with_type(&stack, (void*) cf, STACK_ITEM_CF, pc_loc);
 
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
@@ -1637,6 +1648,24 @@ bool run_processing(Processing_Params *processing_params) {
             CFnc *cf = &tagged_item.item.cf;
             SFnc sf = idct_cf_to_sf(*cf);
             free_cfnc(*cf);
+
+            if ((stack.wing_params.A != 0) || (stack.wing_params.B != 0) || (stack.wing_params.C != 0)) {
+                INFO("Adding Fourier image of the baseline to the numerical result\n");
+                
+                double Xscale = 1.0/LightSpeed_cm / ATU / 2.0 / M_PI;
+                double Yscale = ATU*ADIPMOMU*ADIPMOMU / (4.0*M_PI*EPSILON0);
+                
+                stack.wing_params.A = stack.wing_params.A * Yscale * Xscale; 
+                stack.wing_params.B = stack.wing_params.B * Xscale; 
+                stack.wing_params.C = stack.wing_params.C * Yscale * Xscale;
+             
+                INFO("Adding the delta function as an exponential Q-branch\n"); 
+                for (size_t i = 0; i < sf.len; ++i) { 
+                    double wingmodel_image_val = (stack.wing_params.C+stack.wing_params.A)/stack.wing_params.A*wingmodel_image(&stack.wing_params, sf.nu[i]);
+                    sf.data[i] += wingmodel_image_val;
+                    if (i < 10) printf("nu = %.5e => sf = %.5e, wmi = %.5e\n", sf.nu[i], sf.data[i], wingmodel_image_val);
+                }
+            }
 
             stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
 
