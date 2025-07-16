@@ -72,10 +72,10 @@ build/hep_hawaii.o: hep_hawaii.cpp | build
 	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@
 
 build/array.o: array.c | build
-	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(CC) -std=c99 $(FLAGS) $(INC) -c -MD $< -o $@ 
 
 build/trajectory.o: trajectory.c | build
-	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@ 
+	$(CC) -std=c99 $(FLAGS) $(INC) -c -MD $< -o $@ 
 
 build/mtwist.o: thirdparty/mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
