@@ -2738,6 +2738,9 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
+    gsl_histogram *nswitch_histogram = NULL;
+    FILE *fp_nswitch_histogram = NULL;
+
         Arena a = {0};
 
         if (ms->m1.torque_cache) {
@@ -2755,6 +2758,19 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
+		
+	size_t nswitch_histogram_bins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
+        double nswitch_histogram_max = DEFAULT_NSWITCH_HISTOGRAM_MAX;
+        const char *nswitch_histogram_filename = DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
+        
+        nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
+        gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, nswitch_histogram_max);
+        
+        if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
+            fp_nswitch_histogram = stdout;
+       	} else {
+            fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
+       	}
 	}
 
     FILE *fp = NULL; 
@@ -2938,6 +2954,15 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
+		    
+		if (nswitch_histogram && status == 0) {
+  	           size_t req_switches = ms->m1.req_switch_counter; // Need to expose this from correlation_eval
+   	          if (req_switches > nswitch_histogram->range[nswitch_histogram->n]) {
+    	             gsl_histogram_extend_right(nswitch_histogram, 
+    	                 req_switches - nswitch_histogram->range[nswitch_histogram->n] + 1);
+    	         }
+   	          gsl_histogram_increment(nswitch_histogram, req_switches);
+  	       }
 
                 if (status == -1) continue;
 
@@ -3055,7 +3080,19 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         free(ms->m1.torque_cache);
         ms->m1.torque_cache = NULL;
     }
-	
+
+    if (nswitch_histogram) {
+        if (_wrank == 0) {
+            double count = gsl_histogram_sum(nswitch_histogram);
+            printf("Requantization switch statistics (based on %d trajectories):\n", (int)count);
+            write_histogram(fp_nswitch_histogram, nswitch_histogram, count);
+        }
+        gsl_histogram_free(nswitch_histogram);
+        if (fp_nswitch_histogram && fp_nswitch_histogram != stdout) {
+            fclose(fp_nswitch_histogram);
+        }
+    }
+
     return total_crln; 
 }
 
