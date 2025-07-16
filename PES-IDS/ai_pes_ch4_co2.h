@@ -25,7 +25,7 @@ double dpesdtheta1(double R, double phi1, double theta1, double phi2, double the
 double dpesdphi2(double R, double phi1, double theta1, double phi2, double theta2);
 double dpesdtheta2(double R, double phi1, double theta1, double phi2, double theta2);
 
-inline size_t gsl_index(int l, int m) {
+inline static size_t gsl_index(int l, int m) {
     return l * (l + 1) / 2 + m;
 }
 
