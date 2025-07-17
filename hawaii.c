@@ -2023,7 +2023,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     double t = 0.0;
     double tout = params->sampling_time;
-   
+    ms->m1.req_switch_counter = 0;
+	
     Tracker tr = {
       .before2 = qp.data[IR],
       .before  = qp.data[IR],
@@ -2956,7 +2957,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 }
 		    
 		if (nswitch_histogram && status == 0) {
-  	           size_t req_switches = ms->m1.req_switch_counter; // Need to expose this from correlation_eval
+  	           size_t req_switches = ms->m1.req_switch_counter; 
    	          if (req_switches > nswitch_histogram->range[nswitch_histogram->n]) {
     	             gsl_histogram_extend_right(nswitch_histogram, 
     	                 req_switches - nswitch_histogram->range[nswitch_histogram->n] + 1);
@@ -3076,10 +3077,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     }
     total_crln.normalized = true;
 	
-    if (ms->m1.torque_cache) {
-        free(ms->m1.torque_cache);
-        ms->m1.torque_cache = NULL;
-    }
+if (ms->m1.torque_cache) {
+    ms->m1.torque_cache = NULL;  
+    arena_free(&a);              
+}
 
     if (nswitch_histogram) {
         if (_wrank == 0) {
