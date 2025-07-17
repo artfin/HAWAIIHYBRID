@@ -2070,7 +2070,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
                 if (torq > ms->m1.torque_limit) {
                     all_less_than_limit = false;
                 }
-                if (torqu < ms->m1.torque_limit) {
+                if (torq < ms->m1.torque_limit) {
                     all_more_than_limit = false;
                 }
                 if (!all_less_than_limit && !all_more_than_limit) {
