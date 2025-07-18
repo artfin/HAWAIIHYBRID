@@ -192,23 +192,41 @@ double integrand_M0(hep::mc_point<double> const& x)
     return jac * dipsq * std::exp(-energy * HkT / gT);
 }
 
+
+static gsl_matrix *D1 = NULL; 
+static gsl_matrix *D2 = NULL; 
+static gsl_matrix *dHdp = NULL; 
+static gsl_matrix *dip_lab_dot1 = NULL;
+static gsl_matrix *dip_lab_dot2 = NULL;
+
+void init_integrand_M2()
+{
+    D1 = gsl_matrix_alloc(gms->Q_SIZE, 3);
+    D2 = gsl_matrix_alloc(gms->Q_SIZE, 3);
+    dHdp = gsl_matrix_alloc(1, gms->Q_SIZE);
+    dip_lab_dot1 = gsl_matrix_alloc(1, 3);
+    dip_lab_dot2 = gsl_matrix_alloc(1, 3);
+}
+
+void cleanup_integrand_M2()
+{
+    gsl_matrix_free(D1);
+    gsl_matrix_free(D2);
+    gsl_matrix_free(dHdp);
+    gsl_matrix_free(dip_lab_dot1);
+    gsl_matrix_free(dip_lab_dot2);
+}
+
 double integrand_M2(hep::mc_point<double> const& x)
 {
-    // TODO: adapt for 2 dipoles
     assert(dipole_1 != NULL);
+    assert(dipole_2 != NULL);
 
     assert(gms != NULL);
     assert(gparams != NULL);
     assert(gT > 0);
     
     double h = 1.0e-3;
-    
-    // TODO: move the memory allocation outside this function
-    gsl_matrix *D1 = gsl_matrix_alloc(gms->Q_SIZE, 3);
-    gsl_matrix *D2 = gsl_matrix_alloc(gms->Q_SIZE, 3);
-    gsl_matrix *dHdp = gsl_matrix_alloc(1, gms->Q_SIZE);
-    gsl_matrix *dip_lab_dot1 = gsl_matrix_alloc(1, 3);
-    gsl_matrix *dip_lab_dot2 = gsl_matrix_alloc(1, 3);
     
     double jac;
     double qp[gms->QP_SIZE];
@@ -296,11 +314,6 @@ double integrand_M2(hep::mc_point<double> const& x)
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
     
-    gsl_matrix_free(D1);
-    gsl_matrix_free(D2);
-    gsl_matrix_free(dHdp);
-    gsl_matrix_free(dip_lab_dot1);
-    gsl_matrix_free(dip_lab_dot2);
 
     return jac * dipsq * std::exp(-energy * HkT / gT);
 }
@@ -314,6 +327,10 @@ void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams
     assert(gparams->sampler_Rmin > 0);
     assert(gparams->sampler_Rmax > 0);
 
+    if (integrand == integrand_M2) {
+        init_integrand_M2();
+    }
+
     auto results = hep::mpi_vegas(
         MPI_COMM_WORLD,
         hep::make_integrand<double>(integrand, ms->QP_SIZE),
@@ -325,6 +342,10 @@ void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams
 
     *m = result.value();
     *q = result.error();
+
+    if (integrand == integrand_M2) {
+        cleanup_integrand_M2();
+    }
 }
 
 #ifdef __cplusplus

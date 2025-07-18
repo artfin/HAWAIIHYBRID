@@ -1,4 +1,5 @@
-#define ARENA_REGION_DEFAULT_CAPACITY (32*1024*1024)
+//#define ARENA_REGION_DEFAULT_CAPACITY (32*1024*1024)
+#define ARENA_REGION_DEFAULT_CAPACITY (8*1024)
 
 #define HISTOGRAM_MAX_TPS 50
 
@@ -27,10 +28,12 @@
 // TODO: remove and go through all the places that call 'dipole'
 // dipolePtr dipole = NULL;
 
-dipolePtr dipole_1 = NULL;
-dipolePtr dipole_2 = NULL;
-pesPtr pes       = NULL;
-dpesPtr dpes     = NULL;
+dipolePtr dipole_1       = NULL;
+dipoleFree free_dipole_1 = NULL;
+dipolePtr dipole_2       = NULL;
+dipoleFree free_dipole_2 = NULL;
+pesPtr pes               = NULL;
+dpesPtr dpes             = NULL;
 
 int _wrank = 0;
 int _wsize = 1;
@@ -2635,17 +2638,22 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
         arena_rewind(&a, arena_iter_mark);
     }
 
+    free(base_crln);
     free_cfnc_array(ca_iter);
     free_cfnc_array(ca);
 
+    free_trajectory(&traj);
+
     sb_free(&sb);
-    arena_free(&a);
+    sb_free(&sb_datetime);
 
     if (_wrank == 0) {    
         for (size_t st = 0; st < params->num_satellite_temperatures; ++st) {
             fclose(fps[st]);
         }
     }
+
+    arena_free(&a);
 
     return ca_total;
 } 

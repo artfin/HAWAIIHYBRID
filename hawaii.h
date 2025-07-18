@@ -406,6 +406,10 @@ typedef void (*dipolePtr)(double*, double[3]);
 extern dipolePtr dipole_1;
 extern dipolePtr dipole_2;
 
+typedef void (*dipoleFree)(void);
+extern dipoleFree free_dipole_1;
+extern dipoleFree free_dipole_2;
+
 typedef double (*pesPtr)(double*);
 extern pesPtr pes;
 

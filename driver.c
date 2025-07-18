@@ -1795,7 +1795,7 @@ void *load_symbol(void *handle, const char *symbol_name, bool allow_undefined)
     return symbol;
 }
 
-void setup_dipole(const char *filepath, dipolePtr *dipole_func)
+void setup_dipole(const char *filepath, dipolePtr *dipole_func, dipoleFree *dipole_free)
 {
     PRINT0("\n\n");
     PRINT0("*****************************************************\n");
@@ -1809,26 +1809,32 @@ void setup_dipole(const char *filepath, dipolePtr *dipole_func)
 
     dlerror(); // clear error log
                
-    bool allow_undefined = true;
-    bool must_be_defined = false;
+    bool ALLOW_UNDEFINED = true;
+    bool MUST_BE_DEFINED = false;
 
     void (*dipole_init)(bool);
-    dipole_init = load_symbol(so_handle, "dipole_init", allow_undefined);
-
+    dipole_init = load_symbol(so_handle, "dipole_init", ALLOW_UNDEFINED);
     if (dipole_init != NULL) {
+        INFO("found 'dipole_init' function. Initializing dipole...\n");
         if (_wrank == 0) {
             bool log = true;
-            printf("INFO: found init function for dipole. Initializing...\n");
             dipole_init(log); 
         } else {
             bool log = false;
             dipole_init(log);
         }
     } else {
-        PRINT0("INFO: no 'dipole_init' function found\n");
+        INFO("no 'dipole_init' function found\n");
+    }
+
+    *dipole_free = (dipoleFree) load_symbol(so_handle, "dipole_free", ALLOW_UNDEFINED);
+    if (dipole_free != NULL) {
+        INFO("found 'dipole_free' function.\n")
+    } else {
+        INFO("no 'dipole_free' function found.\n");
     }
     
-    *dipole_func = (dipolePtr) load_symbol(so_handle, "dipole_lab", must_be_defined);
+    *dipole_func = (dipolePtr) load_symbol(so_handle, "dipole_lab", MUST_BE_DEFINED);
 
     PRINT0("Successfully loaded\n");
     PRINT0("*****************************************************\n");
@@ -1908,8 +1914,8 @@ int main(int argc, char* argv[])
 
     const char *filename = shift(&argc, &argv);
 
-    String_Builder sb = {0};
-    if (!read_entire_file(filename, &sb)) {
+    String_Builder file_contents = {0};
+    if (!read_entire_file(filename, &file_contents)) {
         exit(1);
     }
 
@@ -1917,9 +1923,9 @@ int main(int argc, char* argv[])
     PRINT0("*********** HAWAII HYBRID v0.1 **********************\n");
     PRINT0("*****************************************************\n");
     PRINT0("Loaded configuration file: %s\n", filename);
-    PRINT0("%s\n", sb.items);
+    PRINT0("%s\n", file_contents.items);
 
-    Lexer l = lexer_new(filename, sb.items, sb.items + sb.count);
+    Lexer l = lexer_new(filename, file_contents.items, file_contents.items + file_contents.count);
     //print_lexemes(&l);
 
     InputBlock input_block = {0}; 
@@ -1945,7 +1951,7 @@ int main(int argc, char* argv[])
             }
             
             assert(input_block.so_dipole_1 != NULL);
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
@@ -1955,9 +1961,9 @@ int main(int argc, char* argv[])
             break; 
         }
         case CALCULATION_CORRELATION_SINGLE: {
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
             if (input_block.so_dipole_2 != NULL) {
-                setup_dipole(input_block.so_dipole_2, &dipole_2);
+                setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
             } else {
                 dipole_2 = dipole_1;
             }
@@ -1977,10 +1983,16 @@ int main(int argc, char* argv[])
             break;
         } 
         case CALCULATION_CORRELATION_ARRAY: {
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
-            
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
+           
+            // Maybe this creates a bit of a mess when a 'dipole_2' function may be set (equal to 'dipole_1') but its counterpart
+            // 'free_dipole_2' is not set to avoid double free call.
             if (input_block.so_dipole_2 != NULL) {
-                setup_dipole(input_block.so_dipole_2, &dipole_2);
+                if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) == 0) {
+                    dipole_2 = dipole_1;
+                } else {
+                    setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
+                }
             } else {
                 dipole_2 = dipole_1;
             }
@@ -1992,7 +2004,21 @@ int main(int argc, char* argv[])
             double base_temperature = input_block.Temperature;
             CFncArray ca = calculate_correlation_array_and_save(&ms, &calc_params, base_temperature);
 
-            UNUSED(ca);
+            PRINT0("\n\n");
+
+            if (free_dipole_1 != NULL) {
+                INFO("deinitializing dipole_1...\n");
+                free_dipole_1();
+            }
+            
+            if (free_dipole_2 != NULL) {
+                INFO("deinitializing dipole_2...\n");
+                free_dipole_2();
+            }
+
+            free_cfnc_array(ca);
+            free_ms(&ms);
+
             break;
         }
         case CALCULATION_PROCESSING: {
@@ -2004,9 +2030,9 @@ int main(int argc, char* argv[])
             break; 
         }
         case CALCULATION_PHASE_SPACE_M2: {
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
             if (input_block.so_dipole_2 != NULL) {
-                setup_dipole(input_block.so_dipole_2, &dipole_2);
+                setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
             } else {
                 dipole_2 = dipole_1;
             }
@@ -2050,9 +2076,9 @@ int main(int argc, char* argv[])
             break;
         }
         case CALCULATION_PHASE_SPACE_M0: {
-            setup_dipole(input_block.so_dipole_1, &dipole_1);
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
             if (input_block.so_dipole_2 != NULL) {
-                setup_dipole(input_block.so_dipole_2, &dipole_2);
+                setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
             } else {
                 dipole_2 = dipole_1;
             }
@@ -2123,7 +2149,9 @@ int main(int argc, char* argv[])
     dipole(q, dip);  
     printf("DIPOLE VALUE: %.5e %.5e %.5e\n", dip[0], dip[1], dip[2]);
     */
-    
+
+    sb_free(&file_contents);    
+
     MPI_Finalize();
 
     return 0; 

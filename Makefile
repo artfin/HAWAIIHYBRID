@@ -6,6 +6,9 @@ CXX    ?= g++
 MPICC  ?= mpicc 
 MPICXX ?= mpic++ 
 
+# set LD_PRELOAD before running program using sanitizer
+# LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 
+
 # -Wswitch-enum: if default statement is present in the switch case, but not all the enum values are covered, the warning will still be emitted 
 FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0 
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
