@@ -177,7 +177,6 @@ typedef enum {
 
     /* PROCESSING BLOCK */
     KEYWORD_SPECTRUM_FREQUENCY_MAX,
-    KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX,
 
     KEYWORD_COUNT,
 } Keyword;
@@ -239,9 +238,8 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
-    [KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX]    = "CF_EXTRAPOLATION_BEGIN_INDEX",
 }; 
-static_assert(KEYWORD_COUNT == 55, "");
+static_assert(KEYWORD_COUNT == 54, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -300,7 +298,6 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = TOKEN_FLOAT, 
-    [KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX]    = TOKEN_INTEGER, 
 };
 
 typedef struct {
@@ -342,9 +339,33 @@ typedef struct {
     Loc loc;
 } Lexer;
 
+typedef enum {
+    FUNCALL_ARGUMENT_STRING,
+    FUNCALL_ARGUMENT_INTEGER,
+    FUNCALL_ARGUMENT_COUNT,
+} Funcall_Argument_Type; 
+
+const char *FUNCALL_ARGUMENT_TYPES[] = {
+    "ARGUMENT_STRING",
+    "ARGUMENT_INTEGER",
+};
+static_assert(FUNCALL_ARGUMENT_COUNT == 2, "");
+
+typedef struct {
+    Funcall_Argument_Type typ;
+    const char *string_storage;
+    int64_t int_number;
+} Funcall_Argument;
+
+typedef struct {
+    Funcall_Argument *items;
+    size_t count;
+    size_t capacity;
+} Funcall_Arguments;
+
 typedef struct {
     const char *name;
-    const char *arg;
+    Funcall_Arguments args; 
     Loc loc;
 } Funcall;
 
@@ -372,7 +393,6 @@ static const char *AVAILABLE_FUNCS[] = {
 
 typedef struct {
     double spectrum_frequency_max; 
-    size_t cf_extrapolation_begin_index; 
     Funcalls fs;
 } Processing_Params;
 
@@ -786,11 +806,34 @@ void print_params(CalcParams *params) {
 void print_processing_params(Processing_Params *processing_params) {
     printf("Processing_Params:\n");
     printf("  spectrum_frequency_max: %.5e\n", processing_params->spectrum_frequency_max);
-    printf("  cf_extrapolation_begin_index: %zu\n", processing_params->cf_extrapolation_begin_index);
 
+    String_Builder sb = {0};
     for (size_t i = 0; i < processing_params->fs.count; ++i) {
-        printf("  funcall: %s(%s)\n", processing_params->fs.items[i].name, processing_params->fs.items[i].arg);
+        sb_reset(&sb);
+        Funcall *f = &processing_params->fs.items[i];
+
+        for (size_t arg_count = 0; arg_count < f->args.count; ++arg_count) {
+            Funcall_Argument *arg = &f->args.items[arg_count];
+
+            switch (arg->typ) {
+                case FUNCALL_ARGUMENT_INTEGER: {
+                    sb_append_format(&sb, "%zu", arg->int_number);
+                    break;
+                }
+                case FUNCALL_ARGUMENT_STRING: {
+                    sb_append_format(&sb, "\"%s\"", arg->string_storage);
+                    break;
+                }
+                case FUNCALL_ARGUMENT_COUNT: UNREACHABLE("print_processing_params"); 
+            }
+
+            if (arg_count != f->args.count - 1) sb_append_cstring(&sb, ", "); 
+        } 
+
+        printf("  funcall: %s(%.*s)\n", processing_params->fs.items[i].name, (int)sb.count, sb.items);
     }
+
+    sb_free(&sb);
 }
 
 bool read_entire_file(const char *path, String_Builder *sb)
@@ -1248,8 +1291,7 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                 get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
 
                 switch (l->keyword_type) {
-                    case KEYWORD_SPECTRUM_FREQUENCY_MAX:       processing_params->spectrum_frequency_max = l->double_number; break; 
-                    case KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX: processing_params->cf_extrapolation_begin_index = l->int_number; break; 
+                    case KEYWORD_SPECTRUM_FREQUENCY_MAX: processing_params->spectrum_frequency_max = l->double_number; break; 
                     default: {
                         PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
                                l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
@@ -1285,12 +1327,35 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
 
                 get_and_expect_token(l, TOKEN_OPAREN);
                 
-                get_token(l);
-                expect_one_of_tokens(l, 2, TOKEN_CPAREN, TOKEN_DQSTRING);
+                bool finished = false;
+                while (!finished) {
+                    get_token(l);
+                    expect_one_of_tokens(l, 4, TOKEN_CPAREN, TOKEN_COMMA, TOKEN_INTEGER, TOKEN_DQSTRING);
 
-                if (l->token_type == TOKEN_DQSTRING) {
-                    f.arg = strdup(l->string_storage.items);
-                    get_and_expect_token(l, TOKEN_CPAREN);
+                    Funcall_Argument arg = {0};
+
+                    switch (l->token_type) {
+                        case TOKEN_INTEGER: {
+                          arg.typ = FUNCALL_ARGUMENT_INTEGER;
+                          arg.int_number = l->int_number;
+                          da_append(&f.args, arg);
+                          break;
+                        }
+                        case TOKEN_DQSTRING: {
+                          arg.typ = FUNCALL_ARGUMENT_STRING;
+                          arg.string_storage = strdup(l->string_storage.items);
+                          da_append(&f.args, arg);
+                          break;
+                        }
+                        case TOKEN_COMMA: {
+                          break;
+                        }
+                        case TOKEN_CPAREN: {
+                          finished = true;
+                          break;
+                        }
+                        default: UNREACHABLE("parse_processing_block");
+                    }
                 }
 
                 da_append(&processing_params->fs, f);
@@ -1299,12 +1364,6 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
 
             default: UNREACHABLE("parse_processing_block");
         } 
-    }
-    
-    // Setting default values
-    // TODO: is it a good place to set them though?
-    if (processing_params->cf_extrapolation_begin_index <= 0) {
-        processing_params->cf_extrapolation_begin_index = 16384;
     }
 } 
 
@@ -1458,11 +1517,41 @@ void expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, i
     exit(1);
 }
 
-void expect_arg(Funcall *func) {
-    if (func->arg == NULL) {
-        PRINT0("ERROR: %s:%d:%d: missing argument for %s\n",
-                func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name);
+Funcall_Argument shift_funcall_argument(Funcall *func) {
+    assert(func->args.count > 0); 
+    
+    Funcall_Argument arg = func->args.items[0];
+    func->args.items++;
+    func->args.count--;
+
+    return arg; 
+}
+
+void expect_string_funcall_argument(Funcall *func, Funcall_Argument *arg) {
+    if ((arg->typ != FUNCALL_ARGUMENT_STRING) || (arg->string_storage == NULL)) {
+        PRINT0("ERROR: %s:%d:%d: function call %s expects a string argument but got %s\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
+                FUNCALL_ARGUMENT_TYPES[arg->typ]);
         exit(1); 
+    }
+}
+
+void expect_integer_funcall_argument(Funcall *func, Funcall_Argument *arg) {
+    if (arg->typ != FUNCALL_ARGUMENT_INTEGER) {
+        PRINT0("ERROR: %s:%d:%d: function call %s expects an integer argument but got %s\n", 
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                func->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        exit(1);
+    }
+}
+
+
+void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
+    if (func->args.count != narguments) {
+        PRINT0("ERROR: %s:%d:%d: function call %s expects %zu arguments but got %zu\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
+                narguments, func->args.count);
+        exit(1);
     }
 }
 
@@ -1482,8 +1571,10 @@ bool run_processing(Processing_Params *processing_params) {
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            expect_arg(func);
-            const char *filename = processing_params->fs.items[pc].arg;
+            expect_n_funcall_arguments(func, 1); 
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
 
             CFnc cf = {0}; 
             
@@ -1497,7 +1588,7 @@ bool run_processing(Processing_Params *processing_params) {
             //}
 
             stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
-       
+
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
             INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
@@ -1631,13 +1722,22 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
 
-            INFO("Using points starting from %zu for CF extrapolation\n", processing_params->cf_extrapolation_begin_index); 
+            // TODO: is it a good idea to keep a default value here? 
+            int64_t cf_extrapolation_begin_index = 16384; 
+            
+            if (func->args.count == 1) {
+                Funcall_Argument arg = shift_funcall_argument(func);
+                expect_integer_funcall_argument(func, &arg);
+                cf_extrapolation_begin_index = arg.int_number;
+            } 
+
+            INFO("Using points starting from %"PRIu64" for CF extrapolation\n", cf_extrapolation_begin_index); 
             CFnc *cf = &tagged_item.item.cf; 
 
             // I don't want to create an additional Stack_Item for these parameters, so
             // just saving them into Processing_Stack to make them available in the 
             // 'CF_TO_SF' call 
-            stack.wing_params = fit_baseline(cf, processing_params->cf_extrapolation_begin_index);
+            stack.wing_params = fit_baseline(cf, cf_extrapolation_begin_index);
 
             for (size_t i = 0; i < cf->len; ++i) {
                 double wing_value = wingmodel(&stack.wing_params, cf->t[i]); 
@@ -1700,10 +1800,12 @@ bool run_processing(Processing_Params *processing_params) {
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
-            
-            expect_arg(func);
-            const char *filename = processing_params->fs.items[pc].arg;
             CFnc *cf = &tagged_item.item.cf; 
+            
+            expect_n_funcall_arguments(func, 1);
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
 
             if (!write_correlation_function(filename, *cf)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
@@ -1715,10 +1817,12 @@ bool run_processing(Processing_Params *processing_params) {
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
-
-            expect_arg(func);
-            const char *filename = processing_params->fs.items[pc].arg;
             SFnc *sf = &tagged_item.item.sf; 
+
+            expect_n_funcall_arguments(func, 1);
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
             
             if (!write_spectral_function(filename, *sf)) {
                 PRINT0("ERROR: could not write to file '%s'\n", filename);
@@ -1730,10 +1834,12 @@ bool run_processing(Processing_Params *processing_params) {
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
-            
-            expect_arg(func);
-            const char *filename = processing_params->fs.items[pc].arg;
             Spectrum *sp = &tagged_item.item.sp;
+            
+            expect_n_funcall_arguments(func, 1);
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
 
             if (processing_params->spectrum_frequency_max > 0) {
                 assert(sp->len > 1);
