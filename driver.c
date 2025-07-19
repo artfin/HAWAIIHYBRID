@@ -177,6 +177,7 @@ typedef enum {
 
     /* PROCESSING BLOCK */
     KEYWORD_SPECTRUM_FREQUENCY_MAX,
+    KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX,
 
     KEYWORD_COUNT,
 } Keyword;
@@ -238,8 +239,9 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = "JFIN_HISTOGRAM_FILENAME",
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
+    [KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX]    = "CF_EXTRAPOLATION_BEGIN_INDEX",
 }; 
-static_assert(KEYWORD_COUNT == 54, "");
+static_assert(KEYWORD_COUNT == 55, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
@@ -298,6 +300,7 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_JFIN_HISTOGRAM_FILENAME]         = TOKEN_DQSTRING,
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = TOKEN_FLOAT, 
+    [KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX]    = TOKEN_INTEGER, 
 };
 
 typedef struct {
@@ -369,6 +372,7 @@ static const char *AVAILABLE_FUNCS[] = {
 
 typedef struct {
     double spectrum_frequency_max; 
+    size_t cf_extrapolation_begin_index; 
     Funcalls fs;
 } Processing_Params;
 
@@ -782,6 +786,7 @@ void print_params(CalcParams *params) {
 void print_processing_params(Processing_Params *processing_params) {
     printf("Processing_Params:\n");
     printf("  spectrum_frequency_max: %.5e\n", processing_params->spectrum_frequency_max);
+    printf("  cf_extrapolation_begin_index: %zu\n", processing_params->cf_extrapolation_begin_index);
 
     for (size_t i = 0; i < processing_params->fs.count; ++i) {
         printf("  funcall: %s(%s)\n", processing_params->fs.items[i].name, processing_params->fs.items[i].arg);
@@ -1243,10 +1248,8 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                 get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
 
                 switch (l->keyword_type) {
-                    case KEYWORD_SPECTRUM_FREQUENCY_MAX: { 
-                        processing_params->spectrum_frequency_max = l->double_number; break; 
-                    }
-
+                    case KEYWORD_SPECTRUM_FREQUENCY_MAX:       processing_params->spectrum_frequency_max = l->double_number; break; 
+                    case KEYWORD_CF_EXTRAPOLATION_BEGIN_INDEX: processing_params->cf_extrapolation_begin_index = l->int_number; break; 
                     default: {
                         PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
                                l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
@@ -1296,6 +1299,12 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
 
             default: UNREACHABLE("parse_processing_block");
         } 
+    }
+    
+    // Setting default values
+    // TODO: is it a good place to set them though?
+    if (processing_params->cf_extrapolation_begin_index <= 0) {
+        processing_params->cf_extrapolation_begin_index = 16384;
     }
 } 
 
@@ -1622,16 +1631,13 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
 
-            // TODO: make this parameter adjustable from &PROCESSING section          
-            //size_t EXT_RANGE_MIN = 8192;
-            size_t EXT_RANGE_MIN = 16384; 
-            INFO("Using points starting from %zu for CF extrapolation\n", EXT_RANGE_MIN); 
+            INFO("Using points starting from %zu for CF extrapolation\n", processing_params->cf_extrapolation_begin_index); 
             CFnc *cf = &tagged_item.item.cf; 
 
             // I don't want to create an additional Stack_Item for these parameters, so
             // just saving them into Processing_Stack to make them available in the 
             // 'CF_TO_SF' call 
-            stack.wing_params = fit_baseline(cf, EXT_RANGE_MIN);
+            stack.wing_params = fit_baseline(cf, processing_params->cf_extrapolation_begin_index);
 
             for (size_t i = 0; i < cf->len; ++i) {
                 double wing_value = wingmodel(&stack.wing_params, cf->t[i]); 
@@ -2022,8 +2028,13 @@ int main(int argc, char* argv[])
             break;
         }
         case CALCULATION_PROCESSING: {
-            if ((_wrank == 0) && !run_processing(&processing_params)) {
-                PRINT0("ERROR: could not run commands in PROCESSING block\n");
+            if (_wsize > 1) {
+                PRINT0("ERROR: Cannot use MPI parallel processing (mpirun) in this calculation mode. This mode requires thread-based parallelism.\n");
+                exit(1);
+            }
+
+            if (!run_processing(&processing_params)) {
+                printf("ERROR: could not run commands in PROCESSING block\n");
                 exit(1); 
             }
 
