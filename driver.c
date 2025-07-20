@@ -11,6 +11,7 @@
 #define USE_MPI
 #include "hawaii.h"
 #include "hep_hawaii.h"
+#include "loess.hpp"
 
 // TODO: investigate the UNREACHABLE
 // &INPUT
@@ -181,6 +182,12 @@ typedef enum {
     KEYWORD_COUNT,
 } Keyword;
 
+// Some defaults values for variables
+static int64_t DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX = 16384; 
+static size_t DEFAULT_WINDOW_SIZE_MIN = 21;
+static double DEFAULT_WINDOW_SIZE_STEP = 1.0;
+static size_t DEFAULT_WINDOW_SIZE_DELAY = 100;
+
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
     [KEYWORD_PAIR_STATE]                      = "PAIR_STATE",
@@ -342,19 +349,25 @@ typedef struct {
 typedef enum {
     FUNCALL_ARGUMENT_STRING,
     FUNCALL_ARGUMENT_INTEGER,
+    FUNCALL_ARGUMENT_FLOAT,
     FUNCALL_ARGUMENT_COUNT,
 } Funcall_Argument_Type; 
 
 const char *FUNCALL_ARGUMENT_TYPES[] = {
     "ARGUMENT_STRING",
     "ARGUMENT_INTEGER",
+    "ARGUMENT_FLOAT",
 };
-static_assert(FUNCALL_ARGUMENT_COUNT == 2, "");
+static_assert(FUNCALL_ARGUMENT_COUNT == 3, "");
 
 typedef struct {
     Funcall_Argument_Type typ;
+    const char *name;
     const char *string_storage;
     int64_t int_number;
+    double double_number;
+    Loc name_loc;
+    Loc value_loc;
 } Funcall_Argument;
 
 typedef struct {
@@ -389,6 +402,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "D3",
     "DUP",
     "INT3",
+    "SMOOTH",
 };
 
 typedef struct {
@@ -815,6 +829,10 @@ void print_processing_params(Processing_Params *processing_params) {
         for (size_t arg_count = 0; arg_count < f->args.count; ++arg_count) {
             Funcall_Argument *arg = &f->args.items[arg_count];
 
+            if (arg->name != NULL) {
+                sb_append_format(&sb, "%s=", arg->name);
+            }
+
             switch (arg->typ) {
                 case FUNCALL_ARGUMENT_INTEGER: {
                     sb_append_format(&sb, "%zu", arg->int_number);
@@ -822,6 +840,10 @@ void print_processing_params(Processing_Params *processing_params) {
                 }
                 case FUNCALL_ARGUMENT_STRING: {
                     sb_append_format(&sb, "\"%s\"", arg->string_storage);
+                    break;
+                }
+                case FUNCALL_ARGUMENT_FLOAT: {
+                    sb_append_format(&sb, "%.5e", arg->double_number);
                     break;
                 }
                 case FUNCALL_ARGUMENT_COUNT: UNREACHABLE("print_processing_params"); 
@@ -1329,21 +1351,54 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                 
                 bool finished = false;
                 while (!finished) {
-                    get_token(l);
-                    expect_one_of_tokens(l, 4, TOKEN_CPAREN, TOKEN_COMMA, TOKEN_INTEGER, TOKEN_DQSTRING);
-
                     Funcall_Argument arg = {0};
+
+                    get_token(l);
+                    expect_one_of_tokens(l, 6, TOKEN_CPAREN, TOKEN_STRING, TOKEN_COMMA, TOKEN_INTEGER, TOKEN_DQSTRING, TOKEN_FLOAT);
+                   
+                    if (l->token_type == TOKEN_STRING) {
+                        arg.name = strdup(l->string_storage.items);
+                        arg.name_loc = (Loc) {
+                            .input_path = strdup(l->loc.input_path),
+                            .line_number = l->loc.line_number,
+                            .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                        };
+
+                        get_and_expect_token(l, TOKEN_EQ);
+                        get_token(l);
+                    } 
 
                     switch (l->token_type) {
                         case TOKEN_INTEGER: {
                           arg.typ = FUNCALL_ARGUMENT_INTEGER;
                           arg.int_number = l->int_number;
+                          arg.value_loc = (Loc) {
+                              .input_path = strdup(l->loc.input_path),
+                              .line_number = l->loc.line_number,
+                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                          };
                           da_append(&f.args, arg);
                           break;
                         }
                         case TOKEN_DQSTRING: {
                           arg.typ = FUNCALL_ARGUMENT_STRING;
                           arg.string_storage = strdup(l->string_storage.items);
+                          arg.value_loc = (Loc) {
+                              .input_path = strdup(l->loc.input_path),
+                              .line_number = l->loc.line_number,
+                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                          };
+                          da_append(&f.args, arg);
+                          break;
+                        }
+                        case TOKEN_FLOAT: {
+                          arg.typ = FUNCALL_ARGUMENT_FLOAT;
+                          arg.double_number = l->double_number;
+                          arg.value_loc = (Loc) {
+                              .input_path = strdup(l->loc.input_path),
+                              .line_number = l->loc.line_number,
+                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                          };
                           da_append(&f.args, arg);
                           break;
                         }
@@ -1354,7 +1409,11 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
                           finished = true;
                           break;
                         }
-                        default: UNREACHABLE("parse_processing_block");
+                        default: {
+                          PRINT0("ERROR: %s:%d:%d: unexpected argument\n",
+                                  l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1);
+                          exit(1);
+                        } 
                     }
                 }
 
@@ -1545,6 +1604,23 @@ void expect_integer_funcall_argument(Funcall *func, Funcall_Argument *arg) {
     }
 }
 
+void expect_integer_for_funcall_named_argument(Funcall *func, Funcall_Argument *arg) {
+    if (arg->typ != FUNCALL_ARGUMENT_INTEGER) {
+        PRINT0("ERROR: %s:%d:%d: function call %s expects an integer value for named argument '%s' but got %s\n", 
+                arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
+                func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        exit(1);
+    }
+}
+
+void expect_float_for_funcall_named_argument(Funcall *func, Funcall_Argument *arg) {
+    if (arg->typ != FUNCALL_ARGUMENT_FLOAT) {
+        PRINT0("ERROR: %s:%d:%d: function call %s expects a floating-point value for named argument '%s' but got %s\n", 
+                arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
+                func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        exit(1);
+    }
+}
 
 void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
     if (func->args.count != narguments) {
@@ -1554,6 +1630,7 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
         exit(1);
     }
 }
+
 
 bool run_processing(Processing_Params *processing_params) {
     print_processing_params(processing_params);
@@ -1722,11 +1799,19 @@ bool run_processing(Processing_Params *processing_params) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
 
-            // TODO: is it a good idea to keep a default value here? 
-            int64_t cf_extrapolation_begin_index = 16384; 
+            int64_t cf_extrapolation_begin_index = DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX; 
             
-            if (func->args.count == 1) {
+            while (func->args.count > 0) {
                 Funcall_Argument arg = shift_funcall_argument(func);
+               
+                const char *expected_name = "cf_extrapolation_begin_index"; 
+                if (strcasecmp(arg.name, expected_name) != 0) {
+                    PRINT0("ERROR: %s:%d:%d: function call %s expects a named argument %s but got %s\n",
+                            func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                            func->name, expected_name, arg.name);
+                    exit(1);
+                }
+
                 expect_integer_funcall_argument(func, &arg);
                 cf_extrapolation_begin_index = arg.int_number;
             } 
@@ -1830,6 +1915,86 @@ bool run_processing(Processing_Params *processing_params) {
             }
 
            free_sfnc(*sf);
+        } else if (strcasecmp(funcname, "SMOOTH") == 0) {
+
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
+            SFnc *sf = &tagged_item.item.sf;
+
+            size_t grid_npoints = 0;
+            double grid_max = 0.0;
+
+            size_t ws_min = DEFAULT_WINDOW_SIZE_MIN;
+            double ws_step = DEFAULT_WINDOW_SIZE_STEP;
+            size_t ws_delay = DEFAULT_WINDOW_SIZE_DELAY;
+                
+            while (func->args.count > 0) {
+                Funcall_Argument arg = shift_funcall_argument(func);
+
+                if (strcasecmp(arg.name, "grid_npoints") == 0) {
+                    expect_integer_for_funcall_named_argument(func, &arg);
+                    grid_npoints = arg.int_number;
+                } else if (strcasecmp(arg.name, "grid_max") == 0) {
+                    expect_float_for_funcall_named_argument(func, &arg);
+                    grid_max = arg.double_number;
+                } else if (strcasecmp(arg.name, "window_size_min") == 0) {
+                    expect_integer_for_funcall_named_argument(func, &arg);
+                    ws_min = arg.int_number; 
+                } else if (strcasecmp(arg.name, "window_size_step") == 0) {
+                    expect_float_for_funcall_named_argument(func, &arg);
+                    ws_step = arg.double_number;
+                } else if (strcasecmp(arg.name, "window_size_delay") == 0) {
+                    expect_integer_for_funcall_named_argument(func, &arg);
+                    ws_delay = arg.int_number; 
+                } else {
+                    PRINT0("ERROR: %s:%d:%d: function call %s got unexpected named argument %s\n",
+                            arg.name_loc.input_path, arg.name_loc.line_number, arg.name_loc.line_offset,
+                            func->name, arg.name);
+                } 
+            }
+
+            if (grid_npoints == 0) {
+                PRINT0("ERROR: %s:%d:%d: number of grid points for smoothing must be provided\n",
+                        func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+                exit(1);
+            }
+
+            if (grid_max <= 0.0) {
+                PRINT0("ERROR: %s:%d:%d: the ending point of the grid for smoothing must be provided\n",
+                        func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+                exit(1);
+            }
+
+            Smoothing_Config config = {
+                .degree = 3, 
+                .ws_min = ws_min, 
+                .ws_step = ws_step, 
+                .ws_delay = ws_delay, 
+                .ws_cap = 0,
+            }; 
+      
+            INFO("grid_npoints = %zu\n", grid_npoints);
+            INFO("grid_max = %.5e cm-1\n", grid_max); 
+            INFO("window_size_min = %zu\n", ws_min);
+            INFO("window_size_step = %.5e\n", ws_step);
+            INFO("window_size_delay = %zu\n", ws_delay);
+
+            loess_init(sf->nu, sf->data, sf->len);
+            loess_weight = WEIGHT_TRICUBE; 
+       
+            SFnc smoothed = {
+                .nu          = NULL,
+                .data        = NULL,
+                .len         = grid_npoints,
+                .ntraj       = sf->ntraj,
+                .Temperature = sf->Temperature,
+                .normalized  = sf->normalized,
+            };
+
+            smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
+            smoothed.data = loess_apply_smoothing(&config);
+        
+            stack_push_with_type(&stack, (void*) &smoothed, STACK_ITEM_SF, pc_loc);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);

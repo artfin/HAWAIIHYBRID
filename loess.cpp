@@ -1,10 +1,17 @@
-#include "loess.hpp"
+#include <iostream>
+#include <cmath>
+#include <vector>
 
+#include "loess.hpp"
 #include "hawaii.h"
 
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
+#include <Eigen/Dense>
+
+#include <omp.h>
+#include <float.h>
 
 static double *xp = NULL;
 static double *yp = NULL;
@@ -67,7 +74,7 @@ int omp_get_num_threads() { return 1; }
 int omp_get_thread_num() { return 1; }
 #endif // _OPENMP
 
-Arena a = {};
+static Arena a = {};
 
 void loess_init(double *x, double *y, size_t ilen)
 /*
@@ -198,6 +205,10 @@ inline double tricube(double x) {
 inline double bisquare(double x) {
     return (1.0 - x * x) * (1.0 - x * x);  
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 double loess_estimate(double x, size_t window_size, size_t degree)
 /* 
@@ -434,3 +445,7 @@ double *loess_apply_smoothing(Smoothing_Config *config)
 
     return smoothed;
 }
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus

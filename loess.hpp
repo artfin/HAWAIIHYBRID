@@ -1,15 +1,6 @@
 #ifndef LOESS_H_
 #define LOESS_H_
 
-#include <iostream>
-#include <cmath>
-#include <vector>
-
-#include <Eigen/Dense>
-
-#include <omp.h>
-#include <float.h>
-
 /*
  * LOESS: locally weighted polynomial regression
  *
@@ -104,10 +95,18 @@ typedef struct {
 
 extern WEIGHT_FUNC loess_weight;
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 void loess_init(double *x, double *y, size_t len);
 double loess_estimate(double x, size_t window_size, size_t degree);
 double *loess_create_grid(double xmin, double xmax, size_t npoints);
 double *loess_apply_smoothing(Smoothing_Config *config);
 void loess_free();
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
 
 #endif // LOESS_H_

@@ -14,7 +14,7 @@ FLAGS_DEBUG   := -Wall -Wextra -Wswitch-enum -ggdb -O0
 FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 #FLAGS_DEBUG   := -Wall -fsanitize=address -Wextra -Wswitch-enum -ggdb -O0 
 #FLAGS_RELEASE := -Wall -fsanitize=address -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
-FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -O2 # -pg -ggdb 
+FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -ggdb -O2 # -pg 
 FLAGS := $(FLAGS_DEBUG)
 
 LIB_GSL ?= -lgsl -lgslcblas 
@@ -342,8 +342,8 @@ examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o b
 examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
 	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
-driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl # -lasan 
+driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl -fopenmp # -lasan 
 
 d4b.exe: d4b.c $(OBJ)
 	$(CC) $(FLAGS) $(INC) $^ -o $@ $(LIBS) #-lasan 
