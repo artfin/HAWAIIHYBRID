@@ -3933,7 +3933,7 @@ int write_spectrum_ext(FILE *fp, Spectrum sp)
     // truncate the file to a length of 0, effectively clearing its contents
     int fd = fileno(fp); 
     if (ftruncate(fd, 0) < 0) {
-        printf("ERROR: could not truncate file: %s\n", strerror(errno));
+        ERROR("could not truncate file: %s\n", strerror(errno));
         return -1; 
     }
     
@@ -3957,8 +3957,7 @@ int write_spectrum_ext(FILE *fp, Spectrum sp)
     
     if (!sp.normalized) {
         if (sp.ntraj <= 0) {
-            printf("ERROR: cannot normalize spectrum: trajectories count is %.2f\n",
-                    sp.ntraj);
+            ERROR("cannot normalize spectrum: trajectories count is %.2f\n", sp.ntraj);
             exit(1);
         }
     }
@@ -3974,18 +3973,18 @@ int write_spectrum_ext(FILE *fp, Spectrum sp)
     // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
     // and kernel may delay the committing its buffer to the filesystem for some reason 
     if (fflush(fp) != 0) {
-        printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+        ERROR("could not flush the buffer to stream: %s\n", strerror(errno));
         return -1;
     }
    
     // so to force the kernel to commit the buffered data to the filesystem we have to 
     // use 'syncfs' or 'sync' 
     if (syncfs(fd) < 0) {
-        printf("ERROR: could not commit filesystem cache to disk\n");
+        ERROR("could not commit filesystem cache to disk\n");
         return -1; 
     }
     
-    INFO("INFO: wrote %zu characters\n", nchars); 
+    INFO("wrote %zu characters\n", nchars); 
 
     return nchars;
 }
@@ -4398,7 +4397,6 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
     INFO("Reading correlation function from %s\n", filename); 
     INFO("# of lines in header: %zu\n", header_lines);
     
-
     // rewind the file pointer by one line because we read forward while reading header 
     long pos = ftell(fp);
     fseek(fp, pos - strlen(line), SEEK_SET);
@@ -5622,6 +5620,9 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     }
 
     cf_egelstaff.len = cursor;
+    
+    gsl_spline_free(spline);
+    gsl_interp_accel_free(acc);
 
     return cf_egelstaff; 
 }

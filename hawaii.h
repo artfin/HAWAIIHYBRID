@@ -336,6 +336,7 @@ typedef struct {
     size_t capacity;
 } CFncs;
 
+
 /*
  * An array of correlation functions for a fixed 'base temperature'
  * 'base temperature'      -- a temperature for which sampling of initial conditions is performed
@@ -364,7 +365,6 @@ typedef struct {
 } SFnc;
 
 
-// TODO: needs to be consistent with CFnc/SFnc
 typedef struct {
     double *nu;
     double *data;
@@ -374,6 +374,12 @@ typedef struct {
     double Temperature;
     bool normalized;
 } Spectrum;
+
+typedef struct {
+    Spectrum **items;
+    size_t count;
+    size_t capacity;
+} Spectra;
 
 /*
  * MODEL: Lorentzian function shifted upwards by constant: 

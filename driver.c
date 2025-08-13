@@ -395,12 +395,13 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_CF",
     "WRITE_SF",
     "WRITE_SPECTRUM",
+    "ADD_SPECTRA",
     "CF_TO_SF",
     "FIT_BASELINE", // TODO: not descriptive
     "SMOOTH",
     "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE",
     "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE",
-    "AVERAGE_CFS",
+    "AVERAGE_CFS", // TODO: rename to AVERAGE and allow to average not only CFs (is it useful though for other types?)
     "ALPHA",
     "D3",
     "DUP",
@@ -1745,7 +1746,7 @@ bool run_processing(Processing_Params *processing_params) {
                     PRINT0("capacity    = %zu\n", cf->capacity);
                     PRINT0("ntraj       = %.6lf\n", cf->ntraj);
                     PRINT0("Temperature = %.2lf\n", cf->Temperature);
-                    PRINT0("normalized  = %d\n", cf->normalized); 
+                    PRINT0("normalized  = %d\n\n", cf->normalized); 
 
                 } else if (stack_item->typ == STACK_ITEM_SF) {
                     SFnc *sf = &stack_item->item.sf; 
@@ -1755,7 +1756,7 @@ bool run_processing(Processing_Params *processing_params) {
                     PRINT0("capacity    = %zu\n", sf->capacity);
                     PRINT0("ntraj       = %.6lf\n", sf->ntraj);
                     PRINT0("Temperature = %.2lf\n", sf->Temperature);
-                    PRINT0("normalized  = %d\n", sf->normalized);
+                    PRINT0("normalized  = %d\n\n", sf->normalized);
 
                 } else if (stack_item->typ == STACK_ITEM_SPECTRUM) {
                     Spectrum *sp = &stack_item->item.sp;
@@ -1765,11 +1766,95 @@ bool run_processing(Processing_Params *processing_params) {
                     PRINT0("capacity    = %zu\n", sp->capacity);
                     PRINT0("ntraj       = %.6lf\n", sp->ntraj);
                     PRINT0("Temperature = %.2lf\n", sp->Temperature);
-                    PRINT0("normalized  = %d\n", sp->normalized); 
+                    PRINT0("normalized  = %d\n\n", sp->normalized); 
                 } 
             }
 
             return_defer(true); 
+        } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
+            // TODO: allow specifying the desired step through the optional argument
+            Spectra spectra = {0};
+
+            for (size_t i = 0; i < stack.count; ++i) {
+                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *pc_loc);
+                expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_SPECTRUM);
+
+                da_append(&spectra, &tagged_item->item.sp);
+                
+                INFO("popped spectrum (index: %zu) from processing stack\n", spectra.count-1);
+            }
+          
+            if (spectra.count == 0) {
+                ERROR("no spectra found on stack");
+                return_defer(false); 
+            }
+
+            double wn_step = 0.0;
+            double min_freq_boundary = FLT_MAX;
+
+            Spectrum *curr = NULL;
+            Spectrum *prev = NULL;
+            for (size_t i = 0; i < spectra.count; ++i) {
+                if (i > 0) prev = curr;
+                curr = spectra.items[i];
+
+                double s = curr->nu[1] - curr->nu[0];
+                double freq_boundary = s * (curr->len - 1);
+                if (s > wn_step) wn_step = s;
+                if (min_freq_boundary > freq_boundary) min_freq_boundary = freq_boundary; 
+
+                PRINT0("spectrum(%zu): %p => wavenumber step = %.3e, # of trajectories = %.4e\n", i, curr, wn_step, curr->ntraj);
+
+                if ((prev != NULL) && (prev->Temperature != curr->Temperature)) { 
+                    ERROR("temperature mismatch detected at spectrum (index: %zu) with previous ones. Exiting...", i);
+                    return_defer(false); 
+                }
+            }
+
+            size_t len = (size_t) ceil(min_freq_boundary/wn_step) + 1;
+
+            INFO("Resampling spectra using cubic spline interpolation\n");
+            INFO("The following parameters will be used for added spectrum:\n");
+            PRINT0("  wavenumber step = %.5e cm-1\n", wn_step);
+            PRINT0("  wavenumber range  = 0.0 ... %.5e cm-1\n", min_freq_boundary);
+            PRINT0("  number of samples = %zu\n", len);               
+
+            Spectrum added = {
+                .nu = linspace(0.0, wn_step*(len - 1), len), 
+                .data = (double*) malloc(len*sizeof(double)),
+                .len = len,
+                .capacity = len,
+                .ntraj = 0.0,
+                .Temperature = curr->Temperature,
+                .normalized = true,
+            };
+
+            memset(added.data, 0.0, len*sizeof(double));
+
+
+            for (size_t i = 0; i < spectra.count; ++i) { 
+                Spectrum *sp = spectra.items[i];
+
+                gsl_interp_accel *acc = gsl_interp_accel_alloc();
+                gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, sp->len);
+                gsl_spline_init(spline, sp->nu, sp->data, sp->len);
+
+                for (size_t j = 0; j < len; ++j) {
+                    double nu = j * wn_step;
+                    added.data[j] += gsl_spline_eval(spline, nu, acc);
+                }
+
+                added.ntraj += sp->ntraj;
+
+                gsl_spline_free(spline);
+                gsl_interp_accel_free(acc);
+
+                free_spectrum(*sp);
+            }
+            
+            stack.count = 0; // manually resetting the state of the stack instead of pop
+
+            stack_push_with_type(&stack, (void*) &added, STACK_ITEM_SPECTRUM, pc_loc);
 
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
             CFncs cfncs = {0};
@@ -2364,7 +2449,7 @@ int main(int argc, char* argv[])
 
             if (!run_processing(&processing_params)) {
                 PRINT0("\n");
-                ERROR("could not run commands in PROCESSING block\n");
+                ERROR("failed to execute commands in the PROCESSING block\n");
                 exit(1); 
             } 
             
