@@ -1591,7 +1591,7 @@ Funcall_Argument shift_funcall_argument(Funcall *func) {
 
 void expect_string_funcall_argument(Funcall *func, Funcall_Argument *arg) {
     if ((arg->typ != FUNCALL_ARGUMENT_STRING) || (arg->string_storage == NULL)) {
-        PRINT0("ERROR: %s:%d:%d: function call %s expects a string argument but got %s\n",
+        ERROR("%s:%d:%d: function call %s expects a string argument but got %s\n",
                 func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
                 FUNCALL_ARGUMENT_TYPES[arg->typ]);
         exit(1); 
@@ -1600,36 +1600,45 @@ void expect_string_funcall_argument(Funcall *func, Funcall_Argument *arg) {
 
 void expect_integer_funcall_argument(Funcall *func, Funcall_Argument *arg) {
     if (arg->typ != FUNCALL_ARGUMENT_INTEGER) {
-        PRINT0("ERROR: %s:%d:%d: function call %s expects an integer argument but got %s\n", 
-                func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                func->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        ERROR("%s:%d:%d: function call %s expects an integer argument but got %s\n", 
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+              func->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        exit(1);
+    }
+}
+
+void expect_float_funcall_argument(Funcall *func, Funcall_Argument *arg) {
+    if (arg->typ != FUNCALL_ARGUMENT_FLOAT) {
+        ERROR("%s:%d:%d: function call %s expects an argument of type float but got %s\n", 
+              arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
+              func->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
         exit(1);
     }
 }
 
 void expect_integer_for_funcall_named_argument(Funcall *func, Funcall_Argument *arg) {
     if (arg->typ != FUNCALL_ARGUMENT_INTEGER) {
-        PRINT0("ERROR: %s:%d:%d: function call %s expects an integer value for named argument '%s' but got %s\n", 
-                arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
-                func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        ERROR("%s:%d:%d: function call %s expects an integer value for named argument '%s' but got %s\n", 
+              arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
+              func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
         exit(1);
     }
 }
 
 void expect_float_for_funcall_named_argument(Funcall *func, Funcall_Argument *arg) {
     if (arg->typ != FUNCALL_ARGUMENT_FLOAT) {
-        PRINT0("ERROR: %s:%d:%d: function call %s expects a floating-point value for named argument '%s' but got %s\n", 
-                arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
-                func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
+        ERROR("%s:%d:%d: function call %s expects a floating-point value for named argument '%s' but got %s\n", 
+              arg->value_loc.input_path, arg->value_loc.line_number, arg->value_loc.line_offset,
+              func->name, arg->name, FUNCALL_ARGUMENT_TYPES[arg->typ]);
         exit(1);
     }
 }
 
 void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
     if (func->args.count != narguments) {
-        PRINT0("ERROR: %s:%d:%d: function call %s expects %zu arguments but got %zu\n",
-                func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
-                narguments, func->args.count);
+        ERROR("%s:%d:%d: function call %s expects %zu arguments but got %zu\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
+              narguments, func->args.count);
         exit(1);
     }
 }
@@ -1772,8 +1781,26 @@ bool run_processing(Processing_Params *processing_params) {
 
             return_defer(true); 
         } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
-            // TODO: allow specifying the desired step through the optional argument
             Spectra spectra = {0};
+
+            bool wn_step_is_set = false;
+            double wn_step = 0.0;
+
+            while (func->args.count > 0) {
+                Funcall_Argument arg = shift_funcall_argument(func);
+
+                const char *expected_name = "wavenumber_step";
+                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+                    ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
+                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                          func->name, expected_name, arg.name);
+                    exit(1);
+                }
+
+                expect_float_funcall_argument(func, &arg);
+                wn_step = arg.double_number;
+                wn_step_is_set = true;
+            } 
 
             for (size_t i = 0; i < stack.count; ++i) {
                 Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *pc_loc);
@@ -1789,7 +1816,6 @@ bool run_processing(Processing_Params *processing_params) {
                 return_defer(false); 
             }
 
-            double wn_step = 0.0;
             double min_freq_boundary = FLT_MAX;
 
             Spectrum *curr = NULL;
@@ -1800,7 +1826,8 @@ bool run_processing(Processing_Params *processing_params) {
 
                 double s = curr->nu[1] - curr->nu[0];
                 double freq_boundary = s * (curr->len - 1);
-                if (s > wn_step) wn_step = s;
+
+                if (!wn_step_is_set && (s > wn_step)) wn_step = s;
                 if (min_freq_boundary > freq_boundary) min_freq_boundary = freq_boundary; 
 
                 PRINT0("spectrum(%zu): %p => wavenumber step = %.3e, # of trajectories = %.4e\n", i, curr, wn_step, curr->ntraj);
@@ -1952,7 +1979,7 @@ bool run_processing(Processing_Params *processing_params) {
                
                 const char *expected_name = "cf_extrapolation_begin_index"; 
                 if (strcasecmp(arg.name, expected_name) != 0) {
-                    PRINT0("ERROR: %s:%d:%d: function call %s expects a named argument %s but got %s\n",
+                    ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
                             func->loc.input_path, func->loc.line_number, func->loc.line_offset,
                             func->name, expected_name, arg.name);
                     exit(1);
