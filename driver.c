@@ -390,19 +390,21 @@ typedef struct {
 
 static const char *AVAILABLE_FUNCS[] = {
     "READ_CF",
+    "READ_SF",
+    "READ_SPECTRUM",
     "WRITE_CF",
     "WRITE_SF",
     "WRITE_SPECTRUM",
+    "CF_TO_SF",
     "FIT_BASELINE", // TODO: not descriptive
+    "SMOOTH",
     "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE",
     "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE",
-    "CF_TO_SF",
     "AVERAGE_CFS",
     "ALPHA",
     "D3",
     "DUP",
     "INT3",
-    "SMOOTH",
 };
 
 typedef struct {
@@ -1633,6 +1635,9 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
 
 
 bool run_processing(Processing_Params *processing_params) {
+    bool result = true;
+   
+    // TODO: hide the printing of parsed params behind a debug flag 
     print_processing_params(processing_params);
     PRINT0("\n\n");
 
@@ -1656,15 +1661,38 @@ bool run_processing(Processing_Params *processing_params) {
             CFnc cf = {0}; 
             
             if (!read_correlation_function(filename, NULL, &cf)) {
-                PRINT0("ERROR: could not read the file '%s'!\n", filename);
-                return false; 
+                return_defer(false); 
             }
 
-            //for (size_t i = 0; i < cf.len; ++i) {
-            //    cf.t[i] = cf.t[i] * ATU; 
-            //}
-
             stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
+
+        } else if (strcasecmp(funcname, "READ_SF") == 0) {
+            expect_n_funcall_arguments(func, 1); 
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
+
+            SFnc sf = {0}; 
+            
+            if (!read_spectral_function(filename, NULL, &sf)) {
+                return_defer(false); 
+            }
+            
+            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+
+        } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
+            expect_n_funcall_arguments(func, 1); 
+            Funcall_Argument arg = shift_funcall_argument(func);
+            expect_string_funcall_argument(func, &arg);
+            const char *filename = arg.string_storage; 
+           
+            Spectrum sp = {0};
+
+            if (!read_spectrum(filename, NULL, &sp)) {
+                return_defer(false);
+            } 
+            
+            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
@@ -1701,14 +1729,47 @@ bool run_processing(Processing_Params *processing_params) {
             }
         } else if (strcasecmp(funcname, "INT3") == 0) {
             PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
-            PRINT0("  Stack trace:\n");
+            PRINT0("Stack trace:\n");
+            _print0_margin = 4;
             for (size_t i = 0; i < stack.count; ++i) {
-                Loc *loc = &stack.items[i].loc;
-                PRINT0("    %zu: %s created at %s:%d:%d\n", 
-                        i, STACK_ITEM_TYPES[stack.items[i].typ], loc->input_path, loc->line_number, loc->line_offset);
+                Tagged_Stack_Item *stack_item = &stack.items[i];
+                Loc *loc = &stack_item->loc;
+                PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
+                        loc->input_path, loc->line_number, loc->line_offset);
+
+                if (stack_item->typ == STACK_ITEM_CF) {
+                    CFnc *cf = &stack_item->item.cf; 
+                    PRINT0("t           = %p\n", cf->t);
+                    PRINT0("data        = %p\n", cf->data);
+                    PRINT0("len         = %zu\n", cf->len);
+                    PRINT0("capacity    = %zu\n", cf->capacity);
+                    PRINT0("ntraj       = %.6lf\n", cf->ntraj);
+                    PRINT0("Temperature = %.2lf\n", cf->Temperature);
+                    PRINT0("normalized  = %d\n", cf->normalized); 
+
+                } else if (stack_item->typ == STACK_ITEM_SF) {
+                    SFnc *sf = &stack_item->item.sf; 
+                    PRINT0("nu          = %p\n", sf->nu);
+                    PRINT0("data        = %p\n", sf->data);
+                    PRINT0("len         = %zu\n", sf->len);
+                    PRINT0("capacity    = %zu\n", sf->capacity);
+                    PRINT0("ntraj       = %.6lf\n", sf->ntraj);
+                    PRINT0("Temperature = %.2lf\n", sf->Temperature);
+                    PRINT0("normalized  = %d\n", sf->normalized);
+
+                } else if (stack_item->typ == STACK_ITEM_SPECTRUM) {
+                    Spectrum *sp = &stack_item->item.sp;
+                    PRINT0("nu          = %p\n", sp->nu);
+                    PRINT0("data        = %p\n", sp->data);
+                    PRINT0("len         = %zu\n", sp->len);
+                    PRINT0("capacity    = %zu\n", sp->capacity);
+                    PRINT0("ntraj       = %.6lf\n", sp->ntraj);
+                    PRINT0("Temperature = %.2lf\n", sp->Temperature);
+                    PRINT0("normalized  = %d\n", sp->normalized); 
+                } 
             }
 
-            exit(1);  
+            return_defer(true); 
 
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
             CFncs cfncs = {0};
@@ -1850,7 +1911,7 @@ bool run_processing(Processing_Params *processing_params) {
                 stack.wing_params.B = stack.wing_params.B * Xscale; 
                 stack.wing_params.C = stack.wing_params.C * Yscale * Xscale;
              
-                INFO("Adding the delta function as an exponential Q-branch\n"); 
+                INFO("Adding Lorentzian for Q-branch\n"); 
                 for (size_t i = 0; i < sf.len; ++i) { 
                     double wingmodel_image_val = (stack.wing_params.C+stack.wing_params.A)/stack.wing_params.A*wingmodel_image(&stack.wing_params, sf.nu[i]);
                     sf.data[i] += wingmodel_image_val;
@@ -2050,12 +2111,9 @@ bool run_processing(Processing_Params *processing_params) {
         } 
     } 
 
-    return true;
-    
-    //if (processing_params->cf_filename == NULL) {
-    //    PRINT0("ERROR: required field missing: '%s'\n", KEYWORDS[KEYWORD_CF_FILENAME]);
-    //    exit(1);
-    //} 
+defer:
+    _print0_margin = 0;
+    return result;
 }
 
 void *load_symbol(void *handle, const char *symbol_name, bool allow_undefined) 
@@ -2252,7 +2310,7 @@ int main(int argc, char* argv[])
            
             if (_wrank == 0) { 
                 if (!run_processing(&processing_params)) {
-                    PRINT0("ERROR: could not run commands in PROCESSING block\n");
+                    PRINT0("ERROR: an error occured when running PROCESSING block\n");
                     exit(1); 
                 }
             }
@@ -2300,14 +2358,18 @@ int main(int argc, char* argv[])
         }
         case CALCULATION_PROCESSING: {
             if (_wsize > 1) {
-                PRINT0("ERROR: Cannot use MPI parallel processing (mpirun) in this calculation mode. This mode requires thread-based parallelism.\n");
+                ERROR("cannot use MPI parallel processing (mpirun) in this calculation mode. This mode requires thread-based parallelism.\n");
                 exit(1);
             }
 
             if (!run_processing(&processing_params)) {
-                printf("ERROR: could not run commands in PROCESSING block\n");
+                PRINT0("\n");
+                ERROR("could not run commands in PROCESSING block\n");
                 exit(1); 
-            }
+            } 
+            
+            PRINT0("\n");
+            INFO("PROCESSING block run successfully\n") 
 
             break; 
         }

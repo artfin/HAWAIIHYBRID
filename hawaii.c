@@ -4395,76 +4395,9 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
 
     sb_append_null(sb);
   
-    INFO("Reading correlation function from '%s'\n", filename); 
+    INFO("Reading correlation function from %s\n", filename); 
     INFO("# of lines in header: %zu\n", header_lines);
     
-    regex_t regex = {0};
-    int ret;
-    bool regalloc = false;
-    {
-        const char *pattern = "# AVERAGE OVER ([0-9]+\\.[0-9]+) TRAJECTORIES";
-        regalloc = true;
-        if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
-            PRINT0("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
-            return_defer(false); 
-        }
-        
-        regmatch_t matches[2];
-        ret = regexec(&regex, sb->items, 2, matches, 0);
-        if (ret == 0) {
-            // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
-            int start = matches[1].rm_so; // Start position of the match
-            int end = matches[1].rm_eo;   // End position of the match
-            int len = end - start;
-
-            char matched_string[len + 1];
-            strncpy(matched_string, sb->items + start, len);
-            matched_string[len] = '\0';
-
-            cf->ntraj = strtod(matched_string, NULL);
-            INFO("Captured number of trajectories: %lf\n", cf->ntraj);
-        } else if (ret == REG_NOMATCH) {
-            PRINT0("WARNING: No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
-        } else {
-            char error[256];
-            regerror(ret, &regex, error, sizeof(error));
-            PRINT0("ERROR: regex match failed: %s\n", error);
-            return_defer(false); 
-        }
-
-        // free all the stroage in a regex_t structure before using it for another expression
-        regfree(&regex);
-    }
-    {
-        const char *pattern = "# TEMPERATURE: ([0-9]+\\.[0-9]+)";
-        if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
-            PRINT0("ERROR: Could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
-            return_defer(false); 
-        }
-        
-        regmatch_t matches[2];
-        ret = regexec(&regex, sb->items, 2, matches, 0);
-        if (ret == 0) {
-            // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
-            int start = matches[1].rm_so; // Start position of the match
-            int end = matches[1].rm_eo;   // End position of the match
-            int len = end - start;
-
-            char matched_string[len + 1];
-            strncpy(matched_string, sb->items + start, len);
-            matched_string[len] = '\0';
-
-            cf->Temperature = strtod(matched_string, NULL);
-            INFO("Captured temperature: %lf\n", cf->Temperature);
-        } else if (ret == REG_NOMATCH) {
-            WARNING("No match found for pattern '%s' in file '%s'. Skipping...\n", pattern, filename);
-        } else {
-            char error[256];
-            regerror(ret, &regex, error, sizeof(error));
-            PRINT0("ERROR: regex match failed: %s\n", error);
-            return_defer(false); 
-        }
-    }
 
     // rewind the file pointer by one line because we read forward while reading header 
     long pos = ftell(fp);
@@ -4475,8 +4408,12 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
     cf->t    = (double*) malloc(INIT_CAPACITY * sizeof(double));
     cf->data = (double*) malloc(INIT_CAPACITY * sizeof(double));
     cf->len = 0;
+    cf->ntraj = 0;
     cf->capacity = INIT_CAPACITY;
     cf->normalized = true;
+
+    parse_number_of_trajectories_from_header(sb->items, &cf->ntraj);
+    parse_temperature_from_header(sb->items, &cf->Temperature);
 
     size_t lineno = header_lines + 1;
     double vt, vc;
@@ -4514,7 +4451,6 @@ defer:
         sb_free(sb);
         free(sb);
     }
-    if (regalloc) regfree(&regex);
     return result;
 }
 
@@ -4679,13 +4615,20 @@ int average_correlation_functions__impl(CFnc *average, int arg_count,  ...)
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf) 
 {
     bool result = true;
+    bool sb_should_be_freed = false;
 
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
-        printf("Error: could not open the file '%s': %s\n", filename, strerror(errno));
+        ERROR("could not open the file '%s': %s\n", filename, strerror(errno));
         return_defer(false); 
     }
-  
+ 
+    if (sb == NULL) {
+        sb = (String_Builder*) malloc(sizeof(String_Builder));
+        memset(sb, 0, sizeof(String_Builder));
+        sb_should_be_freed = true;
+    }
+
     char* line = NULL;
     size_t n;
 
@@ -4696,13 +4639,6 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
 
         if (line[0] != '#') break;
 
-        size_t new_count = sb->count + n;
-        if (new_count > sb->capacity) {
-            sb->items = (char*) realloc(sb->items, new_count);
-            assert((sb->items != NULL) && "ASSERT: not enough memory!\n");
-            sb->capacity = new_count;
-        }
-
         sb_append(sb, line, n);
 
         free(line);
@@ -4710,8 +4646,11 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
 
         header_lines++;
     }
-   
-    printf("# of lines in header: %zu\n", header_lines);
+
+    sb_append_null(sb);
+
+    INFO("Reading spectral function from %s\n", filename);
+    INFO("# of lines in header: %zu\n", header_lines);
 
     // rewind the file pointer by one line because we read forward while reading header 
     long pos = ftell(fp);
@@ -4719,10 +4658,15 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
 
     size_t INIT_CAPACITY = 4096;
 
-    sf->nu   = (double*) malloc(INIT_CAPACITY * sizeof(double));
-    sf->data = (double*) malloc(INIT_CAPACITY * sizeof(double));
+    sf->nu   = (double*) realloc(sf->nu, INIT_CAPACITY * sizeof(double));
+    sf->data = (double*) realloc(sf->data, INIT_CAPACITY * sizeof(double));
     sf->len = 0;
+    sf->ntraj = 0;
     sf->capacity = INIT_CAPACITY;
+    sf->normalized = true;
+
+    parse_number_of_trajectories_from_header(sb->items, &sf->ntraj);
+    parse_temperature_from_header(sb->items, &sf->Temperature);
 
     size_t lineno = header_lines + 1;
     double vnu, vsf;
@@ -4739,12 +4683,12 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
         }
 
         if (isnan(vnu)) {
-            printf("ERROR: could not parse frequency value on line %zu!\n", lineno);
+            ERROR("could not parse frequency value on line %zu\n", lineno);
             return_defer(false); 
         }
 
         if (isnan(vsf)) {
-            printf("ERROR: could not parse spectral function value on line %zu!\n", lineno);
+            ERROR("could not parse spectral function value on line %zu\n", lineno);
             return_defer(false); 
         }
      
@@ -4756,8 +4700,193 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
 
 defer:
     if (fp) fclose(fp);
+    if (sb_should_be_freed) {
+        sb_free(sb);
+        free(sb);
+    }
     return result;
 }
+
+bool parse_temperature_from_header(const char *header, double *Temperature) 
+{
+    regex_t regex = {0};
+    bool result = true;
+
+    const char *pattern = "# TEMPERATURE: ([0-9]+\\.[0-9]+)";
+    if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
+        ERROR("could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+        return_defer(false); 
+    }
+
+    regmatch_t matches[2];
+    int ret = regexec(&regex, header, 2, matches, 0);
+    if (ret == 0) {
+        // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+        int start = matches[1].rm_so; // Start position of the match
+        int end = matches[1].rm_eo;   // End position of the match
+        int len = end - start;
+
+        char matched_string[len + 1];
+        strncpy(matched_string, header + start, len);
+        matched_string[len] = '\0';
+
+        *Temperature = strtod(matched_string, NULL);
+        INFO("captured temperature: %lf\n", *Temperature);
+        return_defer(true);
+
+    } else if (ret == REG_NOMATCH) {
+        WARNING("no match found for pattern '%s' in header\n", pattern);
+        return_defer(false);
+
+    } else {
+        char error[256];
+        regerror(ret, &regex, error, sizeof(error));
+        ERROR("regex match failed: %s\n", error);
+        return_defer(false); 
+    }
+defer:
+    regfree(&regex);
+    return result;
+}
+
+bool parse_number_of_trajectories_from_header(const char *header, double *ntraj)
+{
+    regex_t regex = {0};
+    bool result = true;
+
+    const char *pattern = "# AVERAGE OVER ([0-9]+\\.[0-9]+) TRAJECTORIES";
+    if (regcomp(&regex, pattern, REG_EXTENDED) > 0) {
+        ERROR("could not compile regex with pattern '%s': %s\n", pattern, strerror(errno));
+        return_defer(false); 
+    }
+
+    regmatch_t matches[2];
+    int ret = regexec(&regex, header, 2, matches, 0);
+    if (ret == 0) {
+        // the zeroth element of 'matches' is the whole string '# AVERAGE OVER ...', so we skip it
+        int start = matches[1].rm_so; // Start position of the match
+        int end = matches[1].rm_eo;   // End position of the match
+        int len = end - start;
+
+        char matched_string[len + 1];
+        strncpy(matched_string, header + start, len);
+        matched_string[len] = '\0';
+
+        *ntraj = strtod(matched_string, NULL);
+        INFO("captured number of trajectories: %lf\n", *ntraj);
+        return_defer(true);
+
+    } else if (ret == REG_NOMATCH) {
+        WARNING("no match found for pattern '%s' in header\n", pattern);
+        return_defer(false);
+
+    } else {
+        char error[256];
+        regerror(ret, &regex, error, sizeof(error));
+        ERROR("regex match failed: %s\n", error);
+        return_defer(false); 
+    }
+
+defer:
+    regfree(&regex);
+    return result;
+}
+
+bool read_spectrum(const char *filename, String_Builder *sb, Spectrum *sp)
+{
+    bool result = true;
+    bool sb_should_be_freed = false;
+    
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        ERROR("could not open the file '%s': %s\n", filename, strerror(errno));
+        return_defer(false); 
+    }
+ 
+    if (sb == NULL) {
+        sb = (String_Builder*) malloc(sizeof(String_Builder));
+        memset(sb, 0, sizeof(String_Builder));
+        sb_should_be_freed = true;
+    }
+    
+    char* line = NULL;
+    size_t n;
+
+    size_t header_lines = 0;
+
+    while (getline(&line, &n, fp) > 0) {
+        n = strlen(line);
+
+        if (line[0] != '#') break;
+        
+        sb_append(sb, line, n);
+    
+        free(line);
+        line = NULL; 
+
+        header_lines++;
+    }
+
+    sb_append_null(sb);
+    
+    INFO("Reading spectrum from %s\n", filename);
+    INFO("# of lines in header: %zu\n", header_lines);
+
+    // rewind the file pointer by one line because we read forward while reading header 
+    long pos = ftell(fp);
+    fseek(fp, pos - strlen(line), SEEK_SET);
+    
+    size_t INIT_CAPACITY = 4096;
+    
+    sp->nu   = (double*) realloc(sp->nu, INIT_CAPACITY * sizeof(double));
+    sp->data = (double*) realloc(sp->data, INIT_CAPACITY * sizeof(double));
+    sp->len = 0;
+    sp->ntraj = 0;
+    sp->capacity = INIT_CAPACITY;
+    sp->normalized = true;
+
+    parse_number_of_trajectories_from_header(sb->items, &sp->ntraj);
+    parse_temperature_from_header(sb->items, &sp->Temperature);
+
+    size_t lineno = header_lines + 1;
+    double vnu, vsp;
+
+    while (fscanf(fp, "%lf %lf", &vnu, &vsp) == 2) {
+        if (sp->len + 1 > sp->capacity) {
+            size_t new_capacity = 2 * sp->capacity;
+
+            sp->nu = (double*) realloc(sp->nu, new_capacity*sizeof(double));
+            assert((sp->nu != NULL) && "ASSERT: not enough memory!");
+            sp->data = (double*) realloc(sp->data, new_capacity*sizeof(double));
+            assert((sp->data != NULL) && "ASSERT: not enough memory!");
+            sp->capacity = new_capacity; 
+        }
+
+        if (isnan(vnu)) {
+            ERROR("%s:%zu: could not parse frequency value\n", filename, lineno);
+            return_defer(false); 
+        }
+
+        if (isnan(vsp)) {
+            ERROR("%s:%zu: could not parse spectrum value\n", filename, lineno);
+            return_defer(false);
+        }
+
+        sp->nu[sp->len] = vnu;
+        sp->data[sp->len] = vsp;
+        sp->len++;
+        lineno++;
+    }
+
+defer:
+    if (fp) fclose(fp);
+    if (sb_should_be_freed) {
+        sb_free(sb);
+        free(sb);
+    }
+    return result;
+}
+
 
 bool writetxt(const char *filename, double *x, double *y, size_t len, const char *header) 
 {
@@ -5304,6 +5433,7 @@ SFnc idct_cf_to_sf(CFnc cf)
         .nu          = (double*) malloc(cf.len * sizeof(double)),
         .data        = idct(cf.data, cf.len),
         .len         = cf.len,
+        .capacity    = cf.len,
         .Temperature = cf.Temperature,
         .ntraj       = cf.ntraj,
         .normalized  = cf.normalized,

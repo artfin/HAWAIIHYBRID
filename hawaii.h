@@ -125,12 +125,16 @@ extern int  _print0_margin;
     }
 
 #define WARNING(...)                                                \
-    if ((_wrank == 0) && !_print0_suppress_info) {                  \
+    if (_wrank == 0) {                                              \
         if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
-        printf("\n");                                               \
         printf("WARNING: "); printf(__VA_ARGS__);                   \
-        printf("\n");                                               \
     }
+
+#define ERROR(...) \
+    if (_wrank == 0) {                                            \
+      if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+      printf("ERROR: "); printf(__VA_ARGS__);                     \
+    } 
 
 #define PRINT0(...)                                               \
     if (_wrank == 0) {                                            \
@@ -548,8 +552,12 @@ int write_spectral_function_ext(FILE *fp, SFnc sf);
 bool write_spectrum(const char *filename, Spectrum sp);
 int write_spectrum_ext(FILE *fp, Spectrum sp);
 
+bool parse_number_of_trajectories_from_header(const char *header, double *ntraj);
+bool parse_temperature_from_header(const char *header, double *Temperature); 
+
 bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *cf); 
 bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf); 
+bool read_spectrum(const char *filename, String_Builder *sb, Spectrum *sp);
 
 bool average_correlation_functions(CFnc *average, CFncs cfncs);
 #define average_correlation_functions_ext(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
