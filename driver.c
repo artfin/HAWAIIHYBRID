@@ -421,6 +421,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "D4a",
     "ALPHA",
     "DUP",
+    "DROP",
     "INT3",
 };
 
@@ -1679,6 +1680,20 @@ bool run_processing(Processing_Params *processing_params) {
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
+        /*
+         * \texttt{READ\_CF} reads a correlation function from a file specified by a string 
+         * argument. 
+         * Expects exactly one string argument (the file path). The correlation function is 
+         * read into a \texttt{CFnc} structure and pushed onto the processing stack. 
+         * The file may optionally contain a header with:
+         * \begin{itemize} 
+         * - \item a line \texttt{\# TEMPERATURE: <value>} (floating-point value, K)
+         * - \item a line \texttt{\# AVERAGE OVER <value> TRAJECTORIES} (floating-point value, K).
+         * \end{itemize}
+         * %
+         * The time values are expected to be in atomic time units, and correlation function 
+         * values are expected in (m$^3 \cdot$ atomic unit of dipole$^2$) units.
+         */
             expect_n_funcall_arguments(func, 1); 
             Funcall_Argument arg = shift_funcall_argument(func);
             expect_string_funcall_argument(func, &arg);
@@ -1719,6 +1734,13 @@ bool run_processing(Processing_Params *processing_params) {
             } 
             
             stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+
+        } else if (strcasecmp(funcname, "DROP") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
+            INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
+                 STACK_ITEM_TYPES[tagged_item.typ],
+                 tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
