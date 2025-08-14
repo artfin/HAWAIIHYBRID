@@ -345,6 +345,9 @@ examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/a
 driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
 	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl -fopenmp # -lasan 
 
+hawaii_test.exe: hawaii_test.c driver.exe
+	$(CC) $(FLAGS) -isystem ./thirdparty/ $< -o $@
+
 d4b.exe: d4b.c $(OBJ)
 	$(CC) $(FLAGS) $(INC) $^ -o $@ $(LIBS) #-lasan 
 
