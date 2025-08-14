@@ -13,6 +13,9 @@
 #include "hep_hawaii.h"
 #include "loess.hpp"
 
+#define FLAG_IMPLEMENTATION
+#include "flag.h"
+
 // TODO: investigate a normalization issue within
 //   CFnc dct_sf_to_cf(SFnc sf);
 
@@ -1663,10 +1666,6 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
 
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
-   
-    // TODO: hide the printing of parsed params behind a debug flag 
-    print_processing_params(processing_params);
-    PRINT0("\n\n");
 
     Processing_Stack stack = {0};
 
@@ -2433,20 +2432,12 @@ void setup_pes(InputBlock *input_block)
     PRINT0("\n\n");
 }
 
-char* shift(int *argc, char ***argv)
+void usage()
 {
-    assert(*argc > 0);
-    char *result = *argv[0];
-
-    *argc -= 1;
-    *argv += 1;
-
-    return result; 
-}
-
-void usage(const char *program_path)
-{
-    PRINT0("Usage: %s <configuration-file>\n", program_path);
+    PRINT0("Hawaii Hybrid Driver\n");
+    PRINT0("Usage: %s <configuration-file> [OPTIONS]\n", flag_program_name());
+    PRINT0("  OPTIONS:\n");
+    flag_print_options(stdout); 
 }
 
 int main(int argc, char* argv[]) 
@@ -2456,15 +2447,23 @@ int main(int argc, char* argv[])
     INIT_WRANK;
     INIT_WSIZE;
 
-    char *program_path = shift(&argc, &argv);
+    bool *debug = flag_bool("debug", false, "Show parsed tokens for debugging");
 
-    if (argc <= 0) {
-        usage(program_path);
-        PRINT0("ERROR: a configuration file must be provided\n");
+    if (!flag_parse(argc, argv)) {
+        usage();
+        exit(1);
+    }
+    
+    int rest_argc = flag_rest_argc();
+    char **rest_argv = flag_rest_argv();
+
+    if (rest_argc > 1) {
+        PRINT0("ERROR: only 1 non flag argument is expected\n");
+        usage();
         exit(1); 
     }
 
-    const char *filename = shift(&argc, &argv);
+    const char *filename = *rest_argv;
 
     String_Builder file_contents = {0};
     if (!read_entire_file(filename, &file_contents)) {
@@ -2478,7 +2477,6 @@ int main(int argc, char* argv[])
     PRINT0("%s\n", file_contents.items);
 
     Lexer l = lexer_new(filename, file_contents.items, file_contents.items + file_contents.count);
-    //print_lexemes(&l);
 
     InputBlock input_block = {0}; 
     Monomer monomer1  = {0};
@@ -2487,14 +2485,17 @@ int main(int argc, char* argv[])
     Processing_Params processing_params = {0};
     parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
-    /*
-    print_input_block(&input_block);
-    print_params(&params); 
-    print_input_block(&input_block);
-    print_monomer(&monomer1);
-    print_monomer(&monomer2);
-    */
-
+    if (*debug) {
+        PRINT0("--------------------------------------------------\n");
+        PRINT0("---------- PARSED PARAMETERS ---------------------\n");
+        PRINT0("--------------------------------------------------\n");
+        print_input_block(&input_block);
+        print_monomer(&monomer1);
+        print_monomer(&monomer2);
+        print_processing_params(&processing_params);
+        PRINT0("--------------------------------------------------\n\n\n");
+    }
+    
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
             if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
