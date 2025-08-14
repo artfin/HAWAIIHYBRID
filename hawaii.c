@@ -5457,6 +5457,7 @@ CFnc dct_sf_to_cf(SFnc sf)
         .len         = sf.len,
         .Temperature = sf.Temperature,
         .ntraj       = sf.ntraj,
+        .normalized  = sf.normalized,
     };
 
     double numax, nustep;
@@ -5544,6 +5545,7 @@ SFnc desymmetrize_schofield(SFnc sf)
         .nu          = (double*) malloc(sf.len * sizeof(double)),
         .data        = (double*) malloc(sf.len * sizeof(double)),
         .len         = sf.len,
+        .capacity    = sf.capacity,
         .ntraj       = sf.ntraj,
         .Temperature = sf.Temperature,
         .normalized  = sf.normalized,
@@ -5559,13 +5561,37 @@ SFnc desymmetrize_schofield(SFnc sf)
     return sfd;
 }
 
+SFnc desymmetrize_d1(SFnc sf) 
+{
+    SFnc sfd = {
+        .nu          = (double*) malloc(sf.len * sizeof(double)),
+        .data        = (double*) malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .ntraj       = sf.ntraj,
+        .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
+    };
+    
+    memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
+    
+    for (size_t i = 0; i < sf.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
+        sfd.data[i] = sf.data[i] * 2.0 / (1.0 + exp(-hnukt));
+    }
+
+    return sfd;
+
+}
+
 SFnc desymmetrize_d2(SFnc sf) 
 {
     SFnc sfd = {
-        .nu   = (double*) malloc(sf.len * sizeof(double)),
-        .data = (double*) malloc(sf.len * sizeof(double)),
-        .len  = sf.len,
+        .nu          = (double*) malloc(sf.len * sizeof(double)),
+        .data        = (double*) malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .ntraj       = sf.ntraj,
         .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
     };
 
     memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
@@ -5588,7 +5614,7 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     // t -> sqrt( t(t - i*hbar/kT) ) 
     //
     double cc = HBar / Boltzmann / cf.Temperature / ATU / 2.0;
-    printf("Egelstaff time constant: %.5e\n", cc);
+    INFO("Egelstaff time constant: %.5e\n", cc);
   
     assert(cc < cf.t[cf.len - 1]);
     
@@ -5601,10 +5627,12 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     // we don't know the length of the Egelstaff correlation function beforehand
     // because of that we resort to reserving the `sz` elements as a close approximation to CF length
     CFnc cf_egelstaff = {
-        .t    = (double*) malloc(cf.len * sizeof(double)),
-        .data = (double*) malloc(cf.len * sizeof(double)),
-        .capacity = cf.len,
-        .Temperature = cf.Temperature,
+        .t            = (double*) malloc(cf.len * sizeof(double)),
+        .data         = (double*) malloc(cf.len * sizeof(double)),
+        .capacity     = cf.len,
+        .ntraj        = cf.ntraj,
+        .Temperature  = cf.Temperature,
+        .normalized   = cf.normalized,
     };
   
     size_t cursor = 0;
@@ -5627,9 +5655,65 @@ CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization)
     return cf_egelstaff; 
 }
 
-SFnc desymmetrize_frommhold(CFnc cf)
+
+SFnc desymmetrize_frommhold(SFnc sf)
 {
+    CFnc cf     = dct_sf_to_cf(sf);
     CFnc cf_egf = egelstaff_time_transform(cf, true);
+    
+    size_t padded_len = 0; 
+    double *padded_t    = pad_to_power_of_two(cf_egf.t, cf_egf.len, &padded_len);
+    double *padded_data = pad_to_power_of_two(cf_egf.data, cf_egf.len, &padded_len);
+    INFO("padding 't' and 'data' arrays of CF to %zu\n", padded_len);
+
+    free(cf_egf.t);
+    free(cf_egf.data);
+    cf_egf.t    = padded_t;
+    cf_egf.data = padded_data;
+    cf_egf.len  = padded_len;
+
+    SFnc sf_egf = idct_cf_to_sf(cf_egf);
+
+    return desymmetrize_schofield(sf_egf);
+}
+
+SFnc desymmetrize_egelstaff_from_cf(CFnc cf)
+{
+    bool frommhold_renormalization = false;
+    CFnc cf_egf = egelstaff_time_transform(cf, frommhold_renormalization);
+
+    size_t padded_len = 0; 
+    double *padded_t    = pad_to_power_of_two(cf_egf.t, cf_egf.len, &padded_len);
+    double *padded_data = pad_to_power_of_two(cf_egf.data, cf_egf.len, &padded_len);
+    INFO("padding 't' and 'data' arrays of CF to %zu\n", padded_len);
+
+    free(cf_egf.t);
+    free(cf_egf.data);
+    cf_egf.t    = padded_t;
+    cf_egf.data = padded_data;
+    cf_egf.len  = padded_len;
+
+    SFnc sf_egf = idct_cf_to_sf(cf_egf);
+
+    return desymmetrize_schofield(sf_egf);
+}
+
+SFnc desymmetrize_frommhold_from_cf(CFnc cf)
+{
+    bool frommhold_renormalization = true;
+    CFnc cf_egf = egelstaff_time_transform(cf, frommhold_renormalization);
+    
+    size_t padded_len = 0; 
+    double *padded_t    = pad_to_power_of_two(cf_egf.t, cf_egf.len, &padded_len);
+    double *padded_data = pad_to_power_of_two(cf_egf.data, cf_egf.len, &padded_len);
+    INFO("padding 't' and 'data' arrays of CF to %zu\n", padded_len);
+
+    free(cf_egf.t);
+    free(cf_egf.data);
+    cf_egf.t    = padded_t;
+    cf_egf.data = padded_data;
+    cf_egf.len  = padded_len;
+
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
     return desymmetrize_schofield(sf_egf);
@@ -5637,8 +5721,20 @@ SFnc desymmetrize_frommhold(CFnc cf)
 
 SFnc desymmetrize_egelstaff(SFnc sf)
 {
-    CFnc cf     = dct_sf_to_cf(sf);
+    CFnc cf     = dct_sf_to_cf(sf); // TODO: does this function work correctly? 
     CFnc cf_egf = egelstaff_time_transform(cf, false);
+
+    size_t padded_len = 0; 
+    double *padded_t    = pad_to_power_of_two(cf_egf.t, cf_egf.len, &padded_len);
+    double *padded_data = pad_to_power_of_two(cf_egf.data, cf_egf.len, &padded_len);
+    INFO("padding 't' and 'data' arrays of CF to %zu\n", padded_len);
+
+    free(cf_egf.t);
+    free(cf_egf.data);
+    cf_egf.t    = padded_t;
+    cf_egf.data = padded_data;
+    cf_egf.len  = padded_len;
+
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
     return desymmetrize_schofield(sf_egf);

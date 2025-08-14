@@ -13,6 +13,9 @@
 #include "hep_hawaii.h"
 #include "loess.hpp"
 
+// TODO: investigate a normalization issue within
+//   CFnc dct_sf_to_cf(SFnc sf);
+
 // TODO: investigate the UNREACHABLE
 // &INPUT
 //  PAIR_STATE = ALL
@@ -20,7 +23,16 @@
 //  TEMPERATURE = 300
 //&END
 
-
+// TODO: produces incorrect error message
+// &INPUT
+//   CALCULATION_TYPE = PROCESSING
+// &END
+// 
+// &PROCESSING
+//     READ_CF("He-Ar/CF-F/CF-F-He-Ar-1000.0.txt")
+//     CF_TO_SF()
+//     COMPUTE_M0_QUANTUM_DETAILED_BALANCE()
+// $END
 
 // TODO: add 'where_begin' field for token start in the Lexer
 
@@ -399,11 +411,15 @@ static const char *AVAILABLE_FUNCS[] = {
     "CF_TO_SF",
     "FIT_BASELINE", // TODO: not descriptive
     "SMOOTH",
-    "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE",
-    "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE",
+    "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE",
+    "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE",
     "AVERAGE_CFS", // TODO: rename to AVERAGE and allow to average not only CFs (is it useful though for other types?)
-    "ALPHA",
+    "D1",
+    "D2",
     "D3",
+    "D4",
+    "D4a",
+    "ALPHA",
     "DUP",
     "INT3",
 };
@@ -1914,10 +1930,64 @@ bool run_processing(Processing_Params *processing_params) {
             stack.count = 0; // manually resetting the state of the stack instead of 'pop'
 
             stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF, pc_loc);
+        
+        } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
+            expect_n_funcall_arguments(func, 1);
 
-        } else if (strcasecmp(funcname, "COMPUTE_M0_CLASSICAL_DETAILED_BALANCE") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+            SFnc *sf = &tagged_item.item.sf;
+
+            int n;
+            {
+                Funcall_Argument arg = shift_funcall_argument(func);
+                const char *expected_name = "n";
+                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+                    ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
+                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                          func->name, expected_name, arg.name);
+                    exit(1);
+                }
+                expect_integer_funcall_argument(func, &arg);
+                n = arg.int_number;
+            }
+            
+            INFO("Spectral moment order: n = %d\n", n); 
+
+            if (processing_params->spectrum_frequency_max > 0) {
+                assert(sf->len > 1);
+                double dnu = sf->nu[1] - sf->nu[0];
+                size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                sf->len = (sf->len > trim_len) ? trim_len : sf->len;
+
+                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
+            }
+
+            double Mn = compute_Mn_from_sf_using_quantum_detailed_balance(*sf, n);
+            INFO("Spectral moment using quantum detailed balance [based on SF] = %.5e\n", Mn); 
+        
+        } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
+            expect_n_funcall_arguments(func, 1);
+
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
             expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
+
+            int n;
+            {
+                Funcall_Argument arg = shift_funcall_argument(func);
+                const char *expected_name = "n";
+                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+                    ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
+                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                          func->name, expected_name, arg.name);
+                    exit(1);
+                }
+                expect_integer_funcall_argument(func, &arg);
+                n = arg.int_number;
+            }
+            
+            INFO("Spectral moment order: n = %d\n", n); 
 
             if (tagged_item.typ == STACK_ITEM_SF) {
                 SFnc *sf = &tagged_item.item.sf;
@@ -1925,47 +1995,20 @@ bool run_processing(Processing_Params *processing_params) {
                 if (processing_params->spectrum_frequency_max > 0) {
                     assert(sf->len > 1);
                     double dnu = sf->nu[1] - sf->nu[0];
-                    size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                    sf->len = (sf->len > n) ? n : sf->len;
-                    
-                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+                    size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
+                    sf->len = (sf->len > trim_len) ? trim_len : sf->len;
+
+                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
                 }
 
-                double M0 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 0);
-                INFO("M0 BASED ON SPECTRAL FUNCTION = %.5e\n", M0); 
+                double Mn = compute_Mn_from_sf_using_classical_detailed_balance(*sf, n);
+                INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn); 
             } else if (tagged_item.typ == STACK_ITEM_CF) {
                 CFnc *cf = &tagged_item.item.cf;
 
-                double M0;
-                compute_Mn_from_cf_using_classical_detailed_balance(*cf, 0, &M0);
-                INFO("M0 BASED ON CORRELATION FUNCTION = %.5e\n", M0);
-            }
-        
-        } else if (strcasecmp(funcname, "COMPUTE_M2_CLASSICAL_DETAILED_BALANCE") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
-            
-            if (tagged_item.typ == STACK_ITEM_SF) { 
-                SFnc *sf = &tagged_item.item.sf;
-
-                if (processing_params->spectrum_frequency_max > 0) {
-                    assert(sf->len > 1);
-                    double dnu = sf->nu[1] - sf->nu[0];
-                    size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                    sf->len = (sf->len > n) ? n : sf->len;
-                    
-                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
-                }
-
-                double M2 = compute_Mn_from_sf_using_classical_detailed_balance(*sf, 2);
-                INFO("M2 = %.5e\n", M2); 
-            } else if (tagged_item.typ == STACK_ITEM_CF) {
-                CFnc *cf = &tagged_item.item.cf;
-      
-                double M2; 
-                if (compute_Mn_from_cf_using_classical_detailed_balance(*cf, 2, &M2)) {
-                    INFO("M2 BASED ON CORRELATION FUNCTION = %.5e\n", M2);
-                }
+                double Mn;
+                compute_Mn_from_cf_using_classical_detailed_balance(*cf, n, &Mn);
+                INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
             }
 
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
@@ -2043,6 +2086,26 @@ bool run_processing(Processing_Params *processing_params) {
 
             stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
 
+        } else if (strcasecmp(funcname, "D1") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+            
+            SFnc *sf = &tagged_item.item.sf;
+            SFnc sfd1 = desymmetrize_d1(*sf);
+            free_sfnc(*sf);
+            
+            stack_push_with_type(&stack, (void*) &sfd1, STACK_ITEM_SF, pc_loc); 
+
+        } else if (strcasecmp(funcname, "D2") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+            
+            SFnc *sf = &tagged_item.item.sf;
+            SFnc sfd2 = desymmetrize_d2(*sf);
+            free_sfnc(*sf);
+            
+            stack_push_with_type(&stack, (void*) &sfd2, STACK_ITEM_SF, pc_loc); 
+
         } else if (strcasecmp(funcname, "D3") == 0) {
             // TODO: allow expecting SF or Spectrum
             // TODO: implement another 'desymmetrize_schofield' that yields SF
@@ -2054,6 +2117,26 @@ bool run_processing(Processing_Params *processing_params) {
             free_sfnc(*sf);
 
             stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF, pc_loc); 
+        
+        } else if (strcasecmp(funcname, "D4") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+            
+            CFnc *cf = &tagged_item.item.cf;
+            SFnc sfd4 = desymmetrize_egelstaff_from_cf(*cf);
+            free_cfnc(*cf);
+            
+            stack_push_with_type(&stack, (void*) &sfd4, STACK_ITEM_SF, pc_loc); 
+        
+        } else if (strcasecmp(funcname, "D4a") == 0) {
+            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
+            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+            
+            CFnc *cf = &tagged_item.item.cf;
+            SFnc sfd4a = desymmetrize_frommhold_from_cf(*cf);
+            free_cfnc(*cf);
+            
+            stack_push_with_type(&stack, (void*) &sfd4a, STACK_ITEM_SF, pc_loc); 
         
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);

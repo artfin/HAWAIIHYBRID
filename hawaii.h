@@ -152,9 +152,18 @@ extern int  _print0_margin;
         printf(__VA_ARGS__);                                        \
     }
 
+#define WARNING(...)                                            \
+    if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+    printf("WARNING: "); printf(__VA_ARGS__);                   \
+
+#define ERROR(...)                                              \
+    if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
+    printf("ERROR: "); printf(__VA_ARGS__);                     \
+
 #define PRINT0(...)                                             \
     if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
     printf(__VA_ARGS__);
+
 
 #endif
 
@@ -575,11 +584,15 @@ double *idct(double *v, size_t len);
 CFnc dct_sf_to_cf(SFnc sf);
 SFnc idct_cf_to_sf(CFnc cf);
 
-Spectrum compute_alpha(SFnc sf); 
+Spectrum compute_alpha(SFnc sf);
+
+SFnc desymmetrize_d1(SFnc sf); 
 SFnc desymmetrize_d2(SFnc sf); 
 SFnc desymmetrize_schofield(SFnc sf); 
 SFnc desymmetrize_egelstaff(SFnc sf);
-SFnc desymmetrize_frommhold(CFnc cf);
+SFnc desymmetrize_egelstaff_from_cf(CFnc cf);
+SFnc desymmetrize_frommhold(SFnc sf);
+SFnc desymmetrize_frommhold_from_cf(CFnc cf);
 CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
 
 double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
