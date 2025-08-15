@@ -2324,7 +2324,9 @@ bool run_processing(Processing_Params *processing_params) {
                 case STACK_ITEM_SF:       free_sfnc(stack.items[i].item.sf); break;
                 case STACK_ITEM_SPECTRUM: free_spectrum(stack.items[i].item.sp); break;
             }
-        } 
+        }
+
+        return false; 
     } 
 
 defer:
