@@ -1664,6 +1664,36 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
 }
 
 
+bool execute_read_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+/**
+ * @brief READ_CF reads a correlation function from a file specified by a string 
+ * argument. 
+ * Expects exactly one string argument (the file path). The correlation function is 
+ * read into a CFnc structure and pushed onto the processing stack. 
+ * The file may optionally contain a header with:
+ *  - a line "# TEMPERATURE: <value>" (floating-point value, K)
+ *  - a line "# AVERAGE OVER <value> TRAJECTORIES" (floating-point value).
+ *
+ * The time values are expected to be in atomic time units, and correlation function 
+ * values are expected in (m^3*atomic unit of dipole^2) units.
+ */
+{
+    expect_n_funcall_arguments(func, 1); 
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    CFnc cf = {0}; 
+
+    if (!read_correlation_function(filename, NULL, &cf)) {
+        return false; 
+    }
+
+    stack_push_with_type(stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
+    return true;
+}
+
+
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
 
@@ -1679,32 +1709,7 @@ bool run_processing(Processing_Params *processing_params) {
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-        /*
-         * \texttt{READ\_CF} reads a correlation function from a file specified by a string 
-         * argument. 
-         * Expects exactly one string argument (the file path). The correlation function is 
-         * read into a \texttt{CFnc} structure and pushed onto the processing stack. 
-         * The file may optionally contain a header with:
-         * \begin{itemize} 
-         * - \item a line \texttt{\# TEMPERATURE: <value>} (floating-point value, K)
-         * - \item a line \texttt{\# AVERAGE OVER <value> TRAJECTORIES} (floating-point value, K).
-         * \end{itemize}
-         * %
-         * The time values are expected to be in atomic time units, and correlation function 
-         * values are expected in (m$^3 \cdot$ atomic unit of dipole$^2$) units.
-         */
-            expect_n_funcall_arguments(func, 1); 
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-
-            CFnc cf = {0}; 
-            
-            if (!read_correlation_function(filename, NULL, &cf)) {
-                return_defer(false); 
-            }
-
-            stack_push_with_type(&stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
+            return_defer(execute_read_cf(func, &stack, pc_loc));
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
             expect_n_funcall_arguments(func, 1); 

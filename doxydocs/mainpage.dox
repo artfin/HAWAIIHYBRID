@@ -1,0 +1,18 @@
+/** 
+ * @mainpage My Project Documentation
+ *
+ * @section navigation Navigation
+ * - [Home](index.html)
+ * - [Reference](@ref input_reference)
+ *
+ * @section intro Introduction
+ *    Welcome to the documentation for Hawaii Hybrid.
+ * @tableofcontents
+ *
+ * Problems addressed by library
+ * - Compute statistical averages over ensembles of classical trajectories restricted by chosen phase-space domains (e.g., bound or unbound states), enabling the calculation of dipole autocorrelation functions. 
+ * - Calculate static phase-space averages using rejection sampling and adaptive Monte Carlo algorithms to estimate zeroth and second spectral moments.
+ * - Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
+ *   
+ * 
+ */
