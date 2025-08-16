@@ -23,7 +23,7 @@
 #include "hawaii.h"
 
 #define ARENA_IMPLEMENTATION
-#include "thirdparty/arena.h"
+#include "arena.h"
 
 // TODO: remove and go through all the places that call 'dipole'
 // dipolePtr dipole = NULL;

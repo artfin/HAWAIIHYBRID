@@ -21,7 +21,7 @@ LIB_GSL ?= -lgsl -lgslcblas
 
 -include Makefile.config
 
-INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL) -I./thirdparty/
+INC := $(INC_SUNDIALS) $(INC_EIGEN) $(INC_HEP) $(INC_GSL) -I./thirdparty/ -I./src/
 LIBS := $(LIB_SUNDIALS) $(LIB_GSL) -lm -lstdc++ 
 
 EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
@@ -65,28 +65,28 @@ test: $(EXAMPLES)
 docs: docs/main.tex
 	cd docs && pdflatex main.tex && bibtex main && pdflatex main.tex
 
-build/hawaii.o: hawaii.c | build
+build/hawaii.o: src/hawaii.c | build
 	$(CC) $(FLAGS) $(INC) -c -MD $< -o $@
 
-build/mpi_hawaii.o: hawaii.c | build
+build/mpi_hawaii.o: src/hawaii.c | build
 	$(MPICC) $(FLAGS) $(INC) -DUSE_MPI -c -MD $< -o $@
 
-build/hep_hawaii.o: hep_hawaii.cpp | build
+build/hep_hawaii.o: src/hep_hawaii.cpp | build
 	$(MPICXX) $(FLAGS) $(INC) -c -MD $< -o $@
 
-build/array.o: array.c | build
+build/array.o: src/array.c | build
 	$(CC) -std=c99 $(FLAGS) $(INC) -c -MD $< -o $@ 
 
-build/trajectory.o: trajectory.c | build
+build/trajectory.o: src/trajectory.c | build
 	$(CC) -std=c99 $(FLAGS) $(INC) -c -MD $< -o $@ 
 
 build/mtwist.o: thirdparty/mtwist.c | build
 	$(CC) $(FLAGS) -c -MD $< -o $@ 
 
-build/angles_handler.o: angles_handler.cpp | build
+build/angles_handler.o: src/angles_handler.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD -fPIC $< -o $@
 
-build/loess.o: loess.cpp | build
+build/loess.o: src/loess.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ -fopenmp  
 
 
@@ -342,10 +342,10 @@ examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o b
 examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
 	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
-driver.exe: driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
+driver.exe: src/driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
 	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl -fopenmp # -lasan 
 
-hawaii_test.exe: hawaii_test.c driver.exe
+hawaii_test.exe: src/hawaii_test.c driver.exe
 	$(CC) $(FLAGS) -isystem ./thirdparty/ $< -o $@
 
 d4b.exe: d4b.c $(OBJ)

@@ -43,7 +43,7 @@ int syncfs(int);
 #ifndef __cplusplus
 #define MT_GENERATE_CODE_IN_HEADER 0
 #endif 
-#include "thirdparty/mtwist.h"
+#include "mtwist.h"
 /*
  * We are using the following functions from mtwist:
  * double mt_drand(void)
@@ -59,7 +59,7 @@ int syncfs(int);
 
 #include "array.h"
 #include "constants.h"
-#include "thirdparty/arena.h"
+#include "arena.h"
 
 #define IPHI    0
 #define IPPHI   1
