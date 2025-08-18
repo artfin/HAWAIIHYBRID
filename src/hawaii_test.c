@@ -36,6 +36,7 @@ const char *TEST_NAMES[] = {
     "parse-cf-header.conf",
     "parse-incomplete-cf-header-1.conf",
     "parse-incomplete-cf-header-2.conf",
+    "convert-cf-to-sf.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -95,8 +96,11 @@ void collect_test_reports(Reports *reports)
                 printf("ERROR: could not read the file %s\n", out_filename);
                 continue;
             }
+
+            sb_append_null(&out_filename_content); // just in case 
+        } else {
+            printf("ERROR: missing expected output file for '%s'\n", test_name);
         }
-        sb_append_null(&out_filename_content); // just in case 
 
         report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail; 
         da_append(reports, report);
