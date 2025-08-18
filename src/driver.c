@@ -424,6 +424,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "D4a",
     "ALPHA",
     "DUP",
+    "CMP",
     "DROP",
     "INT3",
 };
@@ -1530,7 +1531,7 @@ void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type t
 
 Tagged_Stack_Item stack_pop_with_type(Processing_Stack *stack, Loc loc) {
     if (stack->count < 1) {
-        PRINT0("ERROR: %s:%d:%d: Cannot pop from an empty stack\n", 
+        PRINT0("ERROR: %s:%d:%d: cannot pop from an empty stack\n", 
                 loc.input_path, loc.line_number, loc.line_offset);
         exit(1);
     }
@@ -1540,7 +1541,7 @@ Tagged_Stack_Item stack_pop_with_type(Processing_Stack *stack, Loc loc) {
 
 Tagged_Stack_Item *stack_peek_with_type(Processing_Stack *stack, size_t i, Loc loc) {
     if (i >= stack->count) {
-        PRINT0("ERROR: %s:%d:%d: Cannot peek element %zu on a stack with %zu elements\n", 
+        PRINT0("ERROR: %s:%d:%d: cannot peek element %zu on a stack with %zu elements\n", 
                 loc.input_path, loc.line_number, loc.line_offset, i, stack->count);
         exit(1);
     }
@@ -1667,9 +1668,8 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
 bool execute_read_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
 /**
  * @brief READ_CF reads a correlation function from a file specified by a string 
- * argument. 
- * Expects exactly one string argument (the file path). The correlation function is 
- * read into a CFnc structure and pushed onto the processing stack. 
+ * argument.  Expects exactly one string argument (the file path). 
+ * The correlation function is read into a CFnc structure and pushed onto the processing stack. 
  * The file may optionally contain a header with:
  *  - a line "# TEMPERATURE: <value>" (floating-point value, K)
  *  - a line "# AVERAGE OVER <value> TRAJECTORIES" (floating-point value).
@@ -1693,6 +1693,243 @@ bool execute_read_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
+bool execute_read_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+/**
+ * @brief READ_SF reads a spectral function from a file specified by a string 
+ * argument. Expects exactly one string argument (the file path). 
+ * The spectral function is read into a SFnc structure and pushed onto the processing stack. 
+ * The file may optionally contain a header with:
+ *  - a line "# TEMPERATURE: <value>" (floating-point value, K)
+ *  - a line "# AVERAGE OVER <value> TRAJECTORIES" (floating-point value).
+ *
+ * The frequency values are expected to be in cm-1, and spectral function 
+ * values are expected in (J * m^6 * s) units.
+ */
+{
+    expect_n_funcall_arguments(func, 1); 
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    SFnc sf = {0}; 
+
+    if (!read_spectral_function(filename, NULL, &sf)) {
+        return false; 
+    }
+
+    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+    return true;
+}
+
+bool execute_read_spectrum(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+/**
+ * @brief READ_SPECTRUM reads a spectrum from a file specified by a string 
+ * argument. Expects exactly one string argument (the file path). 
+ * The spectrum is read into a Spectrum structure and pushed onto the processing stack. 
+ * The file may optionally contain a header with:
+ *  - a line "# TEMPERATURE: <value>" (floating-point value, K)
+ *  - a line "# AVERAGE OVER <value> TRAJECTORIES" (floating-point value).
+ *
+ * The frequency values are expected to be in cm-1, and spectrum values 
+ * are expected in (cm-1 Amagat-2) units.
+ */
+{
+    expect_n_funcall_arguments(func, 1); 
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    Spectrum sp = {0};
+
+    if (!read_spectrum(filename, NULL, &sp)) {
+        return false; 
+    } 
+
+    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+    return true;
+}
+
+bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+{
+    expect_n_funcall_arguments(func, 0); 
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+
+    CFnc *cf = &tagged_item.item.cf;
+    SFnc sf = idct_cf_to_sf(*cf);
+    free_cfnc(*cf);
+
+    if ((stack->wing_params.A != 0) || (stack->wing_params.B != 0) || (stack->wing_params.C != 0)) {
+        INFO("Adding Fourier image of the baseline to the numerical result\n");
+
+        double Xscale = 1.0/LightSpeed_cm / ATU / 2.0 / M_PI;
+        double Yscale = ATU*ADIPMOMU*ADIPMOMU / (4.0*M_PI*EPSILON0);
+
+        stack->wing_params.A = stack->wing_params.A * Yscale * Xscale; 
+        stack->wing_params.B = stack->wing_params.B * Xscale; 
+        stack->wing_params.C = stack->wing_params.C * Yscale * Xscale;
+
+        INFO("Adding Lorentzian for Q-branch\n"); 
+        for (size_t i = 0; i < sf.len; ++i) { 
+            double wingmodel_image_val = (stack->wing_params.C+stack->wing_params.A)/stack->wing_params.A*wingmodel_image(&stack->wing_params, sf.nu[i]);
+            sf.data[i] += wingmodel_image_val;
+            if (i < 10) printf("nu = %.5e => sf = %.5e, wmi = %.5e\n", sf.nu[i], sf.data[i], wingmodel_image_val);
+        }
+    }
+
+    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+    return true;
+} 
+
+bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+{
+    expect_n_funcall_arguments(func, 0);
+
+    if (stack->count < 2) {
+        PRINT0("ERROR: %s:%d:%d: CMP requires at least 2 elements on the stack but found %zu\n",
+                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset, stack->count);
+        return false;
+    }
+
+    Tagged_Stack_Item tagged_item1 = stack_pop_with_type(stack, *pc_loc);
+    Stack_Item_Type typ1 = tagged_item1.typ;
+
+    Tagged_Stack_Item tagged_item2 = stack_pop_with_type(stack, *pc_loc);
+    Stack_Item_Type typ2 = tagged_item2.typ;
+
+    if (typ1 != typ2) {
+        PRINT0("ERROR: %s:%d:%d: CMP failed - incompatible element types (%s and %s)\n", 
+                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset,
+                STACK_ITEM_TYPES[typ1], STACK_ITEM_TYPES[typ2]);
+        return false;
+    }
+
+    bool result = true;
+    String_Builder reason = {0};
+    
+    double time_abstol = 1e-3; // atomic time units
+    double freq_abstol = 1e-6; // cm-1
+    double value_reltol = 1e-4;
+
+    if (typ1 == STACK_ITEM_CF) {
+        CFnc *cf1 = &tagged_item1.item.cf;
+        CFnc *cf2 = &tagged_item2.item.cf;
+       
+        // 'capacity' field is skipped intentionally because it is not a 'meaningful' field 
+        bool result = true;
+        if (cf1->len != cf2->len) {
+            result = false; 
+            sb_append_format(&reason, "'len' field differs (%zu and %zu)", cf1->len, cf2->len);
+        } else if (cf1->Temperature != cf2->Temperature) {
+            result = false; 
+            sb_append_format(&reason, "'Temperature' field differs (%.2f and %.2f)", cf1->Temperature, cf2->Temperature);
+        } else if (cf1->normalized != cf2->normalized) {
+            result = false; 
+            sb_append_format(&reason, "'normalized' field differs (%d and %d)", cf1->normalized, cf2->normalized);
+        }
+        
+        if (!result) {
+            INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
+            return_defer(false);
+        }
+
+        for (size_t i = 0; i < cf1->len; ++i) {
+            if (fabs(cf1->t[i] - cf2->t[i]) > time_abstol) {
+                result = false;
+                sb_append_format(&reason, "times at index %zu differ (%.3e and %.3e)",
+                    i, cf1->t[i], cf2->t[i]);
+                break;
+            }
+
+            if (fabs(cf2->data[i]) != 0.0) {
+               if ( (fabs(cf1->data[i]/cf2->data[i]) - 1.0) > value_reltol) {
+                   result = false;
+                   sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                           i, cf1->data[i], cf2->data[i]);
+                   break;
+               }
+            } else {
+                if (fabs(cf1->data[i]) != 0.0) {
+                    result = false;
+                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                            i, cf1->data[i], cf2->data[i]);
+                } 
+            } 
+        }
+        
+        if (!result) {
+            INFO("CMP: comparison returned 'false' (objects are NOT equal)\n");
+            return false;
+        }
+
+        INFO("CMP: comparison returned 'true' (objects are identical)\n");
+        return true;
+    }
+
+    if (typ1 == STACK_ITEM_SF) {
+        SFnc *sf1 = &tagged_item1.item.sf;
+        SFnc *sf2 = &tagged_item2.item.sf;
+
+        bool result = true;
+        if (sf1->len != sf2->len) {
+            result = false; 
+            sb_append_format(&reason, "'len' field differs (%zu and %zu)", sf1->len, sf2->len);
+        } else if (sf1->Temperature != sf2->Temperature) {
+            result = false; 
+            sb_append_format(&reason, "'Temperature' field differs (%.2f and %.2f)", sf1->Temperature, sf2->Temperature);
+        } else if (sf1->normalized != sf2->normalized) {
+            result = false; 
+            sb_append_format(&reason, "'normalized' field differs (%d and %d)", sf1->normalized, sf2->normalized);
+        }
+        
+        if (!result) {
+            INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
+            return_defer(false);
+        }
+
+
+        for (size_t i = 0; i < sf1->len; ++i) {
+            if (fabs(sf1->nu[i] - sf2->nu[i]) > freq_abstol) {
+                result = false;
+                sb_append_format(&reason, "frequncies at index %zu differ (%.3e and %.3e)",
+                    i, sf1->nu[i], sf2->nu[i]);
+                break;
+            }
+
+            if (fabs(sf2->data[i]) != 0.0) {
+               if ( (fabs(sf1->data[i]/sf2->data[i]) - 1.0) > value_reltol) {
+                   result = false;
+                   sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                           i, sf1->data[i], sf2->data[i]);
+                   break;
+               }
+            } else {
+                if (fabs(sf1->data[i]) != 0.0) {
+                    result = false;
+                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                            i, sf1->data[i], sf2->data[i]);
+                } 
+            } 
+        }
+
+        if (!result) {
+            INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
+            return false;
+        }
+
+        INFO("CMP: comparison returned 'true' (objects are identical)\n");
+        return true;
+    }
+
+    PRINT0("ERROR: CMP is not implemented for comparing %s and %s\n", 
+           STACK_ITEM_TYPES[typ1], STACK_ITEM_TYPES[typ2]);
+    assert(false);
+
+defer:
+    sb_free(&reason);
+    return result;
+}
 
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
@@ -1709,35 +1946,19 @@ bool run_processing(Processing_Params *processing_params) {
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            return_defer(execute_read_cf(func, &stack, pc_loc));
+            if (!execute_read_cf(func, &stack, pc_loc)) return_defer(false);
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
-            expect_n_funcall_arguments(func, 1); 
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-
-            SFnc sf = {0}; 
-            
-            if (!read_spectral_function(filename, NULL, &sf)) {
-                return_defer(false); 
-            }
-            
-            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+            if (!execute_read_sf(func, &stack, pc_loc)) return_defer(false);
 
         } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
-            expect_n_funcall_arguments(func, 1); 
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-           
-            Spectrum sp = {0};
-
-            if (!read_spectrum(filename, NULL, &sp)) {
-                return_defer(false);
-            } 
-            
-            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+            if (!execute_read_spectrum(func, &stack, pc_loc)) return_defer(false); 
+        
+        } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
+            if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(false); 
+        
+        } else if (strcasecmp(funcname, "CMP") == 0) {
+            if (!execute_cmp(func, &stack, pc_loc)) return_defer(false); 
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
@@ -2073,34 +2294,6 @@ bool run_processing(Processing_Params *processing_params) {
             }
 
             stack_push_with_type(&stack, (void*) cf, STACK_ITEM_CF, pc_loc);
-
-        } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
-
-            CFnc *cf = &tagged_item.item.cf;
-            SFnc sf = idct_cf_to_sf(*cf);
-            free_cfnc(*cf);
-
-            if ((stack.wing_params.A != 0) || (stack.wing_params.B != 0) || (stack.wing_params.C != 0)) {
-                INFO("Adding Fourier image of the baseline to the numerical result\n");
-                
-                double Xscale = 1.0/LightSpeed_cm / ATU / 2.0 / M_PI;
-                double Yscale = ATU*ADIPMOMU*ADIPMOMU / (4.0*M_PI*EPSILON0);
-                
-                stack.wing_params.A = stack.wing_params.A * Yscale * Xscale; 
-                stack.wing_params.B = stack.wing_params.B * Xscale; 
-                stack.wing_params.C = stack.wing_params.C * Yscale * Xscale;
-             
-                INFO("Adding Lorentzian for Q-branch\n"); 
-                for (size_t i = 0; i < sf.len; ++i) { 
-                    double wingmodel_image_val = (stack.wing_params.C+stack.wing_params.A)/stack.wing_params.A*wingmodel_image(&stack.wing_params, sf.nu[i]);
-                    sf.data[i] += wingmodel_image_val;
-                    if (i < 10) printf("nu = %.5e => sf = %.5e, wmi = %.5e\n", sf.nu[i], sf.data[i], wingmodel_image_val);
-                }
-            }
-
-            stack_push_with_type(&stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
