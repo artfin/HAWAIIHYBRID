@@ -423,9 +423,9 @@ static const char *AVAILABLE_FUNCS[] = {
     "D4",
     "D4a",
     "ALPHA",
-    "DUP",
+    "DUP", // docs (+), tests (+)
     "CMP", // docs (+)
-    "DROP", // docs (+)
+    "DROP", // docs (+), tests (+)
     "INT3",
 };
 
@@ -1554,7 +1554,8 @@ Tagged_Stack_Item *stack_peek_with_type(Processing_Stack *stack, size_t i, Loc l
 }
 
 Tagged_Stack_Item *stack_peek_top_with_type(Processing_Stack *stack) {
-    return &stack->items[stack->count - 1];
+    if (stack->count > 0) return &stack->items[stack->count - 1];
+    return NULL;
 }
 
 void expect_item_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, Stack_Item_Type expected_type) {
@@ -2062,11 +2063,12 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 /**
  * @brief AVERAGE_CFS verages multiple correlation functions (CFnc) from the stack.
  *
- * Takes all elements from the stack and computes their average. All CFs must have:
+ * Takes all elements from the stack and computes their average. All CFncs must have:
  * - identical lengths
  * - matching time arrays
  * - compatible metadata (Temperature, normalization)
  *
+ * The operation fails if the trajectory count for one of the CFncs is not set.
  * The averaged CFnc replaces the input CFncs on the stack. The trajectory count
  * for averaged CFnc is set to the sum trajectory counts of the input CFncs. 
  */
@@ -2101,6 +2103,61 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     stack_push_with_type(stack, (void*) &average, STACK_ITEM_CF, pc_loc);
     return true;
 }
+
+bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief DUP duplicates the top element of the processing stack.
+ *
+ * Creates an exact copy of the top stack element and pushes it onto the stack (valid 
+ * for all supported types: CFnc, SFnc, and Spectrum).
+ *
+ * Fails if the stack is empty. 
+ */
+{
+    (void) func;
+
+    if (stack->count == 0) {
+        ERROR("%s:%d:%d: cannot execute DUP - no elements on stack\n",
+              pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
+        return false;
+    }
+
+    Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(stack);
+    INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
+
+    switch (tagged_item->typ) {
+      case STACK_ITEM_CF: {
+        CFnc cf_copy = copy_cfnc(tagged_item->item.cf);
+        stack_push(stack, (Tagged_Stack_Item) {
+            .item.cf = cf_copy,
+            .typ = STACK_ITEM_CF,
+            .loc = *pc_loc,
+        });
+      break;
+     }
+     case STACK_ITEM_SF: {
+       SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
+       stack_push(stack, (Tagged_Stack_Item) {
+               .item.sf = sf_copy,
+               .typ = STACK_ITEM_SF,
+               .loc = *pc_loc,
+               });
+       break;
+     } 
+     case STACK_ITEM_SPECTRUM: {
+       Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
+       stack_push(stack, (Tagged_Stack_Item) {
+               .item.sp = sp_copy,
+               .typ = STACK_ITEM_SPECTRUM,
+               .loc = *pc_loc,
+               });
+       break;
+    } 
+    }
+
+    return true;
+}
+
 
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
@@ -2141,38 +2198,8 @@ bool run_processing(Processing_Params *processing_params) {
             if (!execute_average_cfs(func, &stack, pc_loc)) return_defer(false); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
-            Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
-            INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
+            execute_dup(func, &stack, pc_loc);
 
-            switch (tagged_item->typ) {
-                case STACK_ITEM_CF: {
-                    CFnc cf_copy = copy_cfnc(tagged_item->item.cf);
-                    stack_push(&stack, (Tagged_Stack_Item) {
-                        .item.cf = cf_copy,
-                        .typ = STACK_ITEM_CF,
-                        .loc = *pc_loc,
-                    });
-                    break;
-                }
-                case STACK_ITEM_SF: {
-                    SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
-                    stack_push(&stack, (Tagged_Stack_Item) {
-                        .item.sf = sf_copy,
-                        .typ = STACK_ITEM_SF,
-                        .loc = *pc_loc,
-                    });
-                    break;
-                } 
-                case STACK_ITEM_SPECTRUM: {
-                    Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
-                    stack_push(&stack, (Tagged_Stack_Item) {
-                        .item.sp = sp_copy,
-                        .typ = STACK_ITEM_SPECTRUM,
-                        .loc = *pc_loc,
-                    });
-                    break;
-                } 
-            }
         } else if (strcasecmp(funcname, "INT3") == 0) {
             PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
             PRINT0("Stack trace:\n");
@@ -2399,7 +2426,6 @@ bool run_processing(Processing_Params *processing_params) {
                 compute_Mn_from_cf_using_classical_detailed_balance(*cf, n, &Mn);
                 INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
             }
-
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);

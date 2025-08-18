@@ -45,6 +45,7 @@ const char *TEST_NAMES[] = {
     "convert-cf-to-sf.conf",
     "string-literal.conf",
     "naked-drop.conf",
+    "naked-dup.conf",
     "cmp.conf",
     "fit-baseline-nargs.conf",
     "average-cfs.conf",
@@ -60,9 +61,10 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Fail,
     Fail,
     Fail,
+    Fail,
 };
 
-static_assert(TEST_COUNT == 8, "");
+static_assert(TEST_COUNT == 9, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
