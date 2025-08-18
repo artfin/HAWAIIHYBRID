@@ -404,14 +404,14 @@ typedef struct {
 } Funcalls;
 
 static const char *AVAILABLE_FUNCS[] = {
-    "READ_CF",
-    "READ_SF",
-    "READ_SPECTRUM",
+    "READ_CF", // docs (+), tests (+) 
+    "READ_SF", // docs (+), tests (+)
+    "READ_SPECTRUM", // docs (+)
     "WRITE_CF",
     "WRITE_SF",
     "WRITE_SPECTRUM",
+    "CF_TO_SF", // docs (+)
     "ADD_SPECTRA",
-    "CF_TO_SF",
     "FIT_BASELINE", // TODO: not descriptive
     "SMOOTH",
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE",
@@ -424,8 +424,8 @@ static const char *AVAILABLE_FUNCS[] = {
     "D4a",
     "ALPHA",
     "DUP",
-    "CMP",
-    "DROP",
+    "CMP", // docs (+)
+    "DROP", // docs (+)
     "INT3",
 };
 
@@ -1776,7 +1776,7 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     free_cfnc(*cf);
 
     if ((stack->wing_params.A != 0) || (stack->wing_params.B != 0) || (stack->wing_params.C != 0)) {
-        INFO("Adding Fourier image of the baseline to the numerical result\n");
+        INFO("Adding Fourier-transformed analytic model to the numerical IDCT result\n");
 
         double Xscale = 1.0/LightSpeed_cm / ATU / 2.0 / M_PI;
         double Yscale = ATU*ADIPMOMU*ADIPMOMU / (4.0*M_PI*EPSILON0);
@@ -1785,11 +1785,18 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         stack->wing_params.B = stack->wing_params.B * Xscale; 
         stack->wing_params.C = stack->wing_params.C * Yscale * Xscale;
 
-        INFO("Adding Lorentzian for Q-branch\n"); 
+        INFO("Adding Lorentzian that forms Q-branch to numerical data\n");
+        PRINT0("    (nu, cm-1)    (SF value, raw)   (SF value, model)  (SF value, after addition)\n");
         for (size_t i = 0; i < sf.len; ++i) { 
             double wingmodel_image_val = (stack->wing_params.C+stack->wing_params.A)/stack->wing_params.A*wingmodel_image(&stack->wing_params, sf.nu[i]);
-            sf.data[i] += wingmodel_image_val;
-            if (i < 10) printf("nu = %.5e => sf = %.5e, wmi = %.5e\n", sf.nu[i], sf.data[i], wingmodel_image_val);
+            double new_sf_value = sf.data[i] + wingmodel_image_val;
+
+            if (i < 10) {
+                PRINT0("%2zu  %12.6e %14.6e %18.6e %17.6e\n", 
+                       i, sf.nu[i], sf.data[i], wingmodel_image_val, new_sf_value);
+            }
+
+            sf.data[i] = new_sf_value;
         }
     }
 
@@ -1963,6 +1970,72 @@ defer:
     return result;
 }
 
+void execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief DROP removes the top item from the processing stack. 
+ * The operation will fail if the stack is empty.
+ */
+{
+    (void) func;
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
+    INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
+         STACK_ITEM_TYPES[tagged_item.typ], tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
+}
+
+bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief
+ */
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+
+    int64_t cf_extrapolation_begin_index = DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX; 
+
+    while (func->args.count > 0) {
+        Funcall_Argument arg = shift_funcall_argument(func);
+
+        const char *expected_name = "cf_extrapolation_begin_index"; 
+        if (strcasecmp(arg.name, expected_name) != 0) {
+            ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                    func->name, expected_name, arg.name);
+            exit(1);
+        }
+
+        expect_integer_funcall_argument(func, &arg);
+        cf_extrapolation_begin_index = arg.int_number;
+    } 
+
+    INFO("Using points starting from %"PRIu64" for CF extrapolation\n", cf_extrapolation_begin_index); 
+    CFnc *cf = &tagged_item.item.cf; 
+
+    // I don't want to create an additional Stack_Item for these parameters, so
+    // just saving them into Processing_Stack to make them available in the 
+    // 'CF_TO_SF' call 
+    stack->wing_params = fit_baseline(cf, cf_extrapolation_begin_index);
+            
+    INFO("Subtracting the analytic model for CF from the numerical data\n");
+    PRINT0("       (t, a.t.u.)    (CF value, raw)   (CF value, model)    (CF value, after subtraction)\n");
+
+    for (size_t i = 0; i < cf->len; ++i) {
+        double model_value = wingmodel(&stack->wing_params, cf->t[i]); 
+        double new_cf_value = cf->data[i] - model_value;
+
+        if (i < 10) {
+            PRINT0("  %2zu %14.6e %16.6e %18.6e %18.6e\n", 
+                    i, cf->t[i], cf->data[i], model_value, new_cf_value);
+        } 
+        
+        cf->data[i] = new_cf_value;
+    }
+
+
+    stack_push_with_type(stack, (void*) cf, STACK_ITEM_CF, pc_loc);
+    return true;
+}
+
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
 
@@ -1990,14 +2063,13 @@ bool run_processing(Processing_Params *processing_params) {
             if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(false); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            stack.return_code = execute_cmp(func, &stack, pc_loc) ? 0 : 1;
+            stack.return_code = execute_cmp(func, &stack, pc_loc);
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
-            INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
-                 STACK_ITEM_TYPES[tagged_item.typ],
-                 tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
+            execute_drop(func, &stack, pc_loc);
+        
+        } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
+            if (!execute_fit_baseline(func, &stack, pc_loc)) return_defer(false); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
@@ -2290,42 +2362,6 @@ bool run_processing(Processing_Params *processing_params) {
                 INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
             }
 
-        } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
-
-            int64_t cf_extrapolation_begin_index = DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX; 
-            
-            while (func->args.count > 0) {
-                Funcall_Argument arg = shift_funcall_argument(func);
-               
-                const char *expected_name = "cf_extrapolation_begin_index"; 
-                if (strcasecmp(arg.name, expected_name) != 0) {
-                    ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
-                            func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                            func->name, expected_name, arg.name);
-                    exit(1);
-                }
-
-                expect_integer_funcall_argument(func, &arg);
-                cf_extrapolation_begin_index = arg.int_number;
-            } 
-
-            INFO("Using points starting from %"PRIu64" for CF extrapolation\n", cf_extrapolation_begin_index); 
-            CFnc *cf = &tagged_item.item.cf; 
-
-            // I don't want to create an additional Stack_Item for these parameters, so
-            // just saving them into Processing_Stack to make them available in the 
-            // 'CF_TO_SF' call 
-            stack.wing_params = fit_baseline(cf, cf_extrapolation_begin_index);
-
-            for (size_t i = 0; i < cf->len; ++i) {
-                double wing_value = wingmodel(&stack.wing_params, cf->t[i]); 
-                //printf("i = %zu => CF = %.5e, wing = %.5e\n", i, cf->data[i], wing_value);
-                cf->data[i] -= wing_value; 
-            }
-
-            stack_push_with_type(&stack, (void*) cf, STACK_ITEM_CF, pc_loc);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
@@ -2557,7 +2593,9 @@ bool run_processing(Processing_Params *processing_params) {
         }
 
         return false; 
-    } 
+    }
+
+    return stack.return_code; 
 
 defer:
     _print0_margin = 0;
