@@ -22,6 +22,11 @@ typedef enum {
     Fail,
 } Status;
 
+const char *STATUS_AS_STR[] = {
+    [Success] = "Success",
+    [Fail]    = "Fail",
+};
+
 typedef struct {
     const char *name;
     Status run_status; // whether running was successful
@@ -35,11 +40,17 @@ typedef struct {
 } Reports;
 
 const char *TEST_NAMES[] = {
-    "parse-cf-header.conf",
-    "parse-incomplete-cf-header.conf",
+    "parse-cf.conf",
     "convert-cf-to-sf.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
+
+Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
+    Fail,
+    Success,
+};
+
+static_assert(TEST_COUNT == 2, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
@@ -99,15 +110,16 @@ void collect_test_reports(Reports *reports)
             }
 
             sb_append_null(&out_filename_content); // just in case 
+            
+            report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail; 
+            da_append(reports, report);
+        
+            out_filename_content.count = 0;
         } else {
             printf("ERROR: missing expected output file for '%s'\n", test_name);
         }
 
-        report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail; 
-        da_append(reports, report);
-
         tmp_filename_content.count = 0;
-        out_filename_content.count = 0;
     }
 
     sb_free(tmp_filename_content);
@@ -145,16 +157,16 @@ int main(int argc, char *argv[])
                 Report *report = &reports.items[i];
                 printf("\t%-40s\t", report->name);
 
-                if (report->run_status == Success) {
-                    printf("\e[32m%-10s\e[0m\t", "Success");
-                } else if (report->run_status == Fail) {
-                    printf("\e[31m%-10s\e[0m\t", "Fail");
+                if (report->run_status == EXPECTED_RUN_STATUS[i]) {
+                    printf("\e[32m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
+                } else {
+                    printf("\e[31m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
                 }
 
                 if (report->result_status == Success) {
-                    printf("\e[32m%s\e[0m", "Success");
+                    printf("\e[32m%s\e[0m", STATUS_AS_STR[report->result_status]);
                 } else if (report->result_status == Fail) {
-                    printf("\e[31m%s\e[0m", "Fail");
+                    printf("\e[31m%s\e[0m", STATUS_AS_STR[report->result_status]);
                 }
 
                 printf("\n");
