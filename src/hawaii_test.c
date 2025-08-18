@@ -15,6 +15,8 @@
 // the temporary result when a test is just replayed is saved using this template
 #define TMP_FILENAME_TEMPLATE "./tests/%s.out.tmp"
 
+// TODO: allow stripping off '.conf' extension when specifying the test name
+
 typedef enum {
     Success,
     Fail,
@@ -34,8 +36,7 @@ typedef struct {
 
 const char *TEST_NAMES[] = {
     "parse-cf-header.conf",
-    "parse-incomplete-cf-header-1.conf",
-    "parse-incomplete-cf-header-2.conf",
+    "parse-incomplete-cf-header.conf",
     "convert-cf-to-sf.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 

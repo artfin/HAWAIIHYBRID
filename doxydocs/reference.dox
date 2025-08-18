@@ -7,4 +7,23 @@
  * @copybrief execute_read_cf
  * @copydetails execute_read_cf
  *
+ * ### READ_SF 
+ * (See @ref execute_read_sf)
+ * @copybrief execute_read_sf
+ * @copydetails execute_read_sf
+ *
+ * ### READ_SPECTRUM
+ * (See @ref execute_read_spectrum)
+ * @copybrief execute_read_spectrum
+ * @copydetails execute_read_spectrum
+ *
+ * ### CF_TO_SF
+ * (See @ref execute_cf_to_sf)
+ * @copybrief execute_cf_to_sf 
+ * @copydetails execute_cf_to_sf 
+ * 
+ * ### CMP 
+ * (See @ref execute_cmp)
+ * @copybrief execute_cmp 
+ * @copydetails execute_cmp 
  */

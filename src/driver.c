@@ -463,6 +463,10 @@ typedef struct {
     size_t count; 
     size_t capacity;
 
+    // TODO: we could add a FAIL command to fail when the non-zero value
+    //       is set by some function
+    int return_code; 
+
     // additional elements
     WingParams wing_params;
 } Processing_Stack;
@@ -1803,8 +1807,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  *    an absolute threshold is assume, for CF and SF values a relative threshold is
  *    assumed. 
  *
- * On failure, an error message is printed detailing the differing fields and 
- * the execution of the script is halted. 
+ * On failure, an error message is printed detailing the differing fields.
  */
 {
     expect_n_funcall_arguments(func, 0);
@@ -1832,7 +1835,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     String_Builder reason = {0};
   
     double Temperature_abstol = 1e-2; // K 
-    double ntraj_abstol = 1e-2; 
+    double ntraj_abstol = 1e-3; 
     double time_abstol = 1e-3; // atomic time units
     double freq_abstol = 1e-6; // cm-1
     double value_reltol = 1e-4;
@@ -1842,7 +1845,6 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         CFnc *cf2 = &tagged_item2.item.cf;
        
         // 'capacity' field is skipped intentionally because it is not a 'meaningful' field 
-        bool result = true;
         if (cf1->len != cf2->len) {
             result = false; 
             sb_append_format(&reason, "'len' field differs (%zu and %zu)", cf1->len, cf2->len);
@@ -1899,7 +1901,6 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         SFnc *sf1 = &tagged_item1.item.sf;
         SFnc *sf2 = &tagged_item2.item.sf;
 
-        bool result = true;
         if (sf1->len != sf2->len) {
             result = false; 
             sb_append_format(&reason, "'len' field differs (%zu and %zu)", sf1->len, sf2->len);
@@ -1923,7 +1924,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         for (size_t i = 0; i < sf1->len; ++i) {
             if (fabs(sf1->nu[i] - sf2->nu[i]) > freq_abstol) {
                 result = false;
-                sb_append_format(&reason, "frequncies at index %zu differ (%.3e and %.3e)",
+                sb_append_format(&reason, "frequncies at index %zu differ (%.6e and %.6e)",
                     i, sf1->nu[i], sf2->nu[i]);
                 break;
             }
@@ -1946,11 +1947,11 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
         if (!result) {
             INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
-            return false;
+            return_defer(false);
         }
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
-        return true;
+        return_defer(true);
     }
 
     PRINT0("ERROR: CMP is not implemented for comparing %s and %s\n", 
@@ -1989,7 +1990,7 @@ bool run_processing(Processing_Params *processing_params) {
             if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(false); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            if (!execute_cmp(func, &stack, pc_loc)) return_defer(false); 
+            stack.return_code = execute_cmp(func, &stack, pc_loc) ? 0 : 1;
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);

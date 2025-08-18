@@ -4695,6 +4695,8 @@ bool read_spectral_function(const char *filename, String_Builder *sb, SFnc *sf)
         sf->len++;
         lineno++;
     }
+    
+    INFO("length of data arrays: %zu\n", sf->len);
 
 defer:
     if (fp) fclose(fp);
