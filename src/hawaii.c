@@ -4442,6 +4442,8 @@ bool read_correlation_function(const char *filename, String_Builder *sb, CFnc *c
         cf->len++;
         lineno++;
     }
+    
+    INFO("length of data arrays: %zu\n", cf->len);
 
 defer:
     if (fp) fclose(fp);
