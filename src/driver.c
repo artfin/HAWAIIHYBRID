@@ -1750,6 +1750,17 @@ bool execute_read_spectrum(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 }
 
 bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief CF_TO_SF converts a correlation function (CFnc) to a spectral function (SFnc)
+ * using IDCT. 
+ *
+ * Expects a correlation function on top of the stack and applies the inverse 
+ * dicrete cosine transform (IDCT) to convert it to a spectral function. 
+ *
+ * If the FIT_BASELINE function was previously called on this CFnc, the function will 
+ * account for the correlation function's wing parameters to add the corresponding 
+ * Fourier image to the resulting spectral function. 
+ */ 
 {
     expect_n_funcall_arguments(func, 0); 
 
@@ -1783,6 +1794,18 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 } 
 
 bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief CMP compares two top stack elements (CFnc, SFnc, or Spectrum) for equality.
+ *
+ * CMP performs a deep comparison of the two toptmost stack elements, checking:
+ * - metadata: Temperature, length, trajectory count
+ * - array contents: element-by-element comparison. For time and frequency values 
+ *    an absolute threshold is assume, for CF and SF values a relative threshold is
+ *    assumed. 
+ *
+ * On failure, an error message is printed detailing the differing fields and 
+ * the execution of the script is halted. 
+ */
 {
     expect_n_funcall_arguments(func, 0);
 
@@ -1807,7 +1830,9 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
     bool result = true;
     String_Builder reason = {0};
-    
+  
+    double Temperature_abstol = 1e-2; // K 
+    double ntraj_abstol = 1e-2; 
     double time_abstol = 1e-3; // atomic time units
     double freq_abstol = 1e-6; // cm-1
     double value_reltol = 1e-4;
@@ -1821,9 +1846,12 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         if (cf1->len != cf2->len) {
             result = false; 
             sb_append_format(&reason, "'len' field differs (%zu and %zu)", cf1->len, cf2->len);
-        } else if (cf1->Temperature != cf2->Temperature) {
+        } else if (fabs(cf1->Temperature - cf2->Temperature) > Temperature_abstol) {
             result = false; 
             sb_append_format(&reason, "'Temperature' field differs (%.2f and %.2f)", cf1->Temperature, cf2->Temperature);
+        } else if (fabs(cf1->ntraj - cf2->ntraj) > ntraj_abstol) {
+            result = false;
+            sb_append_format(&reason, "'ntraj' field differs (%.2f and %.2f)", cf1->ntraj, cf2->ntraj);
         } else if (cf1->normalized != cf2->normalized) {
             result = false; 
             sb_append_format(&reason, "'normalized' field differs (%d and %d)", cf1->normalized, cf2->normalized);
@@ -1875,9 +1903,12 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         if (sf1->len != sf2->len) {
             result = false; 
             sb_append_format(&reason, "'len' field differs (%zu and %zu)", sf1->len, sf2->len);
-        } else if (sf1->Temperature != sf2->Temperature) {
+        } else if (fabs(sf1->Temperature - sf2->Temperature) > Temperature_abstol) {
             result = false; 
             sb_append_format(&reason, "'Temperature' field differs (%.2f and %.2f)", sf1->Temperature, sf2->Temperature);
+        } else if (fabs(sf1->ntraj - sf2->ntraj) > ntraj_abstol) {
+            result = false;
+            sb_append_format(&reason, "'ntraj' field differs (%.2f and %.2f)", sf1->ntraj, sf2->ntraj);
         } else if (sf1->normalized != sf2->normalized) {
             result = false; 
             sb_append_format(&reason, "'normalized' field differs (%d and %d)", sf1->normalized, sf2->normalized);
