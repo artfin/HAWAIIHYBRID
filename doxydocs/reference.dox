@@ -26,4 +26,14 @@
  * (See @ref execute_cmp)
  * @copybrief execute_cmp 
  * @copydetails execute_cmp 
+ * 
+ * ### DROP 
+ * (See @ref execute_drop)
+ * @copybrief execute_drop 
+ * @copydetails execute_drop
+ *
+ * ### FIT_BASELINE 
+ * (See @ref execute_fit_baseline)
+ * @copybrief execute_fit_baseline 
+ * @copydetails execute_fit_baseline
  */

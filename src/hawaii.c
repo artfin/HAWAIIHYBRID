@@ -5091,8 +5091,7 @@ void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params)
  */
 {
 #define nparams 3 
-
-    printf("n = %zu\n", n);
+    // printf("n = %zu\n", n);
 
     WingData d = {
         .n = n, 
@@ -5147,28 +5146,29 @@ void gsl_nonlinear_opt(size_t n, double* x, double* y, WingParams *wing_params)
     double chisq;
     gsl_blas_ddot(f, f, &chisq); // final cost
 
-    fprintf(stderr, "    summary from method '%s/%s'\n", gsl_multifit_nlinear_name(w), gsl_multifit_nlinear_trs_name(w));
-    fprintf(stderr, "    number of iterations: %zu\n", gsl_multifit_nlinear_niter(w));
-    fprintf(stderr, "    function evaluations: %zu\n", fdf.nevalf);
-    fprintf(stderr, "    Jacobian evaluations: %zu\n", fdf.nevaldf);
-    fprintf(stderr, "    reason for stopping: %s\n", (info == 1) ? "small step size" : "small gradient");
-    fprintf(stderr, "    initial |f(x)| = %f\n", sqrt(chisq0));
-    fprintf(stderr, "    final   |f(x)| = %f\n", sqrt(chisq));
+    PRINT0("    summary from method '%s/%s'\n", gsl_multifit_nlinear_name(w), gsl_multifit_nlinear_trs_name(w));
+    PRINT0("    number of iterations: %zu\n", gsl_multifit_nlinear_niter(w));
+    PRINT0("    function evaluations: %zu\n", fdf.nevalf);
+    PRINT0("    Jacobian evaluations: %zu\n", fdf.nevaldf);
+    PRINT0("    reason for stopping: %s\n", (info == 1) ? "small step size" : "small gradient");
+    PRINT0("    initial |f(x)| = %f\n", sqrt(chisq0));
+    PRINT0("    final   |f(x)| = %f\n", sqrt(chisq));
 
     double dof = n - nparams;
     double c = fmax(1.0, sqrt(chisq / dof));
-   
+    (void) c;
+
     // negative value of B does not make much sense
     wing_params->A = gsl_vector_get(w->x, 0);
     wing_params->B = fabs(gsl_vector_get(w->x, 1));
     wing_params->C = gsl_vector_get(w->x, 2);
 
-    fprintf(stderr, "chisq / dof = %g\n", chisq / dof);
-    fprintf(stderr, "A = %.10f +/- %.10f\n", wing_params->A, c * sqrt(gsl_matrix_get(covar, 0, 0)));
-    fprintf(stderr, "B = %.10f +/- %.10f\n", wing_params->B, c * sqrt(gsl_matrix_get(covar, 1, 1)));
-    fprintf(stderr, "C = %.10f +/- %.10f\n", wing_params->C, c * sqrt(gsl_matrix_get(covar, 2, 2)));
+    PRINT0("chisq / dof = %g\n", chisq / dof);
+    //fprintf(stderr, "A = %.10f +/- %.10f\n", wing_params->A, c * sqrt(gsl_matrix_get(covar, 0, 0)));
+    //fprintf(stderr, "B = %.10f +/- %.10f\n", wing_params->B, c * sqrt(gsl_matrix_get(covar, 1, 1)));
+    //fprintf(stderr, "C = %.10f +/- %.10f\n", wing_params->C, c * sqrt(gsl_matrix_get(covar, 2, 2)));
 
-    fprintf(stderr, "status = %s\n", gsl_strerror(status));
+    PRINT0("optimization status = %s\n", gsl_strerror(status));
 
     gsl_multifit_nlinear_free(w);
     gsl_matrix_free(covar);
@@ -5236,11 +5236,17 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     if (wp.C < 0) {
         WARNING("!!! WingParams.C is negative! Deal with it. Continuing...\n\n");
     }
+    
+    INFO("Optimized parameters (before descaling):\n");
+    PRINT0("  A = %.6e, B = %.6e, C = %.6e\n", wp.A, wp.B, wp.C);
 
     // descale parameters after optimization
     wp.A = wp.A * CFmax2;
     wp.B = wp.B / max2time;
     wp.C = wp.C * CFmax2;
+    
+    INFO("Optimized parameters (after descaling):\n");
+    PRINT0("  A = %.6e, B = %.6e, C = %.6e\n", wp.A, wp.B, wp.C);
 
     free(xdat2);
     free(ydat2);

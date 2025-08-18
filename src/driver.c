@@ -1985,7 +1985,21 @@ void execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
 bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 /**
- * @brief
+ * @brief FIT_BASELINE fits the baseline model of the form C(t) = C + A/(1 + B^2 t^2) 
+ * to the correlation function (CFnc) using Levenberg-Marquardt optimization. 
+ *
+ * The function fits the baseline model to the correlation function (CFnc) on stack top
+ * using GSL's Levenberg-Marquardt algorithm.
+ *
+ * @param cf_extrapolation_begin_index Optional start time for fitting (default: DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX) 
+ *
+ * See the paper <a href="https://doi.org/10.1063/5.0060779">"Simulation of collision-induced absorption spectra based on classical trajectories and
+ * ab initio potential and induced dipole surfaces. II. CO2-Ar rototranslational band including true 
+ * dimer contribution"</a> for details.
+ *
+ * We rely on the specific structure of the correlation function (see Fig. 7).
+ * Specifically, we expect it to have a secondary maximum from which it decays to 
+ * some positive constant.
  */
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
@@ -1993,11 +2007,18 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
     int64_t cf_extrapolation_begin_index = DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX; 
 
-    while (func->args.count > 0) {
+    if (func->args.count > 0) {
+        if (func->args.count > 1) {
+            ERROR("%s:%d:%d: function call %s expects at most 1 arguments but got %zu\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset, func->name,
+                    func->args.count);
+            return false; 
+        }
+
         Funcall_Argument arg = shift_funcall_argument(func);
 
         const char *expected_name = "cf_extrapolation_begin_index"; 
-        if (strcasecmp(arg.name, expected_name) != 0) {
+        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
             ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
                     func->loc.input_path, func->loc.line_number, func->loc.line_offset,
                     func->name, expected_name, arg.name);
