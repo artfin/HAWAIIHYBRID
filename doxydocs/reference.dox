@@ -36,4 +36,9 @@
  * (See @ref execute_fit_baseline)
  * @copybrief execute_fit_baseline 
  * @copydetails execute_fit_baseline
+ *
+ * ### AVERAGE_CFS 
+ * (See @ref execute_average_cfs)
+ * @copybrief execute_average_cfs 
+ * @copydetails execute_average_cfs
  */

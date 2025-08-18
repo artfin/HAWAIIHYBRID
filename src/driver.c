@@ -412,11 +412,11 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_SPECTRUM",
     "CF_TO_SF", // docs (+)
     "ADD_SPECTRA",
-    "FIT_BASELINE", // TODO: not descriptive
+    "FIT_BASELINE", // docs (+), is name descriptive enough?
     "SMOOTH",
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE",
     "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE",
-    "AVERAGE_CFS", // TODO: rename to AVERAGE and allow to average not only CFs (is it useful though for other types?)
+    "AVERAGE_CFS", // docs (+)
     "D1",
     "D2",
     "D3",
@@ -1989,7 +1989,8 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  * to the correlation function (CFnc) using Levenberg-Marquardt optimization. 
  *
  * The function fits the baseline model to the correlation function (CFnc) on stack top
- * using GSL's Levenberg-Marquardt algorithm.
+ * using GSL's Levenberg-Marquardt algorithm. Fitted parameters are saved as wing_params (WingParams) 
+ * field of the processing stack (Processing_Stack) to be used by CF_TO_SF function. 
  *
  * @param cf_extrapolation_begin_index Optional start time for fitting (default: DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX) 
  *
@@ -2057,6 +2058,50 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
+bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief AVERAGE_CFS verages multiple correlation functions (CFnc) from the stack.
+ *
+ * Takes all elements from the stack and computes their average. All CFs must have:
+ * - identical lengths
+ * - matching time arrays
+ * - compatible metadata (Temperature, normalization)
+ *
+ * The averaged CFnc replaces the input CFncs on the stack. The trajectory count
+ * for averaged CFnc is set to the sum trajectory counts of the input CFncs. 
+ */
+{
+    (void) func;
+
+    CFncs cfncs = {0};
+
+    // peeking the CFnc elements on the stack to have their valid address in memory
+    // to store these addresses in dynamic memory  
+    for (size_t i = 0; i < stack->count; ++i) {
+        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, *pc_loc);
+        expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_CF);
+
+        da_append(&cfncs, &tagged_item->item.cf);
+
+        INFO("Popped CF (i: %zu) from processing stack: ntraj = %.4e\n", cfncs.count, da_last(&cfncs)->ntraj);
+    }
+
+    CFnc average = {0};
+    if (!average_correlation_functions(&average, cfncs)) {
+        PRINT0("ERROR: %s:%d:%d: an error occured during averaging of correlation functions\n",
+                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
+        return false; 
+    }
+
+    for (size_t i = 0; i < cfncs.count; ++i) {
+        free_cfnc(*cfncs.items[i]);
+    }
+    stack->count = 0; // manually resetting the state of the stack instead of 'pop'
+
+    stack_push_with_type(stack, (void*) &average, STACK_ITEM_CF, pc_loc);
+    return true;
+}
+
 bool run_processing(Processing_Params *processing_params) {
     bool result = true;
 
@@ -2091,6 +2136,9 @@ bool run_processing(Processing_Params *processing_params) {
         
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
             if (!execute_fit_baseline(func, &stack, pc_loc)) return_defer(false); 
+        
+        } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
+            if (!execute_average_cfs(func, &stack, pc_loc)) return_defer(false); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
             Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(&stack);
@@ -2271,37 +2319,6 @@ bool run_processing(Processing_Params *processing_params) {
 
             stack_push_with_type(&stack, (void*) &added, STACK_ITEM_SPECTRUM, pc_loc);
 
-        } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
-            CFncs cfncs = {0};
-
-            // peeking the CFnc elements on the stack to have their valid address in memory
-            // to store these addresses in dynamic memory  
-            for (size_t i = 0; i < stack.count; ++i) {
-                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *pc_loc);
-                expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_CF);
-
-                da_append(&cfncs, &tagged_item->item.cf);
-                
-                INFO("Popped CF (i: %zu) from processing stack: ntraj = %.4e\n", cfncs.count, da_last(&cfncs)->ntraj);
-            }
-
-            for (size_t i = 0; i < cfncs.count; ++i) {
-                PRINT0("CF(%zu): %p => ntraj = %.4e\n", i, cfncs.items[i], cfncs.items[i]->ntraj);
-            } 
-
-            CFnc average = {0};
-            if (!average_correlation_functions(&average, cfncs)) {
-                PRINT0("ERROR: %s:%d:%d: An error occured during averaging of correlation functions\n",
-                        pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
-                exit(1);
-            }
-
-            for (size_t i = 0; i < cfncs.count; ++i) {
-                free_cfnc(*cfncs.items[i]);
-            }
-            stack.count = 0; // manually resetting the state of the stack instead of 'pop'
-
-            stack_push_with_type(&stack, (void*) &average, STACK_ITEM_CF, pc_loc);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
             expect_n_funcall_arguments(func, 1);
