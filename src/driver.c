@@ -1671,7 +1671,7 @@ void expect_n_funcall_arguments(Funcall *func, size_t narguments) {
 }
 
 
-bool execute_read_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+bool execute_read_cf(Funcall *func, Processing_Stack *stack) 
 /**
  * @brief READ_CF reads a correlation function from a file specified by a string 
  * argument.  Expects exactly one string argument (the file path). 
@@ -1690,16 +1690,15 @@ bool execute_read_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     const char *filename = arg.string_storage; 
 
     CFnc cf = {0}; 
-
     if (!read_correlation_function(filename, NULL, &cf)) {
         return false; 
     }
 
-    stack_push_with_type(stack, (void*) &cf, STACK_ITEM_CF, pc_loc);
+    stack_push_with_type(stack, (void*) &cf, STACK_ITEM_CF, &func->loc);
     return true;
 }
 
-bool execute_read_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+bool execute_read_sf(Funcall *func, Processing_Stack *stack) 
 /**
  * @brief READ_SF reads a spectral function from a file specified by a string 
  * argument. Expects exactly one string argument (the file path). 
@@ -1723,11 +1722,11 @@ bool execute_read_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         return false; 
     }
 
-    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, &func->loc);
     return true;
 }
 
-bool execute_read_spectrum(Funcall *func, Processing_Stack *stack, Loc *pc_loc) 
+bool execute_read_spectrum(Funcall *func, Processing_Stack *stack) 
 /**
  * @brief READ_SPECTRUM reads a spectrum from a file specified by a string 
  * argument. Expects exactly one string argument (the file path). 
@@ -1751,11 +1750,11 @@ bool execute_read_spectrum(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         return false; 
     } 
 
-    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, &func->loc);
     return true;
 }
 
-bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack)
 /**
  * @brief CF_TO_SF converts a correlation function (CFnc) to a spectral function (SFnc)
  * using IDCT. 
@@ -1770,8 +1769,8 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 {
     expect_n_funcall_arguments(func, 0); 
 
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF); 
 
     CFnc *cf = &tagged_item.item.cf;
     SFnc sf = idct_cf_to_sf(*cf);
@@ -1802,11 +1801,11 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         }
     }
 
-    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, pc_loc);
+    stack_push_with_type(stack, (void*) &sf, STACK_ITEM_SF, &func->loc);
     return true;
 } 
 
-bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_cmp(Funcall *func, Processing_Stack *stack)
 /**
  * @brief CMP compares two top stack elements (CFnc, SFnc, or Spectrum) for equality.
  *
@@ -1824,19 +1823,19 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
     if (stack->count < 2) {
         PRINT0("ERROR: %s:%d:%d: CMP requires at least 2 elements on the stack but found %zu\n",
-                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset, stack->count);
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, stack->count);
         return false;
     }
 
-    Tagged_Stack_Item tagged_item1 = stack_pop_with_type(stack, *pc_loc);
+    Tagged_Stack_Item tagged_item1 = stack_pop_with_type(stack, func->loc);
     Stack_Item_Type typ1 = tagged_item1.typ;
 
-    Tagged_Stack_Item tagged_item2 = stack_pop_with_type(stack, *pc_loc);
+    Tagged_Stack_Item tagged_item2 = stack_pop_with_type(stack, func->loc);
     Stack_Item_Type typ2 = tagged_item2.typ;
 
     if (typ1 != typ2) {
         PRINT0("ERROR: %s:%d:%d: CMP failed - incompatible element types (%s and %s)\n", 
-                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset,
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset,
                 STACK_ITEM_TYPES[typ1], STACK_ITEM_TYPES[typ2]);
         return false;
     }
@@ -1973,22 +1972,21 @@ defer:
     return result;
 }
 
-bool execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_drop(Funcall *func, Processing_Stack *stack)
 /**
  * @brief DROP removes the top item from the processing stack. 
  * The operation will fail if the stack is empty.
  */
 {
-    (void) func;
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    if (!expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM)) return false;
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    if (!expect_one_of_items_on_stack(&func->loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM)) return false;
     INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
          STACK_ITEM_TYPES[tagged_item.typ], tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
 
     return true;
 }
 
-bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_fit_baseline(Funcall *func, Processing_Stack *stack)
 /**
  * @brief FIT_BASELINE fits the baseline model of the form C(t) = C + A/(1 + B^2 t^2) 
  * to the correlation function (CFnc) using Levenberg-Marquardt optimization. 
@@ -2008,8 +2006,8 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  * some positive constant.
  */
 {
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF); 
 
     int64_t cf_extrapolation_begin_index = DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX; 
 
@@ -2059,11 +2057,11 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     }
 
 
-    stack_push_with_type(stack, (void*) cf, STACK_ITEM_CF, pc_loc);
+    stack_push_with_type(stack, (void*) cf, STACK_ITEM_CF, &func->loc);
     return true;
 }
 
-bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_average_cfs(Funcall *func, Processing_Stack *stack)
 /**
  * @brief AVERAGE_CFS averages all correlation functions (CFnc) on the stack.
  * 
@@ -2079,15 +2077,13 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  * the metadata is not compatible with the other ones.
  */
 {
-    (void) func;
-
     CFncs cfncs = {0};
 
     // peeking the CFnc elements on the stack to have their valid address in memory
     // to store these addresses in dynamic memory  
     for (size_t i = 0; i < stack->count; ++i) {
-        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, *pc_loc);
-        expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_CF);
+        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, func->loc);
+        expect_item_on_stack(&func->loc, tagged_item, STACK_ITEM_CF);
 
         da_append(&cfncs, &tagged_item->item.cf);
 
@@ -2097,7 +2093,7 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     CFnc average = {0};
     if (!average_correlation_functions(&average, cfncs)) {
         PRINT0("ERROR: %s:%d:%d: an error occured during averaging of correlation functions\n",
-                pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset);
         return false; 
     }
 
@@ -2106,11 +2102,11 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     }
     stack->count = 0; // manually resetting the state of the stack instead of 'pop'
 
-    stack_push_with_type(stack, (void*) &average, STACK_ITEM_CF, pc_loc);
+    stack_push_with_type(stack, (void*) &average, STACK_ITEM_CF, &func->loc);
     return true;
 }
 
-bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_dup(Funcall *func, Processing_Stack *stack)
 /**
  * @brief DUP duplicates the top element of the processing stack.
  *
@@ -2120,11 +2116,9 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  * Fails if the stack is empty. 
  */
 {
-    (void) func;
-
     if (stack->count == 0) {
         ERROR("%s:%d:%d: cannot execute DUP - no elements on stack\n",
-              pc_loc->input_path, pc_loc->line_number, pc_loc->line_offset);
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
         return false;
     }
 
@@ -2137,7 +2131,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
         stack_push(stack, (Tagged_Stack_Item) {
             .item.cf = cf_copy,
             .typ = STACK_ITEM_CF,
-            .loc = *pc_loc,
+            .loc = func->loc,
         });
       break;
      }
@@ -2146,7 +2140,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
        stack_push(stack, (Tagged_Stack_Item) {
                .item.sf = sf_copy,
                .typ = STACK_ITEM_SF,
-               .loc = *pc_loc,
+               .loc = func->loc, 
                });
        break;
      } 
@@ -2155,7 +2149,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
        stack_push(stack, (Tagged_Stack_Item) {
                .item.sp = sp_copy,
                .typ = STACK_ITEM_SPECTRUM,
-               .loc = *pc_loc,
+               .loc = func->loc, 
                });
        break;
     } 
@@ -2164,7 +2158,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
-bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
  * @brief COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE computes n-th spectral moment using classical
  * detailed balance.
@@ -2181,8 +2175,8 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
 {
     expect_n_funcall_arguments(func, 1);
 
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_one_of_items_on_stack(&func->loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
 
     int n;
     {
@@ -2229,12 +2223,12 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
     return true;
 }
 
-bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 {
     expect_n_funcall_arguments(func, 1);
 
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
 
@@ -2269,14 +2263,13 @@ bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack
     return true;
 }
 
-void execute_int3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+void execute_int3(Funcall *func, Processing_Stack *stack)
 /**
  * @brief INT3 
  *
  */ 
 {
     (void) func;
-    (void) pc_loc;
 
     PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
     PRINT0("Stack trace:\n");
@@ -2320,7 +2313,7 @@ void execute_int3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     }
 }
 
-bool execute_add_spectra(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
 /**
  * @brief ADD_SPECTRA 
  *
@@ -2348,8 +2341,8 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     } 
 
     for (size_t i = 0; i < stack->count; ++i) {
-        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, *pc_loc);
-        expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_SPECTRUM);
+        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, func->loc);
+        expect_item_on_stack(&func->loc, tagged_item, STACK_ITEM_SPECTRUM);
 
         da_append(&spectra, &tagged_item->item.sp);
 
@@ -2426,71 +2419,63 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
     stack->count = 0; // manually resetting the state of the stack instead of pop
 
-    stack_push_with_type(stack, (void*) &added, STACK_ITEM_SPECTRUM, pc_loc);
+    stack_push_with_type(stack, (void*) &added, STACK_ITEM_SPECTRUM, &func->loc);
 
     return true;
 }
 
-bool execute_alpha(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_alpha(Funcall *func, Processing_Stack *stack)
 /**
  * @brief ALPHA 
  *
  */ 
 {
-    (void) func;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
     Spectrum sp = compute_alpha(*sf);
     free_sfnc(*sf);
 
-    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, &func->loc);
     return true;
 }
 
-bool execute_D1(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_D1(Funcall *func, Processing_Stack *stack)
 /**
  * @brief D1 
  *
  */ 
 {
-    (void) func;
-    (void) pc_loc;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
     SFnc sfd1 = desymmetrize_d1(*sf);
     free_sfnc(*sf);
 
-    stack_push_with_type(stack, (void*) &sfd1, STACK_ITEM_SF, pc_loc); 
+    stack_push_with_type(stack, (void*) &sfd1, STACK_ITEM_SF, &func->loc); 
     return true;
 }
 
-bool execute_D2(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_D2(Funcall *func, Processing_Stack *stack)
 /**
  * @brief D2 
  *
  */ 
 {
-    (void) func;
-    (void) pc_loc;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
     SFnc sfd2 = desymmetrize_d2(*sf);
     free_sfnc(*sf);
 
-    stack_push_with_type(stack, (void*) &sfd2, STACK_ITEM_SF, pc_loc); 
+    stack_push_with_type(stack, (void*) &sfd2, STACK_ITEM_SF, &func->loc); 
     return true;
 }
 
-bool execute_D3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_D3(Funcall *func, Processing_Stack *stack)
 /**
  * @brief D3
  *
@@ -2498,67 +2483,59 @@ bool execute_D3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 // TODO: allow expecting SF or Spectrum
 // TODO: implement another 'desymmetrize_schofield' that yields SF
 {
-    (void) func;
-    (void) pc_loc;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
     SFnc sfd3 = desymmetrize_schofield(*sf);
     free_sfnc(*sf);
 
-    stack_push_with_type(stack, (void*) &sfd3, STACK_ITEM_SF, pc_loc);
+    stack_push_with_type(stack, (void*) &sfd3, STACK_ITEM_SF, &func->loc);
     return true; 
 }
 
-bool execute_D4(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_D4(Funcall *func, Processing_Stack *stack)
 /**
  * @brief D4
  *
  */ 
 {
-    (void) func;
-    (void) pc_loc;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF);
 
     CFnc *cf = &tagged_item.item.cf;
     SFnc sfd4 = desymmetrize_egelstaff_from_cf(*cf);
     free_cfnc(*cf);
 
-    stack_push_with_type(stack, (void*) &sfd4, STACK_ITEM_SF, pc_loc); 
+    stack_push_with_type(stack, (void*) &sfd4, STACK_ITEM_SF, &func->loc); 
     return true;
 }
 
-bool execute_D4a(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_D4a(Funcall *func, Processing_Stack *stack)
 /**
  * @brief D4a
  *
  */ 
 {
-    (void) func;
-
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF);
 
     CFnc *cf = &tagged_item.item.cf;
     SFnc sfd4a = desymmetrize_frommhold_from_cf(*cf);
     free_cfnc(*cf);
 
-    stack_push_with_type(stack, (void*) &sfd4a, STACK_ITEM_SF, pc_loc); 
+    stack_push_with_type(stack, (void*) &sfd4a, STACK_ITEM_SF, &func->loc); 
     return true;
 }
 
-bool execute_write_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_write_cf(Funcall *func, Processing_Stack *stack)
 /**
  * @brief WRITE_CF
  *
  */ 
 {
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF); 
     CFnc *cf = &tagged_item.item.cf; 
 
     expect_n_funcall_arguments(func, 1);
@@ -2575,14 +2552,14 @@ bool execute_write_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
-bool execute_write_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_write_sf(Funcall *func, Processing_Stack *stack)
 /**
  * @brief WRITE_SF
  *
  */ 
 {
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF); 
     SFnc *sf = &tagged_item.item.sf; 
 
     expect_n_funcall_arguments(func, 1);
@@ -2599,14 +2576,14 @@ bool execute_write_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
-bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
  * @brief WRITE_SPECTRUM
  *
  */ 
 {
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM); 
     Spectrum *sp = &tagged_item.item.sp;
 
     expect_n_funcall_arguments(func, 1);
@@ -2632,14 +2609,14 @@ bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_P
     return true; 
 }
 
-bool execute_smooth(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_smooth(Funcall *func, Processing_Stack *stack)
 /**
  * @brief SMOOTH
  *
  */ 
 {
-    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF); 
     SFnc *sf = &tagged_item.item.sf;
 
     size_t grid_npoints = 0;
@@ -2715,7 +2692,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
     smoothed.data = loess_apply_smoothing(&config);
 
-    stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SF, pc_loc);
+    stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SF, &func->loc);
     return true;
 }
 
@@ -2728,81 +2705,80 @@ int run_processing(Processing_Params *processing_params)
     for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
         Funcall *func = &processing_params->fs.items[pc];
         const char *funcname = func->name;
-        Loc *pc_loc = &func->loc;
 
         PRINT0("\n");
         PRINT0("[%zu] %s\n", pc+1, funcname);
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            if (!execute_read_cf(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_read_cf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
-            if (!execute_read_sf(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_read_sf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
-            if (!execute_read_spectrum(func, &stack, pc_loc)) return_defer(1); 
+            if (!execute_read_spectrum(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(1); 
+            if (!execute_cf_to_sf(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            stack.return_code = !execute_cmp(func, &stack, pc_loc);
+            stack.return_code = !execute_cmp(func, &stack);
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
-            if (!execute_drop(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_drop(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
-            if (!execute_fit_baseline(func, &stack, pc_loc)) return_defer(1); 
+            if (!execute_fit_baseline(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
-            if (!execute_average_cfs(func, &stack, pc_loc)) return_defer(1); 
+            if (!execute_average_cfs(func, &stack)) return_defer(1); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
-            if (!execute_dup(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_dup(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params, pc_loc)) return_defer(1);
+            if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_quantum_detailed_balance(func, &stack, processing_params, pc_loc)) return_defer(1);
+            if (!execute_compute_mn_quantum_detailed_balance(func, &stack, processing_params)) return_defer(1);
 
         } else if (strcasecmp(funcname, "INT3") == 0) {
-            execute_int3(func, &stack, pc_loc);
+            execute_int3(func, &stack);
             return_defer(1);
 
         } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
-            if (!execute_add_spectra(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_add_spectra(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
-            if (!execute_alpha(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_alpha(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D1") == 0) {
-            if (!execute_D1(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_D1(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D2") == 0) {
-            if (!execute_D2(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_D2(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
-            if (!execute_D3(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_D3(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4") == 0) {
-            if (!execute_D4(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_D4(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4a") == 0) {
-            if (!execute_D4a(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_D4a(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "SMOOTH") == 0) {
-            if (!execute_smooth(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_smooth(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            if (!execute_write_cf(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_write_cf(func, &stack)) return_defer(1);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            if (!execute_write_sf(func, &stack, pc_loc)) return_defer(1);
+            if (!execute_write_sf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            if (!execute_write_spectrum(func, &stack, processing_params, pc_loc)) return_defer(1);
+            if (!execute_write_spectrum(func, &stack, processing_params)) return_defer(1);
 
         } else {
             PRINT0("\n\n");
