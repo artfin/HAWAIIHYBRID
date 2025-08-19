@@ -1569,7 +1569,7 @@ void expect_item_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, Stack_Ite
     }
 }
 
-void expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, int count, ...)
+bool expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, int count, ...)
 {
     va_list args;
     va_start(args, count);
@@ -1578,7 +1578,7 @@ void expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, i
         Stack_Item_Type expected_typ = va_arg(args, Stack_Item_Type);
         if (tagged_item->typ == expected_typ) {
             va_end(args);
-            return;
+            return true;
         }
     }
     
@@ -1602,7 +1602,8 @@ void expect_one_of_items_on_stack(Loc *pc_loc, Tagged_Stack_Item *tagged_item, i
     PRINT0("       %s:%d:%d\n", tagged_item->loc.input_path, tagged_item->loc.line_number, tagged_item->loc.line_offset);
 
     sb_free(&sb_expected_types);
-    exit(1);
+    
+    return false; 
 }
 
 Funcall_Argument shift_funcall_argument(Funcall *func) {
@@ -1816,6 +1817,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
  *    assumed. 
  *
  * On failure, an error message is printed detailing the differing fields.
+ * The processing_stack's (Processing_Stack) `return_code` is set to the result of CMP.
  */
 {
     expect_n_funcall_arguments(func, 0);
@@ -1971,7 +1973,7 @@ defer:
     return result;
 }
 
-void execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+bool execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 /**
  * @brief DROP removes the top item from the processing stack. 
  * The operation will fail if the stack is empty.
@@ -1979,9 +1981,11 @@ void execute_drop(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 {
     (void) func;
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
-    expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
+    if (!expect_one_of_items_on_stack(pc_loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM)) return false;
     INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
          STACK_ITEM_TYPES[tagged_item.typ], tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
+
+    return true;
 }
 
 bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
@@ -2061,16 +2065,18 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 
 bool execute_average_cfs(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
 /**
- * @brief AVERAGE_CFS verages multiple correlation functions (CFnc) from the stack.
+ * @brief AVERAGE_CFS averages all correlation functions (CFnc) on the stack.
+ * 
+ * Computes the element-wise average of all correlation functions from the stack. 
+ * All input CFncs must have identical dimensions, perfectly matching time arrays, 
+ * and consistent Temperature values. The operation requires valid trajectory counts 
+ * for every input CFnc.
  *
- * Takes all elements from the stack and computes their average. All CFncs must have:
- * - identical lengths
- * - matching time arrays
- * - compatible metadata (Temperature, normalization)
+ * The averaged CFnc replaces all input CFncs on the stack, with its trajectory count 
+ * set to the arithmetic sum of all input trajectory counts. 
  *
- * The operation fails if the trajectory count for one of the CFncs is not set.
- * The averaged CFnc replaces the input CFncs on the stack. The trajectory count
- * for averaged CFnc is set to the sum trajectory counts of the input CFncs. 
+ * The operation fails if the trajectory count for one of the CFncs is not set or 
+ * the metadata is not compatible with the other ones.
  */
 {
     (void) func;
@@ -2158,9 +2164,75 @@ bool execute_dup(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
     return true;
 }
 
+bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+/**
+ * @brief COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE computes n-th spectral moment using classical
+ * detailed balance.
+ * 
+ * Calculates the n-th order spectral moment from either a correlation function (CFnc) 
+ * or spectral function (SFnc) on stack top, applying classical detailed balance.
+ *
+ * @param n Mandatory order of spectral moment (passed as integer argument)
+ *
+ * The computation for spectral function uses Simpson's method for numerical integration. 
+ * If SPECTRUM_FREQUENCY_MAX parameter is set, the spectral function is truncated 
+ * at this frequency before conducting the integration.
+ */ 
+{
+    expect_n_funcall_arguments(func, 1);
 
-bool run_processing(Processing_Params *processing_params) {
-    bool result = true;
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
+
+    int n;
+    {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        const char *expected_name = "n";
+        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+            ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                    func->name, expected_name, arg.name);
+            exit(1);
+        }
+        expect_integer_funcall_argument(func, &arg);
+        n = arg.int_number;
+    }
+
+    INFO("Spectral moment order: n = %d\n", n); 
+
+    if (tagged_item.typ == STACK_ITEM_SF) {
+        SFnc *sf = &tagged_item.item.sf;
+
+        if (processing_params->spectrum_frequency_max > 0) {
+            assert(sf->len > 1);
+            double dnu = sf->nu[1] - sf->nu[0];
+            size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
+            sf->len = (sf->len > trim_len) ? trim_len : sf->len;
+
+            INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
+        }
+
+        double Mn = compute_Mn_from_sf_using_classical_detailed_balance(*sf, n);
+        INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn); 
+    } else if (tagged_item.typ == STACK_ITEM_CF) {
+        CFnc *cf = &tagged_item.item.cf;
+
+        double Mn;
+        compute_Mn_from_cf_using_classical_detailed_balance(*cf, n, &Mn);
+        INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
+    } else if (tagged_item.typ == STACK_ITEM_SPECTRUM) {
+        ERROR("%s:%d:%d: calculation of the spectral moment using classical detailed balance is not implemented for Spectrum\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        return false; 
+    }
+
+    return true;
+}
+
+
+int run_processing(Processing_Params *processing_params) 
+{
+    int result = 0;
 
     Processing_Stack stack = {0};
 
@@ -2174,31 +2246,34 @@ bool run_processing(Processing_Params *processing_params) {
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            if (!execute_read_cf(func, &stack, pc_loc)) return_defer(false);
+            if (!execute_read_cf(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
-            if (!execute_read_sf(func, &stack, pc_loc)) return_defer(false);
+            if (!execute_read_sf(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
-            if (!execute_read_spectrum(func, &stack, pc_loc)) return_defer(false); 
+            if (!execute_read_spectrum(func, &stack, pc_loc)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(false); 
+            if (!execute_cf_to_sf(func, &stack, pc_loc)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            stack.return_code = execute_cmp(func, &stack, pc_loc);
+            stack.return_code = !execute_cmp(func, &stack, pc_loc);
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
-            execute_drop(func, &stack, pc_loc);
+            if (!execute_drop(func, &stack, pc_loc)) return_defer(1);
         
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
-            if (!execute_fit_baseline(func, &stack, pc_loc)) return_defer(false); 
+            if (!execute_fit_baseline(func, &stack, pc_loc)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
-            if (!execute_average_cfs(func, &stack, pc_loc)) return_defer(false); 
+            if (!execute_average_cfs(func, &stack, pc_loc)) return_defer(1); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
-            execute_dup(func, &stack, pc_loc);
+            if (!execute_dup(func, &stack, pc_loc)) return_defer(1);
+        
+        } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
+            if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "INT3") == 0) {
             PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
@@ -2242,7 +2317,7 @@ bool run_processing(Processing_Params *processing_params) {
                 } 
             }
 
-            return_defer(true); 
+            return_defer(1); 
         } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
             Spectra spectra = {0};
 
@@ -2383,49 +2458,6 @@ bool run_processing(Processing_Params *processing_params) {
             double Mn = compute_Mn_from_sf_using_quantum_detailed_balance(*sf, n);
             INFO("Spectral moment using quantum detailed balance [based on SF] = %.5e\n", Mn); 
         
-        } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
-            expect_n_funcall_arguments(func, 1);
-
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_one_of_items_on_stack(pc_loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
-
-            int n;
-            {
-                Funcall_Argument arg = shift_funcall_argument(func);
-                const char *expected_name = "n";
-                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
-                    ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
-                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                          func->name, expected_name, arg.name);
-                    exit(1);
-                }
-                expect_integer_funcall_argument(func, &arg);
-                n = arg.int_number;
-            }
-            
-            INFO("Spectral moment order: n = %d\n", n); 
-
-            if (tagged_item.typ == STACK_ITEM_SF) {
-                SFnc *sf = &tagged_item.item.sf;
-
-                if (processing_params->spectrum_frequency_max > 0) {
-                    assert(sf->len > 1);
-                    double dnu = sf->nu[1] - sf->nu[0];
-                    size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                    sf->len = (sf->len > trim_len) ? trim_len : sf->len;
-
-                    INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
-                }
-
-                double Mn = compute_Mn_from_sf_using_classical_detailed_balance(*sf, n);
-                INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn); 
-            } else if (tagged_item.typ == STACK_ITEM_CF) {
-                CFnc *cf = &tagged_item.item.cf;
-
-                double Mn;
-                compute_Mn_from_cf_using_classical_detailed_balance(*cf, n, &Mn);
-                INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
-            }
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
             Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
@@ -2656,7 +2688,7 @@ bool run_processing(Processing_Params *processing_params) {
             }
         }
 
-        return false; 
+        return 1; 
     }
 
     return stack.return_code; 
@@ -2861,7 +2893,7 @@ int main(int argc, char* argv[])
             calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
            
             if (_wrank == 0) { 
-                if (!run_processing(&processing_params)) {
+                if (run_processing(&processing_params)) {
                     PRINT0("ERROR: an error occured when running PROCESSING block\n");
                     exit(1); 
                 }
@@ -2914,7 +2946,7 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            if (!run_processing(&processing_params)) {
+            if (run_processing(&processing_params)) {
                 PRINT0("\n");
                 ERROR("failed to execute commands in the PROCESSING block\n");
                 exit(1); 

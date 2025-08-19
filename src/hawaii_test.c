@@ -49,6 +49,7 @@ const char *TEST_NAMES[] = {
     "cmp.conf",
     "fit-baseline-nargs.conf",
     "average-cfs.conf",
+    "compute-classical-moments.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -62,9 +63,10 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Fail,
     Fail,
     Fail,
+    Success,
 };
 
-static_assert(TEST_COUNT == 9, "");
+static_assert(TEST_COUNT == 10, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
