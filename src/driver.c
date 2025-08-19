@@ -414,7 +414,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "ADD_SPECTRA",
     "FIT_BASELINE", // docs (+), is name descriptive enough?
     "SMOOTH",
-    "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE",
+    "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE", // docs (+), tests (+)
     "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE",
     "AVERAGE_CFS", // docs (+)
     "D1",
@@ -2229,6 +2229,495 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
     return true;
 }
 
+bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+{
+    expect_n_funcall_arguments(func, 1);
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+    SFnc *sf = &tagged_item.item.sf;
+
+    int n;
+    {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        const char *expected_name = "n";
+        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+            ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                    func->name, expected_name, arg.name);
+            exit(1);
+        }
+        expect_integer_funcall_argument(func, &arg);
+        n = arg.int_number;
+    }
+
+    INFO("Spectral moment order: n = %d\n", n); 
+
+    if (processing_params->spectrum_frequency_max > 0) {
+        assert(sf->len > 1);
+        double dnu = sf->nu[1] - sf->nu[0];
+        size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
+        sf->len = (sf->len > trim_len) ? trim_len : sf->len;
+
+        INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
+    }
+
+    double Mn = compute_Mn_from_sf_using_quantum_detailed_balance(*sf, n);
+    INFO("Spectral moment using quantum detailed balance [based on SF] = %.5e\n", Mn); 
+
+    return true;
+}
+
+void execute_int3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief INT3 
+ *
+ */ 
+{
+    (void) func;
+    (void) pc_loc;
+
+    PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
+    PRINT0("Stack trace:\n");
+    _print0_margin = 4;
+    for (size_t i = 0; i < stack->count; ++i) {
+        Tagged_Stack_Item *stack_item = &stack->items[i];
+        Loc *loc = &stack_item->loc;
+        PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
+                loc->input_path, loc->line_number, loc->line_offset);
+
+        if (stack_item->typ == STACK_ITEM_CF) {
+            CFnc *cf = &stack_item->item.cf; 
+            PRINT0("t           = %p\n", cf->t);
+            PRINT0("data        = %p\n", cf->data);
+            PRINT0("len         = %zu\n", cf->len);
+            PRINT0("capacity    = %zu\n", cf->capacity);
+            PRINT0("ntraj       = %.6lf\n", cf->ntraj);
+            PRINT0("Temperature = %.2lf\n", cf->Temperature);
+            PRINT0("normalized  = %d\n\n", cf->normalized); 
+
+        } else if (stack_item->typ == STACK_ITEM_SF) {
+            SFnc *sf = &stack_item->item.sf; 
+            PRINT0("nu          = %p\n", sf->nu);
+            PRINT0("data        = %p\n", sf->data);
+            PRINT0("len         = %zu\n", sf->len);
+            PRINT0("capacity    = %zu\n", sf->capacity);
+            PRINT0("ntraj       = %.6lf\n", sf->ntraj);
+            PRINT0("Temperature = %.2lf\n", sf->Temperature);
+            PRINT0("normalized  = %d\n\n", sf->normalized);
+
+        } else if (stack_item->typ == STACK_ITEM_SPECTRUM) {
+            Spectrum *sp = &stack_item->item.sp;
+            PRINT0("nu          = %p\n", sp->nu);
+            PRINT0("data        = %p\n", sp->data);
+            PRINT0("len         = %zu\n", sp->len);
+            PRINT0("capacity    = %zu\n", sp->capacity);
+            PRINT0("ntraj       = %.6lf\n", sp->ntraj);
+            PRINT0("Temperature = %.2lf\n", sp->Temperature);
+            PRINT0("normalized  = %d\n\n", sp->normalized); 
+        } 
+    }
+}
+
+bool execute_add_spectra(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief ADD_SPECTRA 
+ *
+ */ 
+{
+    Spectra spectra = {0};
+
+    bool wn_step_is_set = false;
+    double wn_step = 0.0;
+
+    while (func->args.count > 0) {
+        Funcall_Argument arg = shift_funcall_argument(func);
+
+        const char *expected_name = "wavenumber_step";
+        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+            ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                    func->name, expected_name, arg.name);
+            exit(1);
+        }
+
+        expect_float_funcall_argument(func, &arg);
+        wn_step = arg.double_number;
+        wn_step_is_set = true;
+    } 
+
+    for (size_t i = 0; i < stack->count; ++i) {
+        Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, *pc_loc);
+        expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_SPECTRUM);
+
+        da_append(&spectra, &tagged_item->item.sp);
+
+        INFO("popped spectrum (index: %zu) from processing stack\n", spectra.count-1);
+    }
+
+    if (spectra.count == 0) {
+        ERROR("no spectra found on stack");
+        return false; 
+    }
+
+    double min_freq_boundary = FLT_MAX;
+
+    Spectrum *curr = NULL;
+    Spectrum *prev = NULL;
+    for (size_t i = 0; i < spectra.count; ++i) {
+        if (i > 0) prev = curr;
+        curr = spectra.items[i];
+
+        double s = curr->nu[1] - curr->nu[0];
+        double freq_boundary = s * (curr->len - 1);
+
+        if (!wn_step_is_set && (s > wn_step)) wn_step = s;
+        if (min_freq_boundary > freq_boundary) min_freq_boundary = freq_boundary; 
+
+        PRINT0("spectrum(%zu): %p => wavenumber step = %.3e, # of trajectories = %.4e\n", i, curr, wn_step, curr->ntraj);
+
+        if ((prev != NULL) && (prev->Temperature != curr->Temperature)) { 
+            ERROR("temperature mismatch detected at spectrum (index: %zu) with previous ones. Exiting...", i);
+            return false; 
+        }
+    }
+
+    size_t len = (size_t) ceil(min_freq_boundary/wn_step) + 1;
+
+    INFO("Resampling spectra using cubic spline interpolation\n");
+    INFO("The following parameters will be used for added spectrum:\n");
+    PRINT0("  wavenumber step = %.5e cm-1\n", wn_step);
+    PRINT0("  wavenumber range  = 0.0 ... %.5e cm-1\n", min_freq_boundary);
+    PRINT0("  number of samples = %zu\n", len);               
+
+    Spectrum added = {
+        .nu = linspace(0.0, wn_step*(len - 1), len), 
+        .data = (double*) malloc(len*sizeof(double)),
+        .len = len,
+        .capacity = len,
+        .ntraj = 0.0,
+        .Temperature = curr->Temperature,
+        .normalized = true,
+    };
+
+    memset(added.data, 0.0, len*sizeof(double));
+
+
+    for (size_t i = 0; i < spectra.count; ++i) { 
+        Spectrum *sp = spectra.items[i];
+
+        gsl_interp_accel *acc = gsl_interp_accel_alloc();
+        gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, sp->len);
+        gsl_spline_init(spline, sp->nu, sp->data, sp->len);
+
+        for (size_t j = 0; j < len; ++j) {
+            double nu = j * wn_step;
+            added.data[j] += gsl_spline_eval(spline, nu, acc);
+        }
+
+        added.ntraj += sp->ntraj;
+
+        gsl_spline_free(spline);
+        gsl_interp_accel_free(acc);
+
+        free_spectrum(*sp);
+    }
+
+    stack->count = 0; // manually resetting the state of the stack instead of pop
+
+    stack_push_with_type(stack, (void*) &added, STACK_ITEM_SPECTRUM, pc_loc);
+
+    return true;
+}
+
+bool execute_alpha(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief ALPHA 
+ *
+ */ 
+{
+    (void) func;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+    SFnc *sf = &tagged_item.item.sf;
+    Spectrum sp = compute_alpha(*sf);
+    free_sfnc(*sf);
+
+    stack_push_with_type(stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+    return true;
+}
+
+bool execute_D1(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief D1 
+ *
+ */ 
+{
+    (void) func;
+    (void) pc_loc;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+    SFnc *sf = &tagged_item.item.sf;
+    SFnc sfd1 = desymmetrize_d1(*sf);
+    free_sfnc(*sf);
+
+    stack_push_with_type(stack, (void*) &sfd1, STACK_ITEM_SF, pc_loc); 
+    return true;
+}
+
+bool execute_D2(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief D2 
+ *
+ */ 
+{
+    (void) func;
+    (void) pc_loc;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+    SFnc *sf = &tagged_item.item.sf;
+    SFnc sfd2 = desymmetrize_d2(*sf);
+    free_sfnc(*sf);
+
+    stack_push_with_type(stack, (void*) &sfd2, STACK_ITEM_SF, pc_loc); 
+    return true;
+}
+
+bool execute_D3(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief D3
+ *
+ */ 
+// TODO: allow expecting SF or Spectrum
+// TODO: implement another 'desymmetrize_schofield' that yields SF
+{
+    (void) func;
+    (void) pc_loc;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+
+    SFnc *sf = &tagged_item.item.sf;
+    SFnc sfd3 = desymmetrize_schofield(*sf);
+    free_sfnc(*sf);
+
+    stack_push_with_type(stack, (void*) &sfd3, STACK_ITEM_SF, pc_loc);
+    return true; 
+}
+
+bool execute_D4(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief D4
+ *
+ */ 
+{
+    (void) func;
+    (void) pc_loc;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+
+    CFnc *cf = &tagged_item.item.cf;
+    SFnc sfd4 = desymmetrize_egelstaff_from_cf(*cf);
+    free_cfnc(*cf);
+
+    stack_push_with_type(stack, (void*) &sfd4, STACK_ITEM_SF, pc_loc); 
+    return true;
+}
+
+bool execute_D4a(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief D4a
+ *
+ */ 
+{
+    (void) func;
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
+
+    CFnc *cf = &tagged_item.item.cf;
+    SFnc sfd4a = desymmetrize_frommhold_from_cf(*cf);
+    free_cfnc(*cf);
+
+    stack_push_with_type(stack, (void*) &sfd4a, STACK_ITEM_SF, pc_loc); 
+    return true;
+}
+
+bool execute_write_cf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief WRITE_CF
+ *
+ */ 
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
+    CFnc *cf = &tagged_item.item.cf; 
+
+    expect_n_funcall_arguments(func, 1);
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    if (!write_correlation_function(filename, *cf)) {
+        PRINT0("ERROR: could not write to file '%s'\n", filename);
+        return false; 
+    }
+
+    free_cfnc(*cf);
+    return true;
+}
+
+bool execute_write_sf(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief WRITE_SF
+ *
+ */ 
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
+    SFnc *sf = &tagged_item.item.sf; 
+
+    expect_n_funcall_arguments(func, 1);
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    if (!write_spectral_function(filename, *sf)) {
+        PRINT0("ERROR: could not write to file '%s'\n", filename);
+        return false; 
+    }
+
+    free_sfnc(*sf);
+    return true;
+}
+
+bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Loc *pc_loc)
+/**
+ * @brief WRITE_SPECTRUM
+ *
+ */ 
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
+    Spectrum *sp = &tagged_item.item.sp;
+
+    expect_n_funcall_arguments(func, 1);
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_string_funcall_argument(func, &arg);
+    const char *filename = arg.string_storage; 
+
+    if (processing_params->spectrum_frequency_max > 0) {
+        assert(sp->len > 1);
+        double dnu = sp->nu[1] - sp->nu[0];
+        size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
+        sp->len = (sp->len > n) ? n : sp->len;
+
+        INFO("Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
+    }
+
+    if (!write_spectrum(filename, *sp)) {
+        PRINT0("ERROR: could not write to file '%s'\n", filename);
+        return false; 
+    }
+
+    free_spectrum(*sp);
+    return true; 
+}
+
+bool execute_smooth(Funcall *func, Processing_Stack *stack, Loc *pc_loc)
+/**
+ * @brief SMOOTH
+ *
+ */ 
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, *pc_loc);
+    expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
+    SFnc *sf = &tagged_item.item.sf;
+
+    size_t grid_npoints = 0;
+    double grid_max = 0.0;
+
+    size_t ws_min = DEFAULT_WINDOW_SIZE_MIN;
+    double ws_step = DEFAULT_WINDOW_SIZE_STEP;
+    size_t ws_delay = DEFAULT_WINDOW_SIZE_DELAY;
+
+    while (func->args.count > 0) {
+        Funcall_Argument arg = shift_funcall_argument(func);
+
+        if (strcasecmp(arg.name, "grid_npoints") == 0) {
+            expect_integer_for_funcall_named_argument(func, &arg);
+            grid_npoints = arg.int_number;
+        } else if (strcasecmp(arg.name, "grid_max") == 0) {
+            expect_float_for_funcall_named_argument(func, &arg);
+            grid_max = arg.double_number;
+        } else if (strcasecmp(arg.name, "window_size_min") == 0) {
+            expect_integer_for_funcall_named_argument(func, &arg);
+            ws_min = arg.int_number; 
+        } else if (strcasecmp(arg.name, "window_size_step") == 0) {
+            expect_float_for_funcall_named_argument(func, &arg);
+            ws_step = arg.double_number;
+        } else if (strcasecmp(arg.name, "window_size_delay") == 0) {
+            expect_integer_for_funcall_named_argument(func, &arg);
+            ws_delay = arg.int_number; 
+        } else {
+            PRINT0("ERROR: %s:%d:%d: function call %s got unexpected named argument %s\n",
+                    arg.name_loc.input_path, arg.name_loc.line_number, arg.name_loc.line_offset,
+                    func->name, arg.name);
+        } 
+    }
+
+    if (grid_npoints == 0) {
+        PRINT0("ERROR: %s:%d:%d: number of grid points for smoothing must be provided\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        exit(1);
+    }
+
+    if (grid_max <= 0.0) {
+        PRINT0("ERROR: %s:%d:%d: the ending point of the grid for smoothing must be provided\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        exit(1);
+    }
+
+    Smoothing_Config config = {
+        .degree = 3, 
+        .ws_min = ws_min, 
+        .ws_step = ws_step, 
+        .ws_delay = ws_delay, 
+        .ws_cap = 0,
+    }; 
+
+    INFO("grid_npoints = %zu\n", grid_npoints);
+    INFO("grid_max = %.5e cm-1\n", grid_max); 
+    INFO("window_size_min = %zu\n", ws_min);
+    INFO("window_size_step = %.5e\n", ws_step);
+    INFO("window_size_delay = %zu\n", ws_delay);
+
+    loess_init(sf->nu, sf->data, sf->len);
+    loess_weight = WEIGHT_TRICUBE; 
+
+    SFnc smoothed = {
+        .nu          = NULL,
+        .data        = NULL,
+        .len         = grid_npoints,
+        .ntraj       = sf->ntraj,
+        .Temperature = sf->Temperature,
+        .normalized  = sf->normalized,
+    };
+
+    smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
+    smoothed.data = loess_apply_smoothing(&config);
+
+    stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SF, pc_loc);
+    return true;
+}
 
 int run_processing(Processing_Params *processing_params) 
 {
@@ -2274,392 +2763,46 @@ int run_processing(Processing_Params *processing_params)
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
             if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params, pc_loc)) return_defer(1);
-
-        } else if (strcasecmp(funcname, "INT3") == 0) {
-            PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
-            PRINT0("Stack trace:\n");
-            _print0_margin = 4;
-            for (size_t i = 0; i < stack.count; ++i) {
-                Tagged_Stack_Item *stack_item = &stack.items[i];
-                Loc *loc = &stack_item->loc;
-                PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
-                        loc->input_path, loc->line_number, loc->line_offset);
-
-                if (stack_item->typ == STACK_ITEM_CF) {
-                    CFnc *cf = &stack_item->item.cf; 
-                    PRINT0("t           = %p\n", cf->t);
-                    PRINT0("data        = %p\n", cf->data);
-                    PRINT0("len         = %zu\n", cf->len);
-                    PRINT0("capacity    = %zu\n", cf->capacity);
-                    PRINT0("ntraj       = %.6lf\n", cf->ntraj);
-                    PRINT0("Temperature = %.2lf\n", cf->Temperature);
-                    PRINT0("normalized  = %d\n\n", cf->normalized); 
-
-                } else if (stack_item->typ == STACK_ITEM_SF) {
-                    SFnc *sf = &stack_item->item.sf; 
-                    PRINT0("nu          = %p\n", sf->nu);
-                    PRINT0("data        = %p\n", sf->data);
-                    PRINT0("len         = %zu\n", sf->len);
-                    PRINT0("capacity    = %zu\n", sf->capacity);
-                    PRINT0("ntraj       = %.6lf\n", sf->ntraj);
-                    PRINT0("Temperature = %.2lf\n", sf->Temperature);
-                    PRINT0("normalized  = %d\n\n", sf->normalized);
-
-                } else if (stack_item->typ == STACK_ITEM_SPECTRUM) {
-                    Spectrum *sp = &stack_item->item.sp;
-                    PRINT0("nu          = %p\n", sp->nu);
-                    PRINT0("data        = %p\n", sp->data);
-                    PRINT0("len         = %zu\n", sp->len);
-                    PRINT0("capacity    = %zu\n", sp->capacity);
-                    PRINT0("ntraj       = %.6lf\n", sp->ntraj);
-                    PRINT0("Temperature = %.2lf\n", sp->Temperature);
-                    PRINT0("normalized  = %d\n\n", sp->normalized); 
-                } 
-            }
-
-            return_defer(1); 
-        } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
-            Spectra spectra = {0};
-
-            bool wn_step_is_set = false;
-            double wn_step = 0.0;
-
-            while (func->args.count > 0) {
-                Funcall_Argument arg = shift_funcall_argument(func);
-
-                const char *expected_name = "wavenumber_step";
-                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
-                    ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
-                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                          func->name, expected_name, arg.name);
-                    exit(1);
-                }
-
-                expect_float_funcall_argument(func, &arg);
-                wn_step = arg.double_number;
-                wn_step_is_set = true;
-            } 
-
-            for (size_t i = 0; i < stack.count; ++i) {
-                Tagged_Stack_Item *tagged_item = stack_peek_with_type(&stack, i, *pc_loc);
-                expect_item_on_stack(pc_loc, tagged_item, STACK_ITEM_SPECTRUM);
-
-                da_append(&spectra, &tagged_item->item.sp);
-                
-                INFO("popped spectrum (index: %zu) from processing stack\n", spectra.count-1);
-            }
-          
-            if (spectra.count == 0) {
-                ERROR("no spectra found on stack");
-                return_defer(false); 
-            }
-
-            double min_freq_boundary = FLT_MAX;
-
-            Spectrum *curr = NULL;
-            Spectrum *prev = NULL;
-            for (size_t i = 0; i < spectra.count; ++i) {
-                if (i > 0) prev = curr;
-                curr = spectra.items[i];
-
-                double s = curr->nu[1] - curr->nu[0];
-                double freq_boundary = s * (curr->len - 1);
-
-                if (!wn_step_is_set && (s > wn_step)) wn_step = s;
-                if (min_freq_boundary > freq_boundary) min_freq_boundary = freq_boundary; 
-
-                PRINT0("spectrum(%zu): %p => wavenumber step = %.3e, # of trajectories = %.4e\n", i, curr, wn_step, curr->ntraj);
-
-                if ((prev != NULL) && (prev->Temperature != curr->Temperature)) { 
-                    ERROR("temperature mismatch detected at spectrum (index: %zu) with previous ones. Exiting...", i);
-                    return_defer(false); 
-                }
-            }
-
-            size_t len = (size_t) ceil(min_freq_boundary/wn_step) + 1;
-
-            INFO("Resampling spectra using cubic spline interpolation\n");
-            INFO("The following parameters will be used for added spectrum:\n");
-            PRINT0("  wavenumber step = %.5e cm-1\n", wn_step);
-            PRINT0("  wavenumber range  = 0.0 ... %.5e cm-1\n", min_freq_boundary);
-            PRINT0("  number of samples = %zu\n", len);               
-
-            Spectrum added = {
-                .nu = linspace(0.0, wn_step*(len - 1), len), 
-                .data = (double*) malloc(len*sizeof(double)),
-                .len = len,
-                .capacity = len,
-                .ntraj = 0.0,
-                .Temperature = curr->Temperature,
-                .normalized = true,
-            };
-
-            memset(added.data, 0.0, len*sizeof(double));
-
-
-            for (size_t i = 0; i < spectra.count; ++i) { 
-                Spectrum *sp = spectra.items[i];
-
-                gsl_interp_accel *acc = gsl_interp_accel_alloc();
-                gsl_spline *spline = gsl_spline_alloc(gsl_interp_cspline, sp->len);
-                gsl_spline_init(spline, sp->nu, sp->data, sp->len);
-
-                for (size_t j = 0; j < len; ++j) {
-                    double nu = j * wn_step;
-                    added.data[j] += gsl_spline_eval(spline, nu, acc);
-                }
-
-                added.ntraj += sp->ntraj;
-
-                gsl_spline_free(spline);
-                gsl_interp_accel_free(acc);
-
-                free_spectrum(*sp);
-            }
-            
-            stack.count = 0; // manually resetting the state of the stack instead of pop
-
-            stack_push_with_type(&stack, (void*) &added, STACK_ITEM_SPECTRUM, pc_loc);
-
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
-            expect_n_funcall_arguments(func, 1);
+            if (!execute_compute_mn_quantum_detailed_balance(func, &stack, processing_params, pc_loc)) return_defer(1);
 
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
+        } else if (strcasecmp(funcname, "INT3") == 0) {
+            execute_int3(func, &stack, pc_loc);
+            return_defer(1);
 
-            SFnc *sf = &tagged_item.item.sf;
-
-            int n;
-            {
-                Funcall_Argument arg = shift_funcall_argument(func);
-                const char *expected_name = "n";
-                if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
-                    ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
-                          func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                          func->name, expected_name, arg.name);
-                    exit(1);
-                }
-                expect_integer_funcall_argument(func, &arg);
-                n = arg.int_number;
-            }
-            
-            INFO("Spectral moment order: n = %d\n", n); 
-
-            if (processing_params->spectrum_frequency_max > 0) {
-                assert(sf->len > 1);
-                double dnu = sf->nu[1] - sf->nu[0];
-                size_t trim_len = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                sf->len = (sf->len > trim_len) ? trim_len : sf->len;
-
-                INFO("Truncating spectral function at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", trim_len*dnu, trim_len);
-            }
-
-            double Mn = compute_Mn_from_sf_using_quantum_detailed_balance(*sf, n);
-            INFO("Spectral moment using quantum detailed balance [based on SF] = %.5e\n", Mn); 
-        
+        } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
+            if (!execute_add_spectra(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
-
-            SFnc *sf = &tagged_item.item.sf;
-            Spectrum sp = compute_alpha(*sf);
-            free_sfnc(*sf);
-
-            stack_push_with_type(&stack, (void*) &sp, STACK_ITEM_SPECTRUM, pc_loc);
+            if (!execute_alpha(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D1") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
-            
-            SFnc *sf = &tagged_item.item.sf;
-            SFnc sfd1 = desymmetrize_d1(*sf);
-            free_sfnc(*sf);
-            
-            stack_push_with_type(&stack, (void*) &sfd1, STACK_ITEM_SF, pc_loc); 
+            if (!execute_D1(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D2") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
-            
-            SFnc *sf = &tagged_item.item.sf;
-            SFnc sfd2 = desymmetrize_d2(*sf);
-            free_sfnc(*sf);
-            
-            stack_push_with_type(&stack, (void*) &sfd2, STACK_ITEM_SF, pc_loc); 
+            if (!execute_D2(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
-            // TODO: allow expecting SF or Spectrum
-            // TODO: implement another 'desymmetrize_schofield' that yields SF
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF);
-            
-            SFnc *sf = &tagged_item.item.sf;
-            SFnc sfd3 = desymmetrize_schofield(*sf);
-            free_sfnc(*sf);
-
-            stack_push_with_type(&stack, (void*) &sfd3, STACK_ITEM_SF, pc_loc); 
+            if (!execute_D3(func, &stack, pc_loc)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
-            
-            CFnc *cf = &tagged_item.item.cf;
-            SFnc sfd4 = desymmetrize_egelstaff_from_cf(*cf);
-            free_cfnc(*cf);
-            
-            stack_push_with_type(&stack, (void*) &sfd4, STACK_ITEM_SF, pc_loc); 
+            if (!execute_D4(func, &stack, pc_loc)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4a") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF);
-            
-            CFnc *cf = &tagged_item.item.cf;
-            SFnc sfd4a = desymmetrize_frommhold_from_cf(*cf);
-            free_cfnc(*cf);
-            
-            stack_push_with_type(&stack, (void*) &sfd4a, STACK_ITEM_SF, pc_loc); 
+            if (!execute_D4a(func, &stack, pc_loc)) return_defer(1);
         
+        } else if (strcasecmp(funcname, "SMOOTH") == 0) {
+            if (!execute_smooth(func, &stack, pc_loc)) return_defer(1);
+
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_CF); 
-            CFnc *cf = &tagged_item.item.cf; 
-            
-            expect_n_funcall_arguments(func, 1);
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-
-            if (!write_correlation_function(filename, *cf)) {
-                PRINT0("ERROR: could not write to file '%s'\n", filename);
-                exit(1);
-            }
-
-            free_cfnc(*cf);
+            if (!execute_write_cf(func, &stack, pc_loc)) return_defer(1);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
-            SFnc *sf = &tagged_item.item.sf; 
-
-            expect_n_funcall_arguments(func, 1);
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-            
-            if (!write_spectral_function(filename, *sf)) {
-                PRINT0("ERROR: could not write to file '%s'\n", filename);
-                exit(1);
-            }
-
-           free_sfnc(*sf);
-        } else if (strcasecmp(funcname, "SMOOTH") == 0) {
-
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SF); 
-            SFnc *sf = &tagged_item.item.sf;
-
-            size_t grid_npoints = 0;
-            double grid_max = 0.0;
-
-            size_t ws_min = DEFAULT_WINDOW_SIZE_MIN;
-            double ws_step = DEFAULT_WINDOW_SIZE_STEP;
-            size_t ws_delay = DEFAULT_WINDOW_SIZE_DELAY;
-                
-            while (func->args.count > 0) {
-                Funcall_Argument arg = shift_funcall_argument(func);
-
-                if (strcasecmp(arg.name, "grid_npoints") == 0) {
-                    expect_integer_for_funcall_named_argument(func, &arg);
-                    grid_npoints = arg.int_number;
-                } else if (strcasecmp(arg.name, "grid_max") == 0) {
-                    expect_float_for_funcall_named_argument(func, &arg);
-                    grid_max = arg.double_number;
-                } else if (strcasecmp(arg.name, "window_size_min") == 0) {
-                    expect_integer_for_funcall_named_argument(func, &arg);
-                    ws_min = arg.int_number; 
-                } else if (strcasecmp(arg.name, "window_size_step") == 0) {
-                    expect_float_for_funcall_named_argument(func, &arg);
-                    ws_step = arg.double_number;
-                } else if (strcasecmp(arg.name, "window_size_delay") == 0) {
-                    expect_integer_for_funcall_named_argument(func, &arg);
-                    ws_delay = arg.int_number; 
-                } else {
-                    PRINT0("ERROR: %s:%d:%d: function call %s got unexpected named argument %s\n",
-                            arg.name_loc.input_path, arg.name_loc.line_number, arg.name_loc.line_offset,
-                            func->name, arg.name);
-                } 
-            }
-
-            if (grid_npoints == 0) {
-                PRINT0("ERROR: %s:%d:%d: number of grid points for smoothing must be provided\n",
-                        func->loc.input_path, func->loc.line_number, func->loc.line_offset);
-                exit(1);
-            }
-
-            if (grid_max <= 0.0) {
-                PRINT0("ERROR: %s:%d:%d: the ending point of the grid for smoothing must be provided\n",
-                        func->loc.input_path, func->loc.line_number, func->loc.line_offset);
-                exit(1);
-            }
-
-            Smoothing_Config config = {
-                .degree = 3, 
-                .ws_min = ws_min, 
-                .ws_step = ws_step, 
-                .ws_delay = ws_delay, 
-                .ws_cap = 0,
-            }; 
-      
-            INFO("grid_npoints = %zu\n", grid_npoints);
-            INFO("grid_max = %.5e cm-1\n", grid_max); 
-            INFO("window_size_min = %zu\n", ws_min);
-            INFO("window_size_step = %.5e\n", ws_step);
-            INFO("window_size_delay = %zu\n", ws_delay);
-
-            loess_init(sf->nu, sf->data, sf->len);
-            loess_weight = WEIGHT_TRICUBE; 
-       
-            SFnc smoothed = {
-                .nu          = NULL,
-                .data        = NULL,
-                .len         = grid_npoints,
-                .ntraj       = sf->ntraj,
-                .Temperature = sf->Temperature,
-                .normalized  = sf->normalized,
-            };
-
-            smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
-            smoothed.data = loess_apply_smoothing(&config);
-        
-            stack_push_with_type(&stack, (void*) &smoothed, STACK_ITEM_SF, pc_loc);
+            if (!execute_write_sf(func, &stack, pc_loc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            Tagged_Stack_Item tagged_item = stack_pop_with_type(&stack, *pc_loc);
-            expect_item_on_stack(pc_loc, &tagged_item, STACK_ITEM_SPECTRUM); 
-            Spectrum *sp = &tagged_item.item.sp;
-            
-            expect_n_funcall_arguments(func, 1);
-            Funcall_Argument arg = shift_funcall_argument(func);
-            expect_string_funcall_argument(func, &arg);
-            const char *filename = arg.string_storage; 
-
-            if (processing_params->spectrum_frequency_max > 0) {
-                assert(sp->len > 1);
-                double dnu = sp->nu[1] - sp->nu[0];
-                size_t n = (size_t) (processing_params->spectrum_frequency_max / dnu);
-                sp->len = (sp->len > n) ? n : sp->len;
-                
-                INFO("Truncating spectrum at max frequency = %.4e cm-1 (resulting npoints: %zu)\n", n*dnu, n);
-            }
-
-            if (!write_spectrum(filename, *sp)) {
-                PRINT0("ERROR: could not write to file '%s'\n", filename);
-                exit(1);
-            }
-
-            free_spectrum(*sp); 
+            if (!execute_write_spectrum(func, &stack, processing_params, pc_loc)) return_defer(1);
 
         } else {
             PRINT0("\n\n");
