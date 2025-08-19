@@ -1904,9 +1904,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return true;
-    }
-
-    if (typ1 == STACK_ITEM_SF) {
+    } else if (typ1 == STACK_ITEM_SF) {
         SFnc *sf1 = &tagged_item1.item.sf;
         SFnc *sf2 = &tagged_item2.item.sf;
 
@@ -1928,7 +1926,6 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
             INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
             return_defer(false);
         }
-
 
         for (size_t i = 0; i < sf1->len; ++i) {
             if (fabs(sf1->nu[i] - sf2->nu[i]) > freq_abstol) {
@@ -1961,11 +1958,61 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return_defer(true);
-    }
+    } else if (typ1 == STACK_ITEM_SPECTRUM) {
+        Spectrum *sp1 = &tagged_item1.item.sp;
+        Spectrum *sp2 = &tagged_item2.item.sp;
 
-    PRINT0("ERROR: CMP is not implemented for comparing %s and %s\n", 
-           STACK_ITEM_TYPES[typ1], STACK_ITEM_TYPES[typ2]);
-    assert(false);
+        if (sp1->len != sp2->len) {
+            result = false;
+            sb_append_format(&reason, "'len' field differs (%zu and %zu)", sp1->len, sp2->len);
+        } else if (fabs(sp1->Temperature - sp2->Temperature) > Temperature_abstol) {
+            result = false; 
+            sb_append_format(&reason, "'Temperature' field differs (%.2f and %.2f)", sp1->Temperature, sp2->Temperature);
+        } else if (fabs(sp1->ntraj - sp2->ntraj) > ntraj_abstol) {
+            result = false;
+            sb_append_format(&reason, "'ntraj' field differs (%.2f and %.2f)", sp1->ntraj, sp2->ntraj);
+        } else if (sp1->normalized != sp2->normalized) {
+            result = false; 
+            sb_append_format(&reason, "'normalized' field differs (%d and %d)", sp1->normalized, sp2->normalized);
+        }
+        
+        if (!result) {
+            INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
+            return_defer(false);
+        }
+
+        for (size_t i = 0; i < sp1->len; ++i) {
+            if (fabs(sp1->nu[i] - sp2->nu[i]) > freq_abstol) {
+                result = false;
+                sb_append_format(&reason, "frequncies at index %zu differ (%.6e and %.6e)",
+                    i, sp1->nu[i], sp2->nu[i]);
+                break;
+            }
+
+            if (fabs(sp2->data[i]) != 0.0) {
+               if ( (fabs(sp1->data[i]/sp2->data[i]) - 1.0) > value_reltol) {
+                   result = false;
+                   sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                           i, sp1->data[i], sp2->data[i]);
+                   break;
+               }
+            } else {
+                if (fabs(sp1->data[i]) != 0.0) {
+                    result = false;
+                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
+                            i, sp1->data[i], sp2->data[i]);
+                } 
+            } 
+        }
+
+        if (!result) {
+            INFO("CMP returned 'false' (objects are NOT equal): %s\n", reason.items);
+            return_defer(false);
+        }
+
+        INFO("CMP: comparison returned 'true' (objects are identical)\n");
+        return_defer(true);
+    } 
 
 defer:
     sb_free(&reason);
@@ -2278,8 +2325,10 @@ bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack
 
 void execute_int3(Funcall *func, Processing_Stack *stack)
 /**
- * @brief INT3 
+ * @brief INT3 triggers a debug breakpoint interrupt and displays comprehensive 
+ * stack information.
  *
+ * When called it will halt the program execution and display current stack contents. 
  */ 
 {
     (void) func;
@@ -2439,14 +2488,22 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
 
 bool execute_alpha(Funcall *func, Processing_Stack *stack)
 /**
- * @brief ALPHA 
+ * @brief ALPHA computes absorption coefficient from spectral function (SFnc).
  *
+ * Computes the absorption coefficient using the spectral function on stack top.
+ * The computation requires and consumes the input SFnc, using its Temperature field.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
     expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
 
     SFnc *sf = &tagged_item.item.sf;
+    if (sf->Temperature <= 0) {
+        ERROR("%s:%d:%d: cannot calculation absorption coefficient at T = %.3e\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, sf->Temperature);
+        return false;
+    }
+
     Spectrum sp = compute_alpha(*sf);
     free_sfnc(*sf);
 
