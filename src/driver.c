@@ -2164,7 +2164,7 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
  * detailed balance.
  * 
  * Calculates the n-th order spectral moment from either a correlation function (CFnc) 
- * or spectral function (SFnc) on stack top, applying classical detailed balance.
+ * or spectral function (SFnc) on stack top assuming classical detailed balance.
  *
  * @param n Mandatory order of spectral moment (passed as integer argument)
  *
@@ -2224,6 +2224,19 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
 }
 
 bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
+/**
+ * @brief COMPUTE_Mn_QUANTUM_DETAILED_BALANCE computes n-th spectral moment using quantum 
+ * detailed balance.
+ *
+ * Calculates the n-th order spectral moment from a spectral function (SFnc) on stack
+ * assuming quantum detailed balance.
+ *
+ * @param n Mandatory order of spectral moment (passed as integer argument)
+ *
+ * The computation for spectral function uses Simpson's method for numerical integration.
+ * If SPECTRUM_FREQUENCY_MAX parameter is set, the spectral function is truncated
+ * at this frequency before conducting the integration. 
+ */
 {
     expect_n_funcall_arguments(func, 1);
 

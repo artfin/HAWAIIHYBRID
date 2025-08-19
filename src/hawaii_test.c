@@ -51,9 +51,15 @@ const char *TEST_NAMES[] = {
     "fit-baseline-nargs.conf",
     "average-cfs.conf",
     "compute-classical-moments.conf",
+    "compute-classical-moments-with-truncation.conf",
     "compute-classical-moments-nargs.conf",
     "compute-classical-moments-argname.conf",
     "compute-classical-moments-argtype.conf",
+    "compute-quantum-moments.conf",
+    "compute-quantum-moments-with-truncation.conf",
+    "compute-quantum-moments-nargs.conf",
+    "compute-quantum-moments-argname.conf",
+    "compute-quantum-moments-argtype.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -69,12 +75,18 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Fail,
     Fail,
     Success,
+    Success,
+    Fail,
+    Fail,
+    Fail,
+    Success,
+    Success,
     Fail,
     Fail,
     Fail,
 };
 
-static_assert(TEST_COUNT == 14, "");
+static_assert(TEST_COUNT == 20, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
@@ -179,7 +191,7 @@ int main(int argc, char *argv[])
             printf("\t%-40s\t%-10s\t%s\n", "Test Name", "Run", "Result"); 
             for (size_t i = 0; i < reports.count; ++i) {
                 Report *report = &reports.items[i];
-                printf("\t%-40s\t", report->name);
+                printf("%2zu \t%-40s\t", i+1, report->name);
 
                 if (report->run_status == EXPECTED_RUN_STATUS[i]) {
                     printf("\e[32m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
