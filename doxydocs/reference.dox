@@ -1,4 +1,77 @@
 /**
+ *
+ * This section provides an overview of the input file format, including its structures, features, and supported data types.
+ * The format uses `&SECTION_NAME` and `&END` delimiters to define sections containing case-insensitive key-value pairs (assigned with `=`) or function calls. 
+ * Comments are indicated with  exclamation marks `!` throughout the input file. The input file parser enforces type safety, requiring each key to have a value of the 
+ * expected type; any type mismatch triggers an error message and terminates program execution.
+ *
+ * Supported data types include integers, floating-point values, boolean values, strings and arrays.  Underscores may be used in integers for readability (e.g., `1\_000\_000`). 
+ * For floating point values the scientific notation may be used (e.g., `1e2` instead of `100`). The arrays are denoted with curly braces `{<array members>}`. Examples:
+ * \code{.txt} 
+ *   HEP_M0_NPOINTS = 1_000_000 ! integer with optional underscores
+ *   PAIR_REDUCED_MASS = 3.00092e+04 ! floating-point number using scientific notation
+ *   USE_ZIMMERMANN_TRICK = true ! boolean value
+ *   CALCULATION_TYPE = CORRELATION_SINGLE ! plain string (no quotation marks)
+ *   CF_FILENAME = "example.txt" ! double-quoted string
+ *   TEMPERATURES = {100.0, 200.0, 300.0} ! an array of integer values
+ *   CF_FILENAMES = {"example1.txt", "example2.txt"} ! an array of double-quoted strings
+ * \endcode
+ *
+ * `&INPUT` section provides overall control of the calculation, for example, calculation type, pair state, reduced mass, paths to dynamic libraries containing potential energy 
+ * and induced dipole functions, and output files. The available input parameters are described in Section 1. 
+ *
+ * `&MONOMER` section specifies the types of interacting monomers through the `MONOMER_TYPE` field along with their molecular constants such as inertia tensor values and 
+ * centrifugal constant. The available paramters are listed in Section 2. 
+ *
+ * `&PROCESSING` section configures the data pipeline using a stack machine model, where each command manipulates the implicit data stack. Unlike the `&INPUT` and `&MONOMER` sections, 
+ * the `&PROCESSING` section also contains an order-sensitive sequence of commands that execute sequentially, consuming inputs from the top of the stack and pushing the results back 
+ * for subsequent commands. A typical pipeline begins with loading data using `READ_CF`, which pushes a correlation function onto the stack. Then `CF_TO_SF` consumes the correlation 
+ * function and pushes corresponding spectral function. Commands like `COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE` and `COMPUTE_Mn_QUANTUM_DETAILED_BALANCE` consume the spectral function, 
+ * requiring the user to first call `DUP()` to preserve the original spectral function if further commands will be operating on it. By the end of the processing script, the stack must 
+ * be empty, ensuring all data has been processed or saved. The available functions are described in detail below.
+ *
+ * <table>
+ * <tr><th>Label</th><th>Variable Name</th></tr>
+ * <tr><td>#1 </td><td>`CALCULATION_TYPE`</td></tr>
+ * <tr><td>#2 </td><td>`PAIR_STATE`</td></tr>
+ * <tr><td>#3 </td><td>`PAIR_REDUCED_MASS`</td></tr>
+ * <tr><td>#4 </td><td>`SO_POTENTIAL`</td></tr>
+ * <tr><td>#5a</td><td>`SO_DIPOLE`</td></tr>
+ * <tr><td>#5b</td><td>`SO_DIPOLE.1`</td></tr>
+ * <tr><td>#5c</td><td>`SO_DIPOLE.2`</td></tr>
+ * <tr><td>#6 </td><td>`TEMPERATURE`</td></tr> 
+ * <tr><td>#7 </td><td>`TEMPERATURES`</td></tr> 
+ * <tr><td>#8 </td><td>`SATELLITE_TEMPERATURES`</td></tr>
+ * <tr><td>#9 </td><td>`TOTAL_TRAJECTORIES`</td></tr>
+ * <tr><td>#10</td><td>`CVODE_TOLERANCE`</td></tr>
+ * <tr><td>#11</td><td>`SAMPLING_TIME`</td></tr>
+ * <tr><td>#12</td><td>`MaxTrajectoryLength`</td></tr>
+ * <tr><td>#13</td><td>`SAMPLER_RMIN`</td></tr>
+ * <tr><td>#14</td><td>`SAMPLER_RMAX`</td></tr>
+ * <tr><td>#15</td><td>`PESMIN`</td></tr>
+ * <tr><td>#16</td><td>`INITIALM0_NPOINTS`</td></tr>
+ * <tr><td>#17</td><td>`INITIALM2_NPOINTS`</td></tr>
+ * <tr><td>#18</td><td>`HEP_M0_NPOINTS`</td></tr>
+ * <tr><td>#19</td><td>`HEP_M0_NITERATIONS`</td></tr>
+ * <tr><td>#20</td><td>`HEP_M2_NPOINTS`</td></tr>
+ * <tr><td>#21</td><td>`HEP_M2_NITERATIONS`</td></tr>
+ * <tr><td>#22</td><td>`HEP_PPF_NITERATIONS`</td></tr>
+ * <tr><td>#23</td><td>`HEP_PPF_NPOINTS`</td></tr>
+ * <tr><td>#24</td><td>`SF_FILENAME`</td></tr>
+ * <tr><td>#25</td><td>`CF_FILENAME`</td></tr>
+ * <tr><td>#26</td><td>`CF_FILENAMES`</td></tr>
+ * <tr><td>#27</td><td>`R0`</td></tr>
+ * <tr><td>#28</td><td>`RCUT`</td></tr>
+ * <tr><td>#29</td><td>`PARTIAL_PARTITION_FUNCTION_RATIO`</td></tr>
+ * <tr><td>#30</td><td>`PARTIAL_PARTITION_FUNCTION_RATIOS`</td></tr>
+ * <tr><td>#31</td><td>`ApproximateFrequencyMax`</td></tr>
+ * <tr><td>#32</td><td>`ODD_J_SPIN\_WEIGHT`</td></tr>
+ * <tr><td>#33</td><td>`EVEN_J_SPIN\_WEIGHT`</td></tr>
+ * <tr><td>#34</td><td>`USE_ZIMMERMANN_TRICK`</td></tr>
+ * <tr><td>#35</td><td>`AVERAGE_TIME_BETWEEN_COLLISIONS`</td></tr>
+ * </table>            
+ *
+ *
  * @page input_reference Reference 
  * @tableofcontents
  * 
@@ -27,6 +100,11 @@
  * @copybrief execute_cmp 
  * @copydetails execute_cmp 
  * 
+ * ### DUP 
+ * (See @ref execute_dup)
+ * @copybrief execute_dup 
+ * @copydetails execute_dup
+ *
  * ### DROP 
  * (See @ref execute_drop)
  * @copybrief execute_drop 
@@ -41,4 +119,9 @@
  * (See @ref execute_average_cfs)
  * @copybrief execute_average_cfs 
  * @copydetails execute_average_cfs
+ *
+ * ### COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE 
+ * (See @ref execute_compute_mn_classical_detailed_balance
+ * @copybrief execute_compute_mn_classical_detailed_balance
+ * @copydetails execute_compute_mn_classical_detailed_balance
  */

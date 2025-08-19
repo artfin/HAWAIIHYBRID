@@ -4491,6 +4491,8 @@ bool average_correlation_functions(CFnc *average, CFncs cfncs)
             average->len = cf->len;
             average->Temperature = cf->Temperature;
         } else {
+            assert(cf->normalized == true); // @todo: this case can be handled separately
+                                           
             if (cf->len != average->len) {
                 PRINT0("ERROR: expected correlation functions to be of equal length, however cf.len = %zu and expected len = %zu\n", cf->len, average->len);
                 return false;
