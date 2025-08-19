@@ -41,8 +41,8 @@ typedef struct {
 
 const char *TEST_NAMES[] = {
     "empty-processing.conf",
-    "parse-cf.conf",
-    "parse-sf.conf",
+    "read-cf.conf",
+    "read-sf.conf",
     "convert-cf-to-sf.conf",
     "string-literal.conf",
     "naked-drop.conf",
@@ -60,6 +60,7 @@ const char *TEST_NAMES[] = {
     "compute-quantum-moments-nargs.conf",
     "compute-quantum-moments-argname.conf",
     "compute-quantum-moments-argtype.conf",
+    "compute-alpha.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -84,9 +85,10 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Fail,
     Fail,
     Fail,
+    Fail,
 };
 
-static_assert(TEST_COUNT == 20, "");
+static_assert(TEST_COUNT == 21, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));

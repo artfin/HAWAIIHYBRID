@@ -3964,9 +3964,9 @@ int write_spectrum_ext(FILE *fp, Spectrum sp)
     
     for (size_t i = 0; i < sp.len; ++i) {
         if (sp.normalized) {
-            nchars += fprintf(fp, "%.2f %.10e\n", sp.nu[i], sp.data[i]);
+            nchars += fprintf(fp, "%.10f %.10e\n", sp.nu[i], sp.data[i]);
         } else {
-            nchars += fprintf(fp, "%.2f %.10e\n", sp.nu[i], sp.data[i] / sp.ntraj);
+            nchars += fprintf(fp, "%.10f %.10e\n", sp.nu[i], sp.data[i] / sp.ntraj);
         }
     }
    
