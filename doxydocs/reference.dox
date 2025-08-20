@@ -105,6 +105,11 @@
  * @copybrief execute_dup 
  * @copydetails execute_dup
  *
+ * ### DUP2 
+ * (See @ref execute_dup2)
+ * @copybrief execute_dup2
+ * @copydetails execute_dup2
+ *
  * ### DROP 
  * (See @ref execute_drop)
  * @copybrief execute_drop 

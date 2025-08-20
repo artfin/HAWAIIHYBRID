@@ -16,6 +16,10 @@
 #define FLAG_IMPLEMENTATION
 #include "flag.h"
 
+// TODO: do we need to store the result NUMBERs on stack, for example, spectral moments?
+// TODO: do we need SWAP operation on the stack elements? 
+// TODO: do we need OVER operation on the stack elements? 
+//
 // TODO: investigate a normalization issue within
 //   CFnc dct_sf_to_cf(SFnc sf);
 
@@ -424,8 +428,10 @@ static const char *AVAILABLE_FUNCS[] = {
     "D4a",  // docs (+), tests (+)
     "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
+    "DUP2", // docs (+), tests (+) 
     "CMP", // docs (+)
     "DROP", // docs (+), tests (+)
+    "DROP2",
     "INT3", // docs (+)
 };
 
@@ -2019,6 +2025,33 @@ defer:
     return result;
 }
 
+bool execute_drop2(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief DROP2 removes the top two elements from the processing stack.
+ *
+ * It's equivalent to using DROP DROP. 
+ * The operation will fail if there are not enough elements on the stack.
+ */
+{
+    if (stack->count < 2) {
+        ERROR("%s:%d:%d: DROP2 requires 2 elements on stack, but only %zu found\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset, stack->count);
+        return false;
+    }
+    
+    Tagged_Stack_Item top = stack_pop_with_type(stack, func->loc);
+    Tagged_Stack_Item below_top = stack_pop_with_type(stack, func->loc);
+
+    INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
+         STACK_ITEM_TYPES[top.typ], 
+         top.loc.input_path, top.loc.line_number, top.loc.line_offset);
+    INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
+         STACK_ITEM_TYPES[below_top.typ], 
+         below_top.loc.input_path, below_top.loc.line_number, below_top.loc.line_offset);
+
+    return true;
+}
+
 bool execute_drop(Funcall *func, Processing_Stack *stack)
 /**
  * @brief DROP removes the top item from the processing stack. 
@@ -2026,9 +2059,9 @@ bool execute_drop(Funcall *func, Processing_Stack *stack)
  */
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    if (!expect_one_of_items_on_stack(&func->loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM)) return false;
     INFO("Dropping %s originated at %s:%d:%d from the processing stack\n",
-         STACK_ITEM_TYPES[tagged_item.typ], tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
+         STACK_ITEM_TYPES[tagged_item.typ], 
+         tagged_item.loc.input_path, tagged_item.loc.line_number, tagged_item.loc.line_offset);
 
     return true;
 }
@@ -2153,6 +2186,67 @@ bool execute_average_cfs(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
+bool execute_dup2(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief DUP2 duplicates the top two elements on the processing stack keeping their 
+ * ordering. 
+ *
+ * Schematically presenting the top stack elements:
+ *   (before) ... a b -- (after) ... a b a b
+ *
+ * Fails if there are less than 2 elements on stack.
+ */
+{
+    if (stack->count < 2) {
+        ERROR("%s:%d:%d: DUP2 requires 2 elements on stack, but only %zu found\n",
+               func->loc.input_path, func->loc.line_number, func->loc.line_offset, stack->count);
+        return false; 
+    }
+
+    Tagged_Stack_Item *below_top = stack_peek_with_type(stack, 1, func->loc); 
+    Tagged_Stack_Item *top = stack_peek_top_with_type(stack); 
+    
+    INFO("Dupicating %s and %s on processing stack\n", 
+         STACK_ITEM_TYPES[below_top->typ], STACK_ITEM_TYPES[top->typ]);
+
+    Tagged_Stack_Item *items[2] = {below_top, top};
+
+    for (size_t i = 0; i < 2; ++i) {
+        Tagged_Stack_Item *ts_item = items[i];
+        switch (ts_item->typ) {
+          case STACK_ITEM_CF: {
+            CFnc cf_copy = copy_cfnc(ts_item->item.cf);
+            stack_push(stack, (Tagged_Stack_Item) {
+                .item.cf = cf_copy,
+                .typ = STACK_ITEM_CF,
+                .loc = func->loc,
+            });
+            break;
+          }
+          case STACK_ITEM_SF: {
+            SFnc sf_copy = copy_sfnc(ts_item->item.sf);
+            stack_push(stack, (Tagged_Stack_Item) {
+                   .item.sf = sf_copy,
+                   .typ = STACK_ITEM_SF,
+                   .loc = func->loc, 
+                   });
+            break;
+          } 
+          case STACK_ITEM_SPECTRUM: {
+            Spectrum sp_copy = copy_spectrum(ts_item->item.sp);
+            stack_push(stack, (Tagged_Stack_Item) {
+                      .item.sp = sp_copy,
+                      .typ = STACK_ITEM_SPECTRUM,
+                      .loc = func->loc, 
+                     });
+            break;
+          }
+        }
+    }
+
+    return true;
+}
+
 bool execute_dup(Funcall *func, Processing_Stack *stack)
 /**
  * @brief DUP duplicates the top element of the processing stack.
@@ -2180,26 +2274,26 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
             .typ = STACK_ITEM_CF,
             .loc = func->loc,
         });
-      break;
-     }
-     case STACK_ITEM_SF: {
-       SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
-       stack_push(stack, (Tagged_Stack_Item) {
+        break;
+      }
+      case STACK_ITEM_SF: {
+        SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
+        stack_push(stack, (Tagged_Stack_Item) {
                .item.sf = sf_copy,
                .typ = STACK_ITEM_SF,
                .loc = func->loc, 
                });
-       break;
-     } 
-     case STACK_ITEM_SPECTRUM: {
-       Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
-       stack_push(stack, (Tagged_Stack_Item) {
-               .item.sp = sp_copy,
-               .typ = STACK_ITEM_SPECTRUM,
-               .loc = func->loc, 
-               });
-       break;
-    } 
+        break;
+      } 
+      case STACK_ITEM_SPECTRUM: {
+        Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
+        stack_push(stack, (Tagged_Stack_Item) {
+                  .item.sp = sp_copy,
+                  .typ = STACK_ITEM_SPECTRUM,
+                  .loc = func->loc, 
+                 });
+        break;
+      }
     }
 
     return true;
@@ -2385,24 +2479,41 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
 
     bool wn_step_is_set = false;
     double wn_step = 0.0;
+    int n = -1;
 
     while (func->args.count > 0) {
         Funcall_Argument arg = shift_funcall_argument(func);
 
-        const char *expected_name = "wavenumber_step";
-        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
-            ERROR("%s:%d:%d: function call %s expects a named argument %s but got %s\n",
-                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
-                    func->name, expected_name, arg.name);
-            exit(1);
+        if (arg.name == NULL) {
+            ERROR("%s:%d:%d: function call %s accepts only named arguments\n", 
+                  arg.value_loc.input_path, arg.value_loc.line_number, arg.value_loc.line_offset,
+                  func->name);
+            return false;
         }
 
-        expect_float_funcall_argument(func, &arg);
-        wn_step = arg.double_number;
-        wn_step_is_set = true;
+        if (strcasecmp(arg.name, "n") == 0) {
+            expect_integer_for_funcall_named_argument(func, &arg);
+            n = arg.int_number;
+        } else if (strcasecmp(arg.name, "wavenumber_step") == 0) {
+            expect_float_funcall_argument(func, &arg);
+            wn_step = arg.double_number;
+            wn_step_is_set = true;
+        } else {
+            ERROR("%s:%d:%d: function call %s got unexpected named argument %s\n",
+                  arg.name_loc.input_path, arg.name_loc.line_number, arg.name_loc.line_offset,
+                  func->name, arg.name);
+            return false;
+        } 
     } 
 
-    for (size_t i = 0; i < stack->count; ++i) {
+    size_t spectra_count_to_add = (n < 0) ? stack->count : (size_t)n;
+    if (spectra_count_to_add > stack->count) {
+        ERROR("requested to add %zu spectra but only %zu found on stack\n",
+              spectra_count_to_add, stack->count);
+        return false;
+    }
+
+    for (size_t i = 0; i < spectra_count_to_add; ++i) {
         Tagged_Stack_Item *tagged_item = stack_peek_with_type(stack, i, func->loc);
         expect_item_on_stack(&func->loc, tagged_item, STACK_ITEM_SPECTRUM);
 
@@ -2424,13 +2535,16 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
         if (i > 0) prev = curr;
         curr = spectra.items[i];
 
-        double s = curr->nu[1] - curr->nu[0];
+        // Avoids imprecise max frequency estimation from nu[1]-nu[0] difference
+        // in low-resolution spectra where step size calculation becomes unreliable
+        double s = (curr->nu[curr->len - 1] - curr->nu[0]) / (curr->len - 1);
         double freq_boundary = s * (curr->len - 1);
 
         if (!wn_step_is_set && (s > wn_step)) wn_step = s;
         if (min_freq_boundary > freq_boundary) min_freq_boundary = freq_boundary; 
 
-        PRINT0("spectrum(%zu): %p => wavenumber step = %.3e, # of trajectories = %.4e\n", i, curr, wn_step, curr->ntraj);
+        PRINT0("Spectrum(%zu): wavenumber step = %.5e, max frequency = %.5e, # of trajectories = %.4e\n", 
+                i, wn_step, freq_boundary, curr->ntraj);
 
         if ((prev != NULL) && (prev->Temperature != curr->Temperature)) { 
             ERROR("temperature mismatch detected at spectrum (index: %zu) with previous ones. Exiting...", i);
@@ -2439,6 +2553,7 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
     }
 
     size_t len = (size_t) ceil(min_freq_boundary/wn_step) + 1;
+    while ((len - 1)*wn_step > min_freq_boundary) len--;
 
     INFO("Resampling spectra using cubic spline interpolation\n");
     INFO("The following parameters will be used for added spectrum:\n");
@@ -2479,7 +2594,7 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
         free_spectrum(*sp);
     }
 
-    stack->count = 0; // manually resetting the state of the stack instead of pop
+    stack->count -= spectra_count_to_add; // manually resetting the state of the stack instead of pop
 
     stack_push_with_type(stack, (void*) &added, STACK_ITEM_SPECTRUM, &func->loc);
 
@@ -2797,6 +2912,9 @@ int run_processing(Processing_Params *processing_params)
         } else if (strcasecmp(funcname, "DROP") == 0) {
             if (!execute_drop(func, &stack)) return_defer(1);
         
+        } else if (strcasecmp(funcname, "DROP2") == 0) {
+            if (!execute_drop2(func, &stack)) return_defer(1);
+        
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
             if (!execute_fit_baseline(func, &stack)) return_defer(1); 
         
@@ -2805,6 +2923,9 @@ int run_processing(Processing_Params *processing_params)
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
             if (!execute_dup(func, &stack)) return_defer(1);
+        
+        } else if (strcasecmp(funcname, "DUP2") == 0) {
+            if (!execute_dup2(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
             if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params)) return_defer(1);

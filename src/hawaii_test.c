@@ -67,6 +67,9 @@ const char *TEST_NAMES[] = {
     "write-cf.conf",
     "write-sf.conf",
     "write-sp.conf",
+    "add-spectra.conf",
+    "dup2.conf",
+    "drop2.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -98,9 +101,12 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Success,
     Success,
     Success,
+    Success,
+    Fail,
+    Fail,
 };
 
-static_assert(TEST_COUNT == 27, "");
+static_assert(TEST_COUNT == 30, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
