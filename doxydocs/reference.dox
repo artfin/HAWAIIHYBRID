@@ -121,7 +121,72 @@
  * @copydetails execute_average_cfs
  *
  * ### COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE 
- * (See @ref execute_compute_mn_classical_detailed_balance
+ * (See @ref execute_compute_mn_classical_detailed_balance)
  * @copybrief execute_compute_mn_classical_detailed_balance
  * @copydetails execute_compute_mn_classical_detailed_balance
+ *
+ * ### COMPUTE_Mn_QUANTUM_DETAILED_BALANCE 
+ * (See @ref execute_compute_mn_quantum_detailed_balance)
+ * @copybrief execute_compute_mn_quantum_detailed_balance
+ * @copydetails execute_compute_mn_quantum_detailed_balance
+ *
+ * ### INT3 
+ * (See @ref execute_int3)
+ * @copybrief execute_int3
+ * @copydetails execute_int3
+ *
+ * ### ALPHA 
+ * (See @ref execute_alpha)
+ * @copybrief execute_alpha
+ * @copydetails execute_alpha
+ *
+ * ### D1 
+ * (See @ref execute_D1)
+ * @copybrief execute_D1
+ * @copydetails execute_D1
+ *
+ * ### ADD_SPECTRA 
+ * (See @ref execute_add_spectra)
+ * @copybrief execute_add_spectra
+ * @copydetails execute_add_spectra
+ *
+ * ### SMOOTH 
+ * (See @ref execute_smooth)
+ * @copybrief execute_smooth
+ * @copydetails execute_smooth
+ *
+ * ### D2 
+ * (See @ref execute_D2)
+ * @copybrief execute_D2
+ * @copydetails execute_D2
+ *
+ * ### D3 
+ * (See @ref execute_D3)
+ * @copybrief execute_D3
+ * @copydetails execute_D3
+ *
+ * ### D4 
+ * (See @ref execute_D4)
+ * @copybrief execute_D4
+ * @copydetails execute_D4
+ *
+ * ### D4a 
+ * (See @ref execute_D4a)
+ * @copybrief execute_D4a
+ * @copydetails execute_D4a
+ *
+ * ### WRITE_CF 
+ * (See @ref execute_write_cf)
+ * @copybrief execute_write_cf
+ * @copydetails execute_write_cf
+ *
+ * ### WRITE_SF 
+ * (See @ref execute_write_sf)
+ * @copybrief execute_write_sf
+ * @copydetails execute_write_sf
+ *
+ * ### WRITE_SPECTRUM 
+ * (See @ref execute_write_spectrum)
+ * @copybrief execute_write_spectrum
+ * @copydetails execute_write_spectrum
  */

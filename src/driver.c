@@ -407,9 +407,9 @@ static const char *AVAILABLE_FUNCS[] = {
     "READ_CF", // docs (+), tests (+) 
     "READ_SF", // docs (+), tests (+)
     "READ_SPECTRUM", // docs (+)
-    "WRITE_CF",
-    "WRITE_SF",
-    "WRITE_SPECTRUM",
+    "WRITE_CF", // tests (+)
+    "WRITE_SF", // tests (+)
+    "WRITE_SPECTRUM", // tests (+)
     "CF_TO_SF", // docs (+)
     "ADD_SPECTRA",
     "FIT_BASELINE", // docs (+), is name descriptive enough?
@@ -417,11 +417,11 @@ static const char *AVAILABLE_FUNCS[] = {
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE", // docs (+), tests (+)
     "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE", // docs (+), tests (+)
     "AVERAGE_CFS", // docs (+)
-    "D1",
-    "D2",
-    "D3",
-    "D4",
-    "D4a",
+    "D1", // docs (+), tests (+)
+    "D2", // docs (+), tests (+)
+    "D3", // docs (+), tests (+)
+    "D4",  // docs (+), tests (+)
+    "D4a",  // docs (+), tests (+)
     "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
     "CMP", // docs (+)
@@ -2513,8 +2513,8 @@ bool execute_alpha(Funcall *func, Processing_Stack *stack)
 
 bool execute_D1(Funcall *func, Processing_Stack *stack)
 /**
- * @brief D1 
- *
+ * @brief Applies D1 desymmetrization to the spectral function (SFnc) on the 
+ * top of the stack.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2530,8 +2530,8 @@ bool execute_D1(Funcall *func, Processing_Stack *stack)
 
 bool execute_D2(Funcall *func, Processing_Stack *stack)
 /**
- * @brief D2 
- *
+ * @brief Applies D2 desymmetrization to the spectral function (SFnc) on the 
+ * top of the stack.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2547,11 +2547,10 @@ bool execute_D2(Funcall *func, Processing_Stack *stack)
 
 bool execute_D3(Funcall *func, Processing_Stack *stack)
 /**
- * @brief D3
- *
+ * @brief Applies D3 desymmetrization to the spectral function (SFnc) on the 
+ * top of the stack.
  */ 
 // TODO: allow expecting SF or Spectrum
-// TODO: implement another 'desymmetrize_schofield' that yields SF
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
     expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
@@ -2566,8 +2565,8 @@ bool execute_D3(Funcall *func, Processing_Stack *stack)
 
 bool execute_D4(Funcall *func, Processing_Stack *stack)
 /**
- * @brief D4
- *
+ * @brief Applies D4 desymmetrization to the correlation function (CFnc) on the 
+ * top of the stack producing spectral function (SFnc).
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2583,8 +2582,8 @@ bool execute_D4(Funcall *func, Processing_Stack *stack)
 
 bool execute_D4a(Funcall *func, Processing_Stack *stack)
 /**
- * @brief D4a
- *
+ * @brief Applies D4a desymmetrization to the correlation function (CFnc) on the 
+ * top of the stack producing spectral function (SFnc).
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
