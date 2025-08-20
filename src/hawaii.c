@@ -5609,6 +5609,13 @@ SFnc desymmetrize_d2(SFnc sf)
     memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
 
     for (size_t i = 0; i < sf.len; ++i) {
+        // separately handling the case of nu = 0.0 cm-1, because the 
+        // denominator is zero in this case 
+        if (sf.nu[i] < 1e-10) { 
+            sfd.data[i] = 0.0;
+            continue;
+        }
+
         double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
         sfd.data[i] = sf.data[i] * hnukt / (1.0 - exp(-hnukt));
     }

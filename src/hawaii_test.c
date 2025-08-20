@@ -61,6 +61,7 @@ const char *TEST_NAMES[] = {
     "compute-quantum-moments-argname.conf",
     "compute-quantum-moments-argtype.conf",
     "compute-alpha.conf",
+    "desymmetrizations.conf",
 };
 #define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
@@ -86,9 +87,10 @@ Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
     Fail,
     Fail,
     Fail,
+    Success,
 };
 
-static_assert(TEST_COUNT == 21, "");
+static_assert(TEST_COUNT == 22, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));

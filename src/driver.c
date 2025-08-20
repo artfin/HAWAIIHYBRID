@@ -415,18 +415,18 @@ static const char *AVAILABLE_FUNCS[] = {
     "FIT_BASELINE", // docs (+), is name descriptive enough?
     "SMOOTH",
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE", // docs (+), tests (+)
-    "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE",
+    "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE", // docs (+), tests (+)
     "AVERAGE_CFS", // docs (+)
     "D1",
     "D2",
     "D3",
     "D4",
     "D4a",
-    "ALPHA",
+    "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
     "CMP", // docs (+)
     "DROP", // docs (+), tests (+)
-    "INT3",
+    "INT3", // docs (+)
 };
 
 typedef struct {
