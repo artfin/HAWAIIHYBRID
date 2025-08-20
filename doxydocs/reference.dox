@@ -115,6 +115,11 @@
  * @copybrief execute_drop 
  * @copydetails execute_drop
  *
+ * ### DROP2 
+ * (See @ref execute_drop2)
+ * @copybrief execute_drop2 
+ * @copydetails execute_drop2
+ *
  * ### FIT_BASELINE 
  * (See @ref execute_fit_baseline)
  * @copybrief execute_fit_baseline 
@@ -181,7 +186,6 @@
  * @copydetails execute_D4a
  *
  * ### WRITE_CF 
- * (See @ref execute_write_cf)
  * @copybrief execute_write_cf
  * @copydetails execute_write_cf
  *

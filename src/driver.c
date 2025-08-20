@@ -204,8 +204,8 @@ typedef enum {
 // Some defaults values for variables
 static int64_t DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX = 16384; 
 static size_t DEFAULT_WINDOW_SIZE_MIN = 21;
-static double DEFAULT_WINDOW_SIZE_STEP = 1.0;
-static size_t DEFAULT_WINDOW_SIZE_DELAY = 100;
+static double DEFAULT_WINDOW_SIZE_STEP = 0.1;
+static size_t DEFAULT_WINDOW_SIZE_DELAY = 10;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
@@ -411,13 +411,13 @@ static const char *AVAILABLE_FUNCS[] = {
     "READ_CF", // docs (+), tests (+) 
     "READ_SF", // docs (+), tests (+)
     "READ_SPECTRUM", // docs (+)
-    "WRITE_CF", // tests (+)
-    "WRITE_SF", // tests (+)
-    "WRITE_SPECTRUM", // tests (+)
-    "CF_TO_SF", // docs (+)
-    "ADD_SPECTRA",
-    "FIT_BASELINE", // docs (+), is name descriptive enough?
-    "SMOOTH",
+    "WRITE_CF", // tests (+), docs (+)
+    "WRITE_SF", // tests (+), docs (+)
+    "WRITE_SPECTRUM", // tests (+), docs (+)
+    "CF_TO_SF", // docs (+), tests (+)
+    "ADD_SPECTRA", // tests (+), docs (+)
+    "FIT_BASELINE", // tests (+), docs (+), is name descriptive enough?
+    "SMOOTH", // tests (+), docs (+)
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE", // docs (+), tests (+)
     "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE", // docs (+), tests (+)
     "AVERAGE_CFS", // docs (+)
@@ -429,9 +429,9 @@ static const char *AVAILABLE_FUNCS[] = {
     "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
     "DUP2", // docs (+), tests (+) 
-    "CMP", // docs (+)
+    "CMP", // docs (+), tests (+)
     "DROP", // docs (+), tests (+)
-    "DROP2",
+    "DROP2", // docs (+), tests (+)
     "INT3", // docs (+)
 };
 
@@ -2075,7 +2075,7 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack)
  * using GSL's Levenberg-Marquardt algorithm. Fitted parameters are saved as wing_params (WingParams) 
  * field of the processing stack (Processing_Stack) to be used by CF_TO_SF function. 
  *
- * @param cf_extrapolation_begin_index Optional start time for fitting (default: DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX) 
+ * @param cf_extrapolation_begin_index Optional: start time for fitting (default: DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX) 
  *
  * See the paper <a href="https://doi.org/10.1063/5.0060779">"Simulation of collision-induced absorption spectra based on classical trajectories and
  * ab initio potential and induced dipole surfaces. II. CO2-Ar rototranslational band including true 
@@ -2307,7 +2307,7 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
  * Calculates the n-th order spectral moment from either a correlation function (CFnc) 
  * or spectral function (SFnc) on stack top assuming classical detailed balance.
  *
- * @param n Mandatory order of spectral moment (passed as integer argument)
+ * @param n Required: order of spectral moment (passed as integer argument)
  *
  * The computation for spectral function uses Simpson's method for numerical integration. 
  * If SPECTRUM_FREQUENCY_MAX parameter is set, the spectral function is truncated 
@@ -2372,7 +2372,7 @@ bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack
  * Calculates the n-th order spectral moment from a spectral function (SFnc) on stack
  * assuming quantum detailed balance.
  *
- * @param n Mandatory order of spectral moment (passed as integer argument)
+ * @param n Required: order of spectral moment (passed as integer argument)
  *
  * The computation for spectral function uses Simpson's method for numerical integration.
  * If SPECTRUM_FREQUENCY_MAX parameter is set, the spectral function is truncated
@@ -2471,8 +2471,25 @@ void execute_int3(Funcall *func, Processing_Stack *stack)
 
 bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
 /**
- * @brief ADD_SPECTRA 
+ * @brief ADD_SPECTRA performs element-wise addition  of multiple spectra (Spectrum) 
+ * from the stack.
  *
+ * Computes the sum of all spectra from the stack.  All spectra must have consistent 
+ * Temperature values. The resulting spectrum replaces all input spectra on the stack with
+ * the following properties: 
+ * - trajectory count: arithmetic sum of all input trajectory counts
+ * - frequency range: [0, min(max_frequency)] of all input spectra
+ * - data: element-wise sum of input spectra (using cubic spline interpolation if needed) 
+ *
+ * If input frequency ranges differ, performs cubic spline interpolation to the
+ * target frequency range defined by the smallest maximum frequency. 
+ *
+ * @param wavenumber_step Optional: output spectrum resolution. Defaults to the largest wavenumber
+ *                        step among input spectra 
+ *
+ * @param n Optional: number of input spectra to process from stack top. Defaults to processing 
+ *                    all available spectra from stack top. In this default case, all objects on 
+ *                    stack are expected to be spectra (Spectrum). 
  */ 
 {
     Spectra spectra = {0};
@@ -2714,8 +2731,19 @@ bool execute_D4a(Funcall *func, Processing_Stack *stack)
 
 bool execute_write_cf(Funcall *func, Processing_Stack *stack)
 /**
- * @brief WRITE_CF
+ * @brief Writes correlation function (CFnc) to output file
  *
+ * Serializes the correlation function from stack top to a file specified
+ * by a string argument. The correlation function is consumed from stack top
+ * during the operation. Its metadata (Temperature and trajectory count) is saved in 
+ * a format expected by READ_CF. 
+ *
+ * The function handles the normlization: if correlation function's normalization flag
+ * is false, the data is divided by the trajectory count before writing to file. 
+ *
+ * @param output_filename Required: output filename provided as unnamed string argument
+ *
+ * Fails if stack is empty or top element is not correlation function (CFnc)
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2738,8 +2766,19 @@ bool execute_write_cf(Funcall *func, Processing_Stack *stack)
 
 bool execute_write_sf(Funcall *func, Processing_Stack *stack)
 /**
- * @brief WRITE_SF
+ * @brief Writes spectral function (SFnc) to output file
  *
+ * Serializes the spectral function from stack top to a file specified
+ * by a string argument. The spectral function is consumed from stack top
+ * during the operation. Its metadata (Temperature and trajectory count) is saved in 
+ * a format expected by READ_SF. 
+ *
+ * The function handles the normlization: if spectral function's normalization flag
+ * is false, the data is divided by the trajectory count before writing to file. 
+ *
+ * @param output_filename Required: output filename provided as unnamed string argument
+ *
+ * Fails if stack is empty or top element is not spectral function (SFnc)
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2762,8 +2801,18 @@ bool execute_write_sf(Funcall *func, Processing_Stack *stack)
 
 bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
- * @brief WRITE_SPECTRUM
+ * @brief Writes spectrum (Spectrum) to output file
  *
+ * Serializes the spectrum from stack top to a file specified by a string argument. 
+ * The spectrum is consumed from stack top during the operation. Its metadata (Temperature 
+ * and trajectory count) is saved in a format expected by READ_SPECTRUM. 
+ *
+ * The function handles the normlization: if spectrum's normalization flag
+ * is false, the data is divided by the trajectory count before writing to file. 
+ *
+ * @param output_filename Required: output filename provided as unnamed string argument
+ *
+ * Fails if stack is empty or top element is not spectrum (Spectrum)
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2795,8 +2844,21 @@ bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_P
 
 bool execute_smooth(Funcall *func, Processing_Stack *stack)
 /**
- * @brief SMOOTH
+ * @brief Performs the smoothing of spectral function (SFnc) using LOESS algorithm. 
  *
+ * Applies LOESS regression to smooth the spectral function (SFnc) on stack top. The algorithm
+ * performs local polynomial fitting across the provided frequency grid. The result replaces
+ * input spectral function on stack top.
+ *
+ * The function uses thread parallelization. 
+ *
+ * @param grid_npoints Required: number of grid points for smooth function evaluation 
+ * @param grid_max Required: upper frequency limit of the evaluation grid (in cm-1) 
+ * @param window_size_min Optional: minimum number of points in smoothing window
+ * @param window_size_step Optional: window size growth rate (int cm-1/point). Determines how
+ *                         window expands with frequency. 
+ * @param window_size_delay Optional: Delay before window size begins growing (in points). 
+ *                          Maintains consistent window size at lower frequencies.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -2812,6 +2874,13 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
 
     while (func->args.count > 0) {
         Funcall_Argument arg = shift_funcall_argument(func);
+
+        if (arg.name == NULL) {
+            ERROR("%s:%d:%d: function call %s accepts only named arguments\n", 
+                  arg.value_loc.input_path, arg.value_loc.line_number, arg.value_loc.line_offset,
+                  func->name);
+            return false;
+        }
 
         if (strcasecmp(arg.name, "grid_npoints") == 0) {
             expect_integer_for_funcall_named_argument(func, &arg);
@@ -2836,13 +2905,13 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     }
 
     if (grid_npoints == 0) {
-        PRINT0("ERROR: %s:%d:%d: number of grid points for smoothing must be provided\n",
+        PRINT0("ERROR: %s:%d:%d: number of grid points (grid_npoints) for smoothing must be provided\n",
                 func->loc.input_path, func->loc.line_number, func->loc.line_offset);
         exit(1);
     }
 
     if (grid_max <= 0.0) {
-        PRINT0("ERROR: %s:%d:%d: the ending point of the grid for smoothing must be provided\n",
+        PRINT0("ERROR: %s:%d:%d: the ending point of the grid (grid_max) for smoothing must be provided\n",
                 func->loc.input_path, func->loc.line_number, func->loc.line_offset);
         exit(1);
     }
