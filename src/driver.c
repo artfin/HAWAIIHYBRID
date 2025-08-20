@@ -2809,6 +2809,8 @@ bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_P
  *
  * The function handles the normlization: if spectrum's normalization flag
  * is false, the data is divided by the trajectory count before writing to file. 
+ * If SPECTRUM_FREQUENCY_MAX parameter is set, spectrum is truncated 
+ * at the specified frequency before saving to file. 
  *
  * @param output_filename Required: output filename provided as unnamed string argument
  *
