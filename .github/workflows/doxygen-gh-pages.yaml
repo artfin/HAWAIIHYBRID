@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Doxygen
+      - name: Install and Run Doxygen
         run: |
           sudo apt-get update
           DOXYGEN_VERSION="1.14.0"
@@ -33,11 +33,9 @@ jobs:
           rm doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
           
           doxygen --version
-      - name: Create docs directory
-        run: mkdir -p ./docs/html
-
-      - name: Generate Documentation
-        run: doxygen Doxyfile
+        
+          mkdir -p ./docs/html
+          doxygen Doxyfile
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
