@@ -1,0 +1,31 @@
+name: Doxygen GitHub Pages Deploy Action
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ stesp.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+     -name: Checkout code
+      uses: actions/checkout@v4
+     -name: Install Doxygen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+     -name: Create docs directory
+      run: mkdir -p ./docs/html 
+     -name: Generate Documentation
+      run: doxygen Doxyfile
+     -name: Setup Pages
+      uses: actions/configure-pages@v5
+     -name: Deploy to GitHub Pages
+      uses: actions/deploy-pages@v4 
