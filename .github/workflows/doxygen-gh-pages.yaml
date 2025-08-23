@@ -27,7 +27,7 @@ jobs:
 
           mkdir -p $HOME/doxygen
           ln -sf $(pwd)/doxygen-${DOXYGEN_VERSION}/bin/doxygen $HOME/doxygen/doxygen
-          export PATH="$(HOME)/doxygen:$PATH"
+          export PATH="${HOME}/doxygen:$PATH"
 
           rm doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
           
