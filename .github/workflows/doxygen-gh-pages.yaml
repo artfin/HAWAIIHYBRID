@@ -24,8 +24,9 @@ jobs:
           sudo apt-get update
           DOXYGEN_VERSION="1.14.0"
           wget https://www.doxygen.nl/files/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
+          tar -xvf doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
 
-          mkdir -p $HOME/doxygen
+          mkdir -pv $HOME/doxygen
           ln -sf $(pwd)/doxygen-${DOXYGEN_VERSION}/bin/doxygen $HOME/doxygen/doxygen
           export PATH="${HOME}/doxygen:$PATH"
 
