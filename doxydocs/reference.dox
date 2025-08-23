@@ -1,4 +1,6 @@
 /**
+ * @page input_reference Reference 
+ * @tableofcontents
  *
  * This section provides an overview of the input file format, including its structures, features, and supported data types.
  * The format uses `&SECTION_NAME` and `&END` delimiters to define sections containing case-insensitive key-value pairs (assigned with `=`) or function calls. 
@@ -31,17 +33,17 @@
  * be empty, ensuring all data has been processed or saved. The available functions are described in detail below.
  *
  * <table>
- * <tr><th>Label</th><th>Variable Name</th></tr>
- * <tr><td>#1 </td><td>`CALCULATION_TYPE`</td></tr>
- * <tr><td>#2 </td><td>`PAIR_STATE`</td></tr>
- * <tr><td>#3 </td><td>`PAIR_REDUCED_MASS`</td></tr>
- * <tr><td>#4 </td><td>`SO_POTENTIAL`</td></tr>
- * <tr><td>#5a</td><td>`SO_DIPOLE`</td></tr>
- * <tr><td>#5b</td><td>`SO_DIPOLE.1`</td></tr>
- * <tr><td>#5c</td><td>`SO_DIPOLE.2`</td></tr>
- * <tr><td>#6 </td><td>`TEMPERATURE`</td></tr> 
- * <tr><td>#7 </td><td>`TEMPERATURES`</td></tr> 
- * <tr><td>#8 </td><td>`SATELLITE_TEMPERATURES`</td></tr>
+ * <tr><th>Number</th><th>Variable of Function Name</th></tr>
+ * <tr><td>#1 </td><td>@ref subsec_calculation_type </td></tr>
+ * <tr><td>#2 </td><td>@ref subsec_pair_state</td></tr>
+ * <tr><td>#3 </td><td>@ref subsec_pair_reduced_mass</td></tr>
+ * <tr><td>#4 </td><td>@ref subsec_so_potential</td></tr>
+ * <tr><td>#5a</td><td>@ref subsec_so_dipole</td></tr>
+ * <tr><td>#5b</td><td>@ref subsec_so_dipole_1</td></tr>
+ * <tr><td>#5c</td><td>@ref subsec_so_dipole_2</td></tr>
+ * <tr><td>#6 </td><td>@ref subsec_temperature</td></tr> 
+ * <tr><td>#7 </td><td>@ref subsec_temperatures</td></tr> 
+ * <tr><td>#8 </td><td>@ref subsec_satellite_temperatures</td></tr>
  * <tr><td>#9 </td><td>`TOTAL_TRAJECTORIES`</td></tr>
  * <tr><td>#10</td><td>`CVODE_TOLERANCE`</td></tr>
  * <tr><td>#11</td><td>`SAMPLING_TIME`</td></tr>
@@ -65,136 +67,236 @@
  * <tr><td>#29</td><td>`PARTIAL_PARTITION_FUNCTION_RATIO`</td></tr>
  * <tr><td>#30</td><td>`PARTIAL_PARTITION_FUNCTION_RATIOS`</td></tr>
  * <tr><td>#31</td><td>`ApproximateFrequencyMax`</td></tr>
- * <tr><td>#32</td><td>`ODD_J_SPIN\_WEIGHT`</td></tr>
- * <tr><td>#33</td><td>`EVEN_J_SPIN\_WEIGHT`</td></tr>
+ * <tr><td>#32</td><td>`ODD_J_SPIN_WEIGHT`</td></tr>
+ * <tr><td>#33</td><td>`EVEN_J_SPIN_WEIGHT`</td></tr>
  * <tr><td>#34</td><td>`USE_ZIMMERMANN_TRICK`</td></tr>
  * <tr><td>#35</td><td>`AVERAGE_TIME_BETWEEN_COLLISIONS`</td></tr>
+ * <tr><td>#36</td><td>`MONOMER_TYPE`</td></tr>
+ * <tr><td>#37</td><td>`DJ`</td></tr>
+ * <tr><td>#38</td><td>`II`</td></tr>
+ * <tr><td>#39</td><td>`INITIAL_J`</td></tr>
+ * <tr><td>#40</td><td>`TORQUE_CACHE_LEN`</td></tr>
+ * <tr><td>#41</td><td>`TORQUE_LIMIT`</td></tr>
+ * <tr><td>#42</td><td>`NSWITCH_HISTOGRAM_BINS`</td></tr>
+ * <tr><td>#43</td><td>`NSWITCH_HISTOGRAM_MAX`</td></tr>
+ * <tr><td>#44</td><td>`NSWITCH_HISTOGRAM_FILENAME`</td></tr>
+ * <tr><td>#45</td><td>`JINI_HISTOGRAM_BINS`</td></tr>
+ * <tr><td>#46</td><td>`JINI_HISTOGRAM_MAX`</td></tr>
+ * <tr><td>#47</td><td>`JINI_HISTOGRAM_FILENAME`</td></tr>
+ * <tr><td>#48</td><td>`JFIN_HISTOGRAM_BINS`</td></tr>
+ * <tr><td>#49</td><td>`JFIN_HISTOGRAM_MAX`</td></tr>
+ * <tr><td>#50</td><td>`JFIN_HISTOGRAM_FILENAME`</td></tr>
+ * <tr><td>#51</td><td>`SPECTRUM_FREQUENCY_MAX`</td></tr>
+ * <tr><td>#52</td><td>@ref subsec_read_cf</td></tr>
+ * <tr><td>#53</td><td>@ref subsec_read_sf</td></tr>
+ * <tr><td>#54</td><td>@ref subsec_read_spectrum</td></tr>
+ * <tr><td>#55</td><td>@ref subsec_cf_to_sf</td></tr>
+ * <tr><td>#56</td><td>@ref subsec_cmp</td></tr>
+ * <tr><td>#57</td><td>@ref subsec_dup</td></tr>
+ * <tr><td>#58</td><td>@ref subsec_dup2</td></tr>
+ * <tr><td>#59</td><td>@ref subsec_drop</td></tr>
+ * <tr><td>#60</td><td>@ref subsec_drop2</td></tr>
+ * <tr><td>#61</td><td>@ref subsec_fit_baseline</td></tr>
+ * <tr><td>#62</td><td>@ref subsec_average_cfs</td></tr>
+ * <tr><td>#63</td><td>@ref subsec_compute_mn_classical_detailed_balance</td></tr>
+ * <tr><td>#64</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
+ * <tr><td>#65</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
+ * <tr><td>#66</td><td>@ref subsec_int3</td></tr>
+ * <tr><td>#67</td><td>@ref subsec_alpha</td></tr>
+ * <tr><td>#68</td><td>@ref subsec_d1</td></tr>
+ * <tr><td>#69</td><td>@ref subsec_d2</td></tr>
+ * <tr><td>#70</td><td>@ref subsec_d3</td></tr>
+ * <tr><td>#71</td><td>@ref subsec_d4</td></tr>
+ * <tr><td>#72</td><td>@ref subsec_d4a</td></tr>
+ * <tr><td>#73</td><td>@ref subsec_add_spectra</td></tr>
+ * <tr><td>#74</td><td>@ref subsec_smooth</td></tr>
+ * <tr><td>#75</td><td>@ref subsec_write_cf</td></tr>
+ * <tr><td>#76</td><td>@ref subsec_write_sf</td></tr>
+ * <tr><td>#77</td><td>@ref subsec_write_spectrum</td></tr>
  * </table>            
  *
  *
- * @page input_reference Reference 
- * @tableofcontents
+ * @section input_block Input Block
+ *
+ * @subsection subsec_calculation_type `CALCULATION_TYPE` 
+ * The program performs calculations based on the specified `CALCULATION_TYPE`. 
+ * This field is required and expected to be a plain string (no quotation marks). 
+ * Note that there is no default value - the field must be explicitly provided. 
+ * Supported calculation types:
+ *   - `PR_MU` 
+ *   - `CORRELATION_SINGLE` 
+ *   - `CORRELATION_ARRAY` 
+ *   - `PROCESSING` 
+ *   - `CALCULATE_PHASE_SPACE_M0`
+ *   - `CALCULATE_PHASE_SPACE_M2`
+ *
+ * @subsection subsec_pair_state `PAIR_STATE` 
+ * The pair state is specified using the keyword `PAIR_STATE` as a plain string 
+ * (no quotation marks). This field is required, no default value is implied. 
+ * This parameter is applicable for all calculation types except for `CALCULATION_PROCESSING`, 
+ * where it's ignored. Available pair states: 
+ *   - `FREE_AND_METASTABLE`
+ *   - `BOUND`
+ *   - `ALL`
+ *
+ * @subsection subsec_pair_reduced_mass `PAIR_REDUCED_MASS` 
+ * The reduced mass for a pair is specified as a floating-point number. This parameter is 
+ * applicable for all calculation types except for `CALCULATION_PROCESSING`.
+ *
+ * @subsection subsec_so_potential `SO_POTENTIAL`
+ * `SO_POTENTIAL` specifies a double-quoted string path to a dynamic library containing the 
+ * required symbols `double pes_lab(double* )` and `void dpes_lab(double*, double*)`. Missing symbols 
+ * trigger immediate termination. Functions `pes_lab` and `dpes_lab` operate on laboratory-frame 
+ * coordinates and compute the potential energy and its derivative (outputted through the second pointer), respectively. 
+ * If present, a symbol `void pes_init(void)` will be executed before any calls `pes_lab` and 
+ * `dpes_lab` will be issued, enabling library initialization (e.g., loading the parameters from file).
  * 
- * ### READ_CF 
+ * @subsection subsec_so_dipole `SO_DIPOLE` 
+ * `SO_DIPOLE` specifies a double-quoted string path to a dynamic library implementing the required symbol 
+ * `void dipole_lab(double *, double [3])`, which computes laboratory-frame dipole moment components 
+ * from input coordinates in the laboratory frame of reference. Missing symbol trigger immediate termination. 
+ * The loaded function is assigned to `dipole_1` and `dipole_2`, enabling calculation of 
+ * autocorrelation functions. if present, a symbol `void dipole_init(void)` will be executed before 
+ * any calls `dipole_lab` will be issued, enabling library initialization. This setting  is equivalent
+ *  to assigning the same path to both `SO_DIPOLE.1` and `SO_DIPOLE.2`.
+ *  
+ * @subsection subsec_so_dipole_1 `SO_DIPOLE.1` 
+ * `SO_DIPOLE.1`, `SO_DIPOLE.2` specify independent paths to dipole function implementations as dynamic libraries. 
+ * The required and optional symbols match those mentioned in @ref subsec_so_dipole. 
+ * Setting these paths to different dynamic libraries enables the calculation of mixed correlation correlation.
+ *
+ * @subsection subsec_so_dipole_2 `SO_DIPOLE.2` 
+ *
+ * @subsection subsec_temperature `TEMPERATURE` 
+ *
+ * @subsection subsec_temperatures `TEMPERATURES` 
+ *
+ * @subsection subsec_satellite_temperatures `SATELLITE_TEMPERATURES` 
+ *
+ * @section monomer_block Monomer Block 
+ * 
+ * @section processing Processing Block
+ *   
+ * @subsection subsec_read_cf `READ_CF` 
  * (See @ref execute_read_cf)
  * @copybrief execute_read_cf
  * @copydetails execute_read_cf
  *
- * ### READ_SF 
+ * @subsection subsec_read_sf `READ_SF` 
  * (See @ref execute_read_sf)
  * @copybrief execute_read_sf
  * @copydetails execute_read_sf
  *
- * ### READ_SPECTRUM
+ * @subsection subsec_read_spectrum `READ_SPECTRUM`  
  * (See @ref execute_read_spectrum)
  * @copybrief execute_read_spectrum
  * @copydetails execute_read_spectrum
  *
- * ### CF_TO_SF
+ * @subsection subsec_cf_to_sf `CF_TO_SF` 
  * (See @ref execute_cf_to_sf)
  * @copybrief execute_cf_to_sf 
  * @copydetails execute_cf_to_sf 
  * 
- * ### CMP 
+ * @subsection subsec_cmp `CMP` 
  * (See @ref execute_cmp)
  * @copybrief execute_cmp 
  * @copydetails execute_cmp 
  * 
- * ### DUP 
+ * @subsection subsec_dup `DUP` 
  * (See @ref execute_dup)
  * @copybrief execute_dup 
  * @copydetails execute_dup
  *
- * ### DUP2 
+ * @subsection subsec_dup2 `DUP2` 
  * (See @ref execute_dup2)
  * @copybrief execute_dup2
  * @copydetails execute_dup2
  *
- * ### DROP 
+ * @subsection subsec_drop `DROP` 
  * (See @ref execute_drop)
  * @copybrief execute_drop 
  * @copydetails execute_drop
  *
- * ### DROP2 
+ * @subsection subsec_drop2 `DROP2` 
  * (See @ref execute_drop2)
  * @copybrief execute_drop2 
  * @copydetails execute_drop2
  *
- * ### FIT_BASELINE 
+ * @subsection subsec_fit_baseline `FIT_BASELINE` 
  * (See @ref execute_fit_baseline)
  * @copybrief execute_fit_baseline 
  * @copydetails execute_fit_baseline
  *
- * ### AVERAGE_CFS 
+ * @subsection subsec_average_cfs `AVERAGE_CFS` 
  * (See @ref execute_average_cfs)
  * @copybrief execute_average_cfs 
  * @copydetails execute_average_cfs
  *
- * ### COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE 
+ * @subsection subsec_compute_mn_classical_detailed_balance `COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE` 
  * (See @ref execute_compute_mn_classical_detailed_balance)
  * @copybrief execute_compute_mn_classical_detailed_balance
  * @copydetails execute_compute_mn_classical_detailed_balance
  *
- * ### COMPUTE_Mn_QUANTUM_DETAILED_BALANCE 
+ * @subsection subsec_compute_mn_quantum_detailed_balance `COMPUTE_Mn_QUANTUM_DETAILED_BALANCE` 
  * (See @ref execute_compute_mn_quantum_detailed_balance)
  * @copybrief execute_compute_mn_quantum_detailed_balance
  * @copydetails execute_compute_mn_quantum_detailed_balance
  *
- * ### INT3 
+ * @subsection subsec_int3 `INT3` 
  * (See @ref execute_int3)
  * @copybrief execute_int3
  * @copydetails execute_int3
  *
- * ### ALPHA 
+ * @subsection subsec_alpha `ALPHA` 
  * (See @ref execute_alpha)
  * @copybrief execute_alpha
  * @copydetails execute_alpha
  *
- * ### D1 
- * (See @ref execute_D1)
- * @copybrief execute_D1
- * @copydetails execute_D1
- *
- * ### ADD_SPECTRA 
+ * @subsection subsec_add_spectra `ADD_SPECTRA` 
  * (See @ref execute_add_spectra)
  * @copybrief execute_add_spectra
  * @copydetails execute_add_spectra
  *
- * ### SMOOTH 
+ * @subsection subsec_smooth `SMOOTH` 
  * (See @ref execute_smooth)
  * @copybrief execute_smooth
  * @copydetails execute_smooth
  *
- * ### D2 
+ * @subsection subsec_d1 `D1` 
+ * (See @ref execute_D1)
+ * @copybrief execute_D1
+ * @copydetails execute_D1
+ *
+ * @subsection subsec_d2 `D2` 
  * (See @ref execute_D2)
  * @copybrief execute_D2
  * @copydetails execute_D2
  *
- * ### D3 
+ * @subsection subsec_d3 `D3` 
  * (See @ref execute_D3)
  * @copybrief execute_D3
  * @copydetails execute_D3
  *
- * ### D4 
+ * @subsection subsec_d4 `D4` 
  * (See @ref execute_D4)
  * @copybrief execute_D4
  * @copydetails execute_D4
  *
- * ### D4a 
+ * @subsection subsec_d4a `D4a` 
  * (See @ref execute_D4a)
  * @copybrief execute_D4a
  * @copydetails execute_D4a
  *
- * ### WRITE_CF 
+ * @subsection subsec_write_cf `WRITE_CF` 
  * @copybrief execute_write_cf
  * @copydetails execute_write_cf
  *
- * ### WRITE_SF 
+ * @subsection subsec_write_sf `WRITE_SF` 
  * (See @ref execute_write_sf)
  * @copybrief execute_write_sf
  * @copydetails execute_write_sf
  *
- * ### WRITE_SPECTRUM 
+ * @subsection subsec_write_spectrum `WRITE_SPECTRUM` 
  * (See @ref execute_write_spectrum)
  * @copybrief execute_write_spectrum
  * @copydetails execute_write_spectrum

@@ -1,0 +1,47 @@
+/**
+ * @page examples Examples
+ * @tableofcontents
+ *
+ * @section section_he_ar_f He-Ar correlation function for free states
+ * @include CF-F-He-Ar.conf
+ * 
+ * <details>
+ * <summary>View Output</summary>
+ * @verbinclude CF-F-He-Ar.conf.out
+ * </details>
+ * 
+ * @section section_co2_ar_f CO2-Ar correlation function for free states 
+ * @include CF-F-CO2-Ar.conf
+ * <details>
+ * <summary>View Output</summary>
+ * @verbinclude CF-F-CO2-Ar.conf.out
+ * </details>
+ *
+ * @section section_co2_ar_b CO2-Ar correlation function for bound states
+ * @include CF-B-CO2-Ar.conf 
+ *
+ * @section section_co_ar_prmu CO-Ar spectral function (permanent dipole) in pr/mu representation applying requantization
+ * @include prmu_co_ar_req+poisson.conf
+ *
+ * @section section_co_ar_mixed CO-Ar mixed (induced dipole-permanent dipole) correlation function 
+ * @include mixed-moment-CO-Ar.conf
+ *
+ * @section section_ch4_co2_f CH4-CO2 correlation function for free states 
+ * @include CF-F-CH4-CO2.conf
+ * <details>
+ * <summary>View Output</summary>
+ * @verbinclude CF-F-CH4-CO2-100.0.conf.out
+ * </details>
+ * 
+ * @section section_ch4_co2_b CH4-CO2 correlation function for bound states 
+ * @include CF-B-CH4-CO2.conf
+ * 
+ * @section section_averaging Averaging correlation functions for CH4-CO2
+ * @include averaging-cfs.conf
+ *
+ * @section section_mixed_moment CO-Ar mixed (induced dipole-permanent dipole) spectral moment
+ * @include mixed-moment-CO-Ar.conf 
+ * 
+ * @section section_h2_ar_req H2-Ar spectral function (induced dipole) in pr/mu representation applying requantization
+ * @include prmu_h2_ar_requantized.conf
+ */ 

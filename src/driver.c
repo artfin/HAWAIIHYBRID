@@ -3251,6 +3251,8 @@ int main(int argc, char* argv[])
             
             assert(input_block.so_dipole_1 != NULL);
             setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
+            dipole_2 = dipole_1;
+
             setup_pes(&input_block);
 
             MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
