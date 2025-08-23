@@ -16,16 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
      -name: Checkout code
-      uses: actions/checkout@v4
+     uses: actions/checkout@v4
      -name: Install Doxygen
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y doxygen graphviz
+     run: |
+       sudo apt-get update
+       sudo apt-get install -y doxygen graphviz
      -name: Create docs directory
-      run: mkdir -p ./docs/html 
+     run: mkdir -p ./docs/html 
      -name: Generate Documentation
-      run: doxygen Doxyfile
+     run: doxygen Doxyfile
      -name: Setup Pages
-      uses: actions/configure-pages@v5
+     uses: actions/configure-pages@v5
      -name: Deploy to GitHub Pages
-      uses: actions/deploy-pages@v4 
+     uses: actions/deploy-pages@v4 
