@@ -1,0 +1,1459 @@
+*****************************************************
+*********** HAWAII HYBRID v0.1 **********************
+*****************************************************
+Loaded configuration file: ./example_configs/CF-F-CO2-Ar.conf
+&INPUT
+    PAIR_STATE = FREE_AND_METASTABLE
+    CALCULATION_TYPE = CORRELATION_SINGLE 
+    TEMPERATURE = 100.0
+    pair_reduced_mass = 3.817083069753919e+04 ! CO2-Ar, a.m.u.
+
+    ! expected symbols: 
+    !   double pes_lab(double*)
+    !   void dpes_lab(double *, double*)
+    ! optional symbols:
+    !   void pes_init(void)
+    so_potential = "build/ai_pes_co2ar.so"
+    
+    ! expected symbols:
+    !   void dipole_lab(double *, double[3])
+    ! optional symbols:
+    !   void dipole_init(void)
+    so_dipole.1 = "build/ai_ids_co2ar.so"
+    so_dipole.2 = "build/ai_ids_co2ar.so"
+    
+    NITERATIONS         = 200
+    TOTAL_TRAJECTORIES  = 10_000_000
+    CVODE_TOLERANCE     = 1e-12
+    sampling_time       = 200.0
+    ! MaxTrajectoryLength = 65536
+    MaxTrajectoryLength = 21 
+
+    pesmin = -8.913727688689150e-04  ! = -195.6337098547 cm-1 
+
+    sampler_Rmin = 4.0
+    sampler_Rmax = 40.0
+    
+    cf_filename = "CF-F-CO2-Ar-100.0.txt"
+    Rcut = 40.0
+&END
+ 
+&MONOMER
+    MONOMER_TYPE = LINEAR_MOLECULE
+    II = {2.819827114123505e+05, 2.819827114123505e+05, 0.0} ! II(CO2), a.u.
+&END
+
+&MONOMER
+    MONOMER_TYPE = ATOM
+&END
+
+
+
+*****************************************************
+Loading dipole from shared library: build/ai_ids_co2ar.so
+INFO: found init function for dipole. Initializing...
+Successfully loaded
+*****************************************************
+
+
+
+*****************************************************
+Loading dipole from shared library: build/ai_ids_co2ar.so
+INFO: found init function for dipole. Initializing...
+Successfully loaded
+*****************************************************
+
+
+*****************************************************
+Loading potential from shared library: build/ai_pes_co2ar.so
+INFO: found init function for pes. Initializing...
+Successfully loaded
+*****************************************************
+
+
+-------------------------------------------------------------------
+CURRENT TIME: 2025-07-14 00:18:02
+
+WORLD SIZE: 72
+
+    INITIALIZING MOLECULE SYSTEM LINEAR_MOLECULE-ATOM
+Reduced mass of the molecule system: 3.817083e+04
+1st monomer inertia tensor [LINEAR_MOLECULE]: 2.820e+05 2.820e+05
+2nd monomer inertia tensor [ATOM]: (null)
+Length of Q vector:  3 + 2 + 0 = 5
+Length of QP vector: 6 + 4 + 0 = 10
+Generator seed is set to 944996850
+-------------------------------------------------------------------
+Ratio of partial partition functions to full (analytic) partial partition function is not provided.
+Conducting calculations using adaptive Monte Carlo method.
+
+
+Analytic partition function divided by V: 4.66697e+06
+iteration 0 finished.
+this iteration: N=1000000 E=6.33105e+11 +- 1.75084e+11 (27.6548%) eff=15.9581% nnf=0
+all iterations: N=1000000 E=6.33105e+11 +- 1.75084e+11 (27.6548%) chi^2/dof=inf
+
+iteration 1 finished.
+this iteration: N=1000000 E=1.2432e+12 +- 9.15012e+10 (7.36011%) eff=83.8257% nnf=0
+all iterations: N=2000000 E=1.11232e+12 +- 8.10945e+10 (7.29058%) chi^2/dof=9.53756
+
+iteration 2 finished.
+this iteration: N=1000000 E=1.27601e+12 +- 1.2808e+10 (1.00375%) eff=93.2627% nnf=0
+all iterations: N=3000000 E=1.27203e+12 +- 1.26511e+10 (0.994566%) chi^2/dof=6.75643
+
+iteration 3 finished.
+this iteration: N=1000000 E=1.27702e+12 +- 2.68665e+09 (0.210384%) eff=96.2317% nnf=0
+all iterations: N=4000000 E=1.2768e+12 +- 2.62804e+09 (0.20583%) chi^2/dof=4.55396
+
+iteration 4 finished.
+this iteration: N=1000000 E=1.27546e+12 +- 1.55989e+09 (0.1223%) eff=96.6063% nnf=0
+all iterations: N=5000000 E=1.27581e+12 +- 1.34139e+09 (0.10514%) chi^2/dof=3.46365
+
+iteration 5 finished.
+this iteration: N=1000000 E=1.27363e+12 +- 1.38795e+09 (0.108976%) eff=96.225% nnf=0
+all iterations: N=6000000 E=1.27476e+12 +- 9.64548e+08 (0.0756652%) chi^2/dof=3.02689
+
+iteration 6 finished.
+this iteration: N=1000000 E=1.27703e+12 +- 1.34212e+09 (0.105097%) eff=95.6596% nnf=0
+all iterations: N=7000000 E=1.27553e+12 +- 7.83255e+08 (0.0614061%) chi^2/dof=2.8387
+
+iteration 7 finished.
+this iteration: N=1000000 E=1.27515e+12 +- 1.278e+09 (0.100224%) eff=96.2435% nnf=0
+all iterations: N=8000000 E=1.27543e+12 +- 6.67813e+08 (0.0523599%) chi^2/dof=2.44259
+
+iteration 8 finished.
+this iteration: N=1000000 E=1.27643e+12 +- 1.26867e+09 (0.0993922%) eff=96.7772% nnf=0
+all iterations: N=9000000 E=1.27565e+12 +- 5.90943e+08 (0.046325%) chi^2/dof=2.1986
+
+iteration 9 finished.
+this iteration: N=1000000 E=1.27362e+12 +- 1.25215e+09 (0.0983137%) eff=96.7714% nnf=0
+all iterations: N=10000000 E=1.27528e+12 +- 5.34416e+08 (0.0419059%) chi^2/dof=2.19139
+
+iteration 10 finished.
+this iteration: N=1000000 E=1.27434e+12 +- 1.24254e+09 (0.0975043%) eff=96.8047% nnf=0
+all iterations: N=11000000 E=1.27513e+12 +- 4.90934e+08 (0.0385007%) chi^2/dof=2.02015
+
+iteration 11 finished.
+this iteration: N=1000000 E=1.27542e+12 +- 1.28304e+09 (0.100598%) eff=96.526% nnf=0
+all iterations: N=12000000 E=1.27517e+12 +- 4.58515e+08 (0.0359572%) chi^2/dof=1.84044
+
+T = 1.00e+02 => PPF ratio: 2.73233e+05
+iteration 0 finished.
+this iteration: N=1000000 E=8.28787e+06 +- 1.339e+06 (16.1562%) eff=15.9581% nnf=0
+all iterations: N=1000000 E=8.28787e+06 +- 1.339e+06 (16.1562%) chi^2/dof=inf
+
+iteration 1 finished.
+this iteration: N=1000000 E=9.86804e+06 +- 283067 (2.86852%) eff=66.6478% nnf=0
+all iterations: N=2000000 E=9.80044e+06 +- 276946 (2.82585%) chi^2/dof=1.33307
+
+iteration 2 finished.
+this iteration: N=1000000 E=1.00513e+07 +- 56738.7 (0.564491%) eff=76.3589% nnf=0
+all iterations: N=3000000 E=1.00412e+07 +- 55584.2 (0.553562%) chi^2/dof=1.06025
+
+iteration 3 finished.
+this iteration: N=1000000 E=1.01557e+07 +- 27153.6 (0.267374%) eff=81.6224% nnf=0
+all iterations: N=4000000 E=1.01336e+07 +- 24398 (0.240763%) chi^2/dof=1.84817
+
+iteration 4 finished.
+this iteration: N=1000000 E=1.01557e+07 +- 25190.5 (0.248042%) eff=84.1363% nnf=0
+all iterations: N=5000000 E=1.01443e+07 +- 17525.5 (0.172761%) chi^2/dof=1.48562
+
+iteration 5 finished.
+this iteration: N=1000000 E=1.016e+07 +- 23453.4 (0.23084%) eff=83.8024% nnf=0
+all iterations: N=6000000 E=1.01499e+07 +- 14038.9 (0.138315%) chi^2/dof=1.24603
+
+iteration 6 finished.
+this iteration: N=1000000 E=1.01541e+07 +- 21037.4 (0.207182%) eff=85.153% nnf=0
+all iterations: N=7000000 E=1.01512e+07 +- 11677.5 (0.115035%) chi^2/dof=1.04278
+
+iteration 7 finished.
+this iteration: N=1000000 E=1.01537e+07 +- 20265.3 (0.199585%) eff=86.37% nnf=0
+all iterations: N=8000000 E=1.01518e+07 +- 10117.9 (0.0996657%) chi^2/dof=0.895476
+
+iteration 8 finished.
+this iteration: N=1000000 E=1.01556e+07 +- 20310.5 (0.199993%) eff=86.7138% nnf=0
+all iterations: N=9000000 E=1.01526e+07 +- 9056.38 (0.0892026%) chi^2/dof=0.787023
+
+iteration 9 finished.
+this iteration: N=1000000 E=1.01336e+07 +- 20239.1 (0.199722%) eff=86.9269% nnf=0
+all iterations: N=10000000 E=1.01494e+07 +- 8266.51 (0.0814481%) chi^2/dof=0.780762
+
+iteration 10 finished.
+this iteration: N=1000000 E=1.0158e+07 +- 20307.6 (0.199917%) eff=87.0195% nnf=0
+all iterations: N=11000000 E=1.01507e+07 +- 7656.47 (0.0754284%) chi^2/dof=0.718001
+
+iteration 11 finished.
+this iteration: N=1000000 E=1.01502e+07 +- 20108.5 (0.19811%) eff=87.1712% nnf=0
+all iterations: N=12000000 E=1.01506e+07 +- 7155.34 (0.0704919%) chi^2/dof=0.652775
+
+T = 1.00e+02 => M0: 6.25651e-04
+iteration 0 finished.
+this iteration: N=1000000 E=0.129983 +- 0.0280415 (21.5732%) eff=15.9542% nnf=0
+all iterations: N=1000000 E=0.129983 +- 0.0280415 (21.5732%) chi^2/dof=inf
+
+iteration 1 finished.
+this iteration: N=1000000 E=0.132093 +- 0.00477417 (3.61425%) eff=68.6647% nnf=0
+all iterations: N=2000000 E=0.132034 +- 0.00470645 (3.56458%) chi^2/dof=0.00550478
+
+iteration 2 finished.
+this iteration: N=1000000 E=0.145962 +- 0.0013068 (0.895302%) eff=76.7812% nnf=0
+all iterations: N=3000000 E=0.144965 +- 0.00125916 (0.868598%) chi^2/dof=4.06814
+
+iteration 3 finished.
+this iteration: N=1000000 E=0.148876 +- 0.000538144 (0.361471%) eff=82.6991% nnf=0
+all iterations: N=4000000 E=0.148272 +- 0.000494845 (0.333741%) chi^2/dof=5.43203
+
+iteration 4 finished.
+this iteration: N=1000000 E=0.148558 +- 0.000386086 (0.259889%) eff=85.089% nnf=0
+all iterations: N=5000000 E=0.14845 +- 0.000304398 (0.205051%) chi^2/dof=4.12583
+
+iteration 5 finished.
+this iteration: N=1000000 E=0.149005 +- 0.000339037 (0.227534%) eff=87.2525% nnf=0
+all iterations: N=6000000 E=0.148698 +- 0.000226501 (0.152323%) chi^2/dof=3.5979
+
+iteration 6 finished.
+this iteration: N=1000000 E=0.148652 +- 0.000325927 (0.219255%) eff=87.5408% nnf=0
+all iterations: N=7000000 E=0.148683 +- 0.000185998 (0.125097%) chi^2/dof=3.00046
+
+iteration 7 finished.
+this iteration: N=1000000 E=0.148587 +- 0.000319649 (0.215126%) eff=88.5595% nnf=0
+all iterations: N=8000000 E=0.148658 +- 0.000160762 (0.108142%) chi^2/dof=2.58141
+
+iteration 8 finished.
+this iteration: N=1000000 E=0.148836 +- 0.000318113 (0.213734%) eff=88.412% nnf=0
+all iterations: N=9000000 E=0.148695 +- 0.000143481 (0.0964939%) chi^2/dof=2.28975
+
+iteration 9 finished.
+this iteration: N=1000000 E=0.148736 +- 0.000319668 (0.214924%) eff=88.9383% nnf=0
+all iterations: N=10000000 E=0.148701 +- 0.0001309 (0.0880288%) chi^2/dof=2.03685
+
+iteration 10 finished.
+this iteration: N=1000000 E=0.148308 +- 0.000319017 (0.215104%) eff=88.9188% nnf=0
+all iterations: N=11000000 E=0.148645 +- 0.000121102 (0.0814706%) chi^2/dof=1.96333
+
+iteration 11 finished.
+this iteration: N=1000000 E=0.148571 +- 0.000319076 (0.214763%) eff=89.0712% nnf=0
+all iterations: N=12000000 E=0.148636 +- 0.000113221 (0.0761738%) chi^2/dof=1.78906
+
+T = 1.00e+02 => M2: 4.41296e-01
+
+
+------------------------------------------------------------------------
+Calculating single correlation function at T = 100.00 using following parameters:
+    pair state (pair_state):                                             FREE_AND_METASTABLE
+    trajectories to be calculated (total_trajectories):                  10000000
+    # of iterations that the calculation is divided into (niterations):  200
+    maximum length of trajectory (MaxTrajectoryLength):                  21
+    partial partition function (partial_partition_function_ratio):       2.732334e+05
+    sampling time of dipole on trajectory (sampling_time):               200.00
+    maximum intermolecular distance on trajectory (Rcut):                40.00
+    CVode tolerance:                                                     1.000e-12
+    use Zimmermann's trick:                                              0
+
+------------------------------------------------------------------------
+
+
+ITERATION 1/200: accumulated 49968 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.60706e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 5.603%
+M2 ESTIMATE FROM CF (9-point): 4.56878e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 3.531%
+M2 ESTIMATE FROM CF (21-point): 4.56875e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 3.530%
+INFO: Wrote 661 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 2/200: accumulated 99936 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.63740e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 6.088%
+M2 ESTIMATE FROM CF (9-point): 4.66683e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.753%
+M2 ESTIMATE FROM CF (21-point): 4.66680e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.752%
+INFO: Wrote 661 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 3/200: accumulated 149904 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.62625e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 5.910%
+M2 ESTIMATE FROM CF (9-point): 4.66316e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.670%
+M2 ESTIMATE FROM CF (21-point): 4.66312e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.669%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 4/200: accumulated 199872 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.59248e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 5.370%
+M2 ESTIMATE FROM CF (9-point): 4.68975e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 6.272%
+M2 ESTIMATE FROM CF (21-point): 4.68972e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 6.272%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 5/200: accumulated 249840 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.52513e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 4.293%
+M2 ESTIMATE FROM CF (9-point): 4.67685e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.980%
+M2 ESTIMATE FROM CF (21-point): 4.67682e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 5.979%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 6/200: accumulated 299808 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.49044e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 3.739%
+M2 ESTIMATE FROM CF (9-point): 4.63116e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 4.944%
+M2 ESTIMATE FROM CF (21-point): 4.63113e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 4.944%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 7/200: accumulated 349776 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.47830e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 3.545%
+M2 ESTIMATE FROM CF (9-point): 4.60833e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 4.427%
+M2 ESTIMATE FROM CF (21-point): 4.60830e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 4.427%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 8/200: accumulated 399744 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.45787e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 3.218%
+M2 ESTIMATE FROM CF (9-point): 4.55051e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 3.117%
+M2 ESTIMATE FROM CF (21-point): 4.55048e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 3.116%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 9/200: accumulated 449712 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.40921e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 2.441%
+M2 ESTIMATE FROM CF (9-point): 4.43612e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.525%
+M2 ESTIMATE FROM CF (21-point): 4.43610e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.524%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 10/200: accumulated 499680 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.38109e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.991%
+M2 ESTIMATE FROM CF (9-point): 4.40266e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.233%
+M2 ESTIMATE FROM CF (21-point): 4.40263e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.234%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 11/200: accumulated 549648 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.36468e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.729%
+M2 ESTIMATE FROM CF (9-point): 4.41551e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.058%
+M2 ESTIMATE FROM CF (21-point): 4.41548e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.057%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 12/200: accumulated 599616 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.34309e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.384%
+M2 ESTIMATE FROM CF (9-point): 4.42577e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.290%
+M2 ESTIMATE FROM CF (21-point): 4.42574e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.290%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 13/200: accumulated 649584 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.33565e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.265%
+M2 ESTIMATE FROM CF (9-point): 4.46509e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.181%
+M2 ESTIMATE FROM CF (21-point): 4.46507e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.181%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 14/200: accumulated 699552 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.34933e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.484%
+M2 ESTIMATE FROM CF (9-point): 4.49177e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.786%
+M2 ESTIMATE FROM CF (21-point): 4.49175e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.785%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 15/200: accumulated 749520 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.34810e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 1.464%
+M2 ESTIMATE FROM CF (9-point): 4.47604e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.429%
+M2 ESTIMATE FROM CF (21-point): 4.47602e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 1.429%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 16/200: accumulated 799488 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.31557e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.944%
+M2 ESTIMATE FROM CF (9-point): 4.44323e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.686%
+M2 ESTIMATE FROM CF (21-point): 4.44320e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.685%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 17/200: accumulated 849456 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30892e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.838%
+M2 ESTIMATE FROM CF (9-point): 4.43407e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.478%
+M2 ESTIMATE FROM CF (21-point): 4.43405e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: 0.478%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 18/200: accumulated 899424 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.29028e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.540%
+M2 ESTIMATE FROM CF (9-point): 4.40098e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.271%
+M2 ESTIMATE FROM CF (21-point): 4.40096e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.272%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 19/200: accumulated 949392 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30393e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.758%
+M2 ESTIMATE FROM CF (9-point): 4.41287e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.002%
+M2 ESTIMATE FROM CF (21-point): 4.41285e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.002%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 20/200: accumulated 999360 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30942e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.846%
+M2 ESTIMATE FROM CF (9-point): 4.37271e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.912%
+M2 ESTIMATE FROM CF (21-point): 4.37269e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.913%
+INFO: Wrote 662 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 21/200: accumulated 1049328 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30458e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.768%
+M2 ESTIMATE FROM CF (9-point): 4.36785e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.022%
+M2 ESTIMATE FROM CF (21-point): 4.36783e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.023%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 22/200: accumulated 1099296 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30182e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.724%
+M2 ESTIMATE FROM CF (9-point): 4.37745e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.805%
+M2 ESTIMATE FROM CF (21-point): 4.37743e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.805%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 23/200: accumulated 1149264 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.29810e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.665%
+M2 ESTIMATE FROM CF (9-point): 4.37700e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.815%
+M2 ESTIMATE FROM CF (21-point): 4.37697e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.815%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 24/200: accumulated 1199232 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.29955e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.688%
+M2 ESTIMATE FROM CF (9-point): 4.37396e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.884%
+M2 ESTIMATE FROM CF (21-point): 4.37394e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.884%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 25/200: accumulated 1249200 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.29545e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.622%
+M2 ESTIMATE FROM CF (9-point): 4.38061e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.733%
+M2 ESTIMATE FROM CF (21-point): 4.38059e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.734%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 26/200: accumulated 1299168 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.29881e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.676%
+M2 ESTIMATE FROM CF (9-point): 4.39841e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.330%
+M2 ESTIMATE FROM CF (21-point): 4.39839e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.330%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 27/200: accumulated 1349136 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30128e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.715%
+M2 ESTIMATE FROM CF (9-point): 4.40337e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.217%
+M2 ESTIMATE FROM CF (21-point): 4.40334e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.218%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 28/200: accumulated 1399104 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30272e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.739%
+M2 ESTIMATE FROM CF (9-point): 4.39893e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.318%
+M2 ESTIMATE FROM CF (21-point): 4.39891e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.318%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 29/200: accumulated 1449072 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.30363e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.753%
+M2 ESTIMATE FROM CF (9-point): 4.41029e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.060%
+M2 ESTIMATE FROM CF (21-point): 4.41027e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.061%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 30/200: accumulated 1499040 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27430e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.284%
+M2 ESTIMATE FROM CF (9-point): 4.37848e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.781%
+M2 ESTIMATE FROM CF (21-point): 4.37845e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.782%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 31/200: accumulated 1549008 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26841e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.190%
+M2 ESTIMATE FROM CF (9-point): 4.37550e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.849%
+M2 ESTIMATE FROM CF (21-point): 4.37548e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.849%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 32/200: accumulated 1598976 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27049e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.223%
+M2 ESTIMATE FROM CF (9-point): 4.36895e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.997%
+M2 ESTIMATE FROM CF (21-point): 4.36893e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.998%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 33/200: accumulated 1648944 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25360e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.047%
+M2 ESTIMATE FROM CF (9-point): 4.35543e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.304%
+M2 ESTIMATE FROM CF (21-point): 4.35540e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.304%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 34/200: accumulated 1698912 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.23912e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.278%
+M2 ESTIMATE FROM CF (9-point): 4.33221e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.830%
+M2 ESTIMATE FROM CF (21-point): 4.33218e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.830%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 35/200: accumulated 1748880 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24049e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.256%
+M2 ESTIMATE FROM CF (9-point): 4.31968e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.114%
+M2 ESTIMATE FROM CF (21-point): 4.31966e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.114%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 36/200: accumulated 1798848 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24212e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.230%
+M2 ESTIMATE FROM CF (9-point): 4.30686e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.404%
+M2 ESTIMATE FROM CF (21-point): 4.30684e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.405%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 37/200: accumulated 1848816 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.23520e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.341%
+M2 ESTIMATE FROM CF (9-point): 4.29288e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.721%
+M2 ESTIMATE FROM CF (21-point): 4.29285e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.722%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 38/200: accumulated 1898784 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.23584e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.330%
+M2 ESTIMATE FROM CF (9-point): 4.29043e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.777%
+M2 ESTIMATE FROM CF (21-point): 4.29040e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.777%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 39/200: accumulated 1948752 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25138e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.082%
+M2 ESTIMATE FROM CF (9-point): 4.31857e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.139%
+M2 ESTIMATE FROM CF (21-point): 4.31854e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.140%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 40/200: accumulated 1998720 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24911e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.118%
+M2 ESTIMATE FROM CF (9-point): 4.32662e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.956%
+M2 ESTIMATE FROM CF (21-point): 4.32660e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.957%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 41/200: accumulated 2048688 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24722e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.149%
+M2 ESTIMATE FROM CF (9-point): 4.32311e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.036%
+M2 ESTIMATE FROM CF (21-point): 4.32309e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -2.037%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 42/200: accumulated 2098656 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25142e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.081%
+M2 ESTIMATE FROM CF (9-point): 4.33140e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.848%
+M2 ESTIMATE FROM CF (21-point): 4.33137e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.849%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 43/200: accumulated 2148624 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25850e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.032%
+M2 ESTIMATE FROM CF (9-point): 4.33666e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.729%
+M2 ESTIMATE FROM CF (21-point): 4.33663e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.730%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 44/200: accumulated 2198592 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25510e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.023%
+M2 ESTIMATE FROM CF (9-point): 4.33228e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.828%
+M2 ESTIMATE FROM CF (21-point): 4.33226e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.829%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 45/200: accumulated 2248560 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25002e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.104%
+M2 ESTIMATE FROM CF (9-point): 4.33552e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.755%
+M2 ESTIMATE FROM CF (21-point): 4.33550e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.755%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 46/200: accumulated 2298528 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25063e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.094%
+M2 ESTIMATE FROM CF (9-point): 4.34155e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.618%
+M2 ESTIMATE FROM CF (21-point): 4.34152e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.619%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 47/200: accumulated 2348496 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24852e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.128%
+M2 ESTIMATE FROM CF (9-point): 4.33503e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.766%
+M2 ESTIMATE FROM CF (21-point): 4.33501e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.766%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 48/200: accumulated 2398464 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24446e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.193%
+M2 ESTIMATE FROM CF (9-point): 4.32927e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.896%
+M2 ESTIMATE FROM CF (21-point): 4.32925e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.897%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 49/200: accumulated 2448432 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24536e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.178%
+M2 ESTIMATE FROM CF (9-point): 4.32693e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.949%
+M2 ESTIMATE FROM CF (21-point): 4.32691e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.950%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 50/200: accumulated 2498400 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24819e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.133%
+M2 ESTIMATE FROM CF (9-point): 4.32914e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.899%
+M2 ESTIMATE FROM CF (21-point): 4.32911e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.900%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 51/200: accumulated 2548368 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24907e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.119%
+M2 ESTIMATE FROM CF (9-point): 4.32873e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.909%
+M2 ESTIMATE FROM CF (21-point): 4.32870e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.909%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 52/200: accumulated 2598336 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25553e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.016%
+M2 ESTIMATE FROM CF (9-point): 4.34024e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.648%
+M2 ESTIMATE FROM CF (21-point): 4.34021e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.649%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 53/200: accumulated 2648304 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25926e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.044%
+M2 ESTIMATE FROM CF (9-point): 4.35799e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.246%
+M2 ESTIMATE FROM CF (21-point): 4.35797e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.246%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 54/200: accumulated 2698272 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26190e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.086%
+M2 ESTIMATE FROM CF (9-point): 4.36290e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.134%
+M2 ESTIMATE FROM CF (21-point): 4.36287e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.135%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 55/200: accumulated 2748240 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26416e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.122%
+M2 ESTIMATE FROM CF (9-point): 4.37629e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.831%
+M2 ESTIMATE FROM CF (21-point): 4.37627e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.831%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 56/200: accumulated 2798208 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25973e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.051%
+M2 ESTIMATE FROM CF (9-point): 4.37089e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.953%
+M2 ESTIMATE FROM CF (21-point): 4.37087e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.954%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 57/200: accumulated 2848176 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26416e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.122%
+M2 ESTIMATE FROM CF (9-point): 4.37661e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.824%
+M2 ESTIMATE FROM CF (21-point): 4.37658e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.824%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 58/200: accumulated 2898144 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25946e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.047%
+M2 ESTIMATE FROM CF (9-point): 4.37132e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.944%
+M2 ESTIMATE FROM CF (21-point): 4.37130e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.944%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 59/200: accumulated 2948112 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25006e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.103%
+M2 ESTIMATE FROM CF (9-point): 4.35854e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.233%
+M2 ESTIMATE FROM CF (21-point): 4.35852e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.234%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 60/200: accumulated 2998080 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25862e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.034%
+M2 ESTIMATE FROM CF (9-point): 4.37105e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.950%
+M2 ESTIMATE FROM CF (21-point): 4.37102e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.950%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 61/200: accumulated 3048048 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25608e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.007%
+M2 ESTIMATE FROM CF (9-point): 4.36646e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.054%
+M2 ESTIMATE FROM CF (21-point): 4.36644e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.054%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 62/200: accumulated 3098016 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25322e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.053%
+M2 ESTIMATE FROM CF (9-point): 4.36093e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.179%
+M2 ESTIMATE FROM CF (21-point): 4.36091e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.179%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 63/200: accumulated 3147984 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25660e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.001%
+M2 ESTIMATE FROM CF (9-point): 4.36240e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.146%
+M2 ESTIMATE FROM CF (21-point): 4.36237e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.146%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 64/200: accumulated 3197952 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26150e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.080%
+M2 ESTIMATE FROM CF (9-point): 4.36389e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.112%
+M2 ESTIMATE FROM CF (21-point): 4.36386e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.113%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 65/200: accumulated 3247920 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26904e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.200%
+M2 ESTIMATE FROM CF (9-point): 4.37591e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.840%
+M2 ESTIMATE FROM CF (21-point): 4.37588e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.840%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 66/200: accumulated 3297888 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27319e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.267%
+M2 ESTIMATE FROM CF (9-point): 4.38178e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.707%
+M2 ESTIMATE FROM CF (21-point): 4.38175e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.707%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 67/200: accumulated 3347856 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26827e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.188%
+M2 ESTIMATE FROM CF (9-point): 4.38171e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.708%
+M2 ESTIMATE FROM CF (21-point): 4.38169e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.709%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 68/200: accumulated 3397824 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26708e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.169%
+M2 ESTIMATE FROM CF (9-point): 4.37452e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.871%
+M2 ESTIMATE FROM CF (21-point): 4.37449e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.872%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 69/200: accumulated 3447792 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27037e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.221%
+M2 ESTIMATE FROM CF (9-point): 4.38298e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.679%
+M2 ESTIMATE FROM CF (21-point): 4.38295e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.680%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 70/200: accumulated 3497760 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27372e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.275%
+M2 ESTIMATE FROM CF (9-point): 4.38817e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.562%
+M2 ESTIMATE FROM CF (21-point): 4.38814e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.562%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 71/200: accumulated 3547728 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27610e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.313%
+M2 ESTIMATE FROM CF (9-point): 4.39199e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.475%
+M2 ESTIMATE FROM CF (21-point): 4.39197e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.476%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 72/200: accumulated 3597696 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27343e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.270%
+M2 ESTIMATE FROM CF (9-point): 4.39833e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.331%
+M2 ESTIMATE FROM CF (21-point): 4.39831e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.332%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 73/200: accumulated 3647664 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27737e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.333%
+M2 ESTIMATE FROM CF (9-point): 4.40617e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.154%
+M2 ESTIMATE FROM CF (21-point): 4.40615e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.154%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 74/200: accumulated 3697632 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27095e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.231%
+M2 ESTIMATE FROM CF (9-point): 4.40474e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.186%
+M2 ESTIMATE FROM CF (21-point): 4.40472e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.187%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 75/200: accumulated 3747600 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26886e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.197%
+M2 ESTIMATE FROM CF (9-point): 4.40179e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.253%
+M2 ESTIMATE FROM CF (21-point): 4.40177e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.254%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 76/200: accumulated 3797568 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26674e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.164%
+M2 ESTIMATE FROM CF (9-point): 4.39472e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.413%
+M2 ESTIMATE FROM CF (21-point): 4.39470e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.414%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 77/200: accumulated 3847536 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26321e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.107%
+M2 ESTIMATE FROM CF (9-point): 4.39188e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.478%
+M2 ESTIMATE FROM CF (21-point): 4.39185e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.478%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 78/200: accumulated 3897504 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26766e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.178%
+M2 ESTIMATE FROM CF (9-point): 4.39656e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.372%
+M2 ESTIMATE FROM CF (21-point): 4.39653e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.372%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 79/200: accumulated 3947472 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26635e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.157%
+M2 ESTIMATE FROM CF (9-point): 4.39413e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.427%
+M2 ESTIMATE FROM CF (21-point): 4.39410e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.427%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 80/200: accumulated 3997440 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26210e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.089%
+M2 ESTIMATE FROM CF (9-point): 4.38212e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.699%
+M2 ESTIMATE FROM CF (21-point): 4.38210e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.699%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 81/200: accumulated 4047408 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26485e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.133%
+M2 ESTIMATE FROM CF (9-point): 4.37802e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.792%
+M2 ESTIMATE FROM CF (21-point): 4.37800e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.792%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 82/200: accumulated 4097376 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26330e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.109%
+M2 ESTIMATE FROM CF (9-point): 4.37547e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.849%
+M2 ESTIMATE FROM CF (21-point): 4.37545e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.850%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 83/200: accumulated 4147344 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26112e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.074%
+M2 ESTIMATE FROM CF (9-point): 4.37034e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.966%
+M2 ESTIMATE FROM CF (21-point): 4.37032e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.966%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 84/200: accumulated 4197312 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25729e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.012%
+M2 ESTIMATE FROM CF (9-point): 4.36537e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.078%
+M2 ESTIMATE FROM CF (21-point): 4.36535e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.079%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 85/200: accumulated 4247280 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25572e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.013%
+M2 ESTIMATE FROM CF (9-point): 4.35506e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.312%
+M2 ESTIMATE FROM CF (21-point): 4.35504e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.313%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 86/200: accumulated 4297248 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25494e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.025%
+M2 ESTIMATE FROM CF (9-point): 4.35035e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.419%
+M2 ESTIMATE FROM CF (21-point): 4.35033e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.419%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 87/200: accumulated 4347216 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25785e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.021%
+M2 ESTIMATE FROM CF (9-point): 4.35494e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.315%
+M2 ESTIMATE FROM CF (21-point): 4.35492e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.315%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 88/200: accumulated 4397184 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25644e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.001%
+M2 ESTIMATE FROM CF (9-point): 4.35553e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.301%
+M2 ESTIMATE FROM CF (21-point): 4.35550e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.302%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 89/200: accumulated 4447152 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26038e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.062%
+M2 ESTIMATE FROM CF (9-point): 4.37039e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+M2 ESTIMATE FROM CF (21-point): 4.37037e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 90/200: accumulated 4497120 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25962e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.050%
+M2 ESTIMATE FROM CF (9-point): 4.37264e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.914%
+M2 ESTIMATE FROM CF (21-point): 4.37262e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.914%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 91/200: accumulated 4547088 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26073e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.067%
+M2 ESTIMATE FROM CF (9-point): 4.37039e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+M2 ESTIMATE FROM CF (21-point): 4.37036e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 92/200: accumulated 4597056 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26348e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.111%
+M2 ESTIMATE FROM CF (9-point): 4.37492e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.862%
+M2 ESTIMATE FROM CF (21-point): 4.37489e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.863%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 93/200: accumulated 4647024 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26329e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.108%
+M2 ESTIMATE FROM CF (9-point): 4.37698e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.815%
+M2 ESTIMATE FROM CF (21-point): 4.37696e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.816%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 94/200: accumulated 4696992 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26255e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.097%
+M2 ESTIMATE FROM CF (9-point): 4.37722e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.810%
+M2 ESTIMATE FROM CF (21-point): 4.37720e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.810%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 95/200: accumulated 4746960 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26168e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.083%
+M2 ESTIMATE FROM CF (9-point): 4.37359e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.892%
+M2 ESTIMATE FROM CF (21-point): 4.37356e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.893%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 96/200: accumulated 4796928 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26618e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.155%
+M2 ESTIMATE FROM CF (9-point): 4.38290e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.681%
+M2 ESTIMATE FROM CF (21-point): 4.38288e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.682%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 97/200: accumulated 4846896 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26620e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.155%
+M2 ESTIMATE FROM CF (9-point): 4.38307e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.677%
+M2 ESTIMATE FROM CF (21-point): 4.38305e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.678%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 98/200: accumulated 4896864 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26755e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.176%
+M2 ESTIMATE FROM CF (9-point): 4.38660e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.597%
+M2 ESTIMATE FROM CF (21-point): 4.38658e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.598%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 99/200: accumulated 4946832 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26826e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.188%
+M2 ESTIMATE FROM CF (9-point): 4.39670e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.369%
+M2 ESTIMATE FROM CF (21-point): 4.39667e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.369%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 100/200: accumulated 4996800 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27396e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.279%
+M2 ESTIMATE FROM CF (9-point): 4.39448e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.419%
+M2 ESTIMATE FROM CF (21-point): 4.39446e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.419%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 101/200: accumulated 5046768 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27053e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.224%
+M2 ESTIMATE FROM CF (9-point): 4.39162e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.484%
+M2 ESTIMATE FROM CF (21-point): 4.39159e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.484%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 102/200: accumulated 5096736 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27093e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.230%
+M2 ESTIMATE FROM CF (9-point): 4.38572e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.617%
+M2 ESTIMATE FROM CF (21-point): 4.38569e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.618%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 103/200: accumulated 5146704 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27156e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.240%
+M2 ESTIMATE FROM CF (9-point): 4.38807e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.564%
+M2 ESTIMATE FROM CF (21-point): 4.38805e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.565%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 104/200: accumulated 5196672 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26902e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.200%
+M2 ESTIMATE FROM CF (9-point): 4.38248e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.691%
+M2 ESTIMATE FROM CF (21-point): 4.38245e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.691%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 105/200: accumulated 5246640 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26507e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.137%
+M2 ESTIMATE FROM CF (9-point): 4.37652e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.826%
+M2 ESTIMATE FROM CF (21-point): 4.37650e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.826%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 106/200: accumulated 5296608 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26300e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.104%
+M2 ESTIMATE FROM CF (9-point): 4.37607e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.836%
+M2 ESTIMATE FROM CF (21-point): 4.37605e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.836%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 107/200: accumulated 5346576 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26399e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.119%
+M2 ESTIMATE FROM CF (9-point): 4.37560e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.847%
+M2 ESTIMATE FROM CF (21-point): 4.37558e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.847%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 108/200: accumulated 5396544 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26276e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.100%
+M2 ESTIMATE FROM CF (9-point): 4.37888e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.772%
+M2 ESTIMATE FROM CF (21-point): 4.37885e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.773%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 109/200: accumulated 5446512 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25787e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.022%
+M2 ESTIMATE FROM CF (9-point): 4.36797e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.019%
+M2 ESTIMATE FROM CF (21-point): 4.36795e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.020%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 110/200: accumulated 5496480 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25940e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.046%
+M2 ESTIMATE FROM CF (9-point): 4.36723e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.036%
+M2 ESTIMATE FROM CF (21-point): 4.36720e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.037%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 111/200: accumulated 5546448 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25710e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.009%
+M2 ESTIMATE FROM CF (9-point): 4.36656e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.052%
+M2 ESTIMATE FROM CF (21-point): 4.36653e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -1.052%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 112/200: accumulated 5596416 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25839e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.030%
+M2 ESTIMATE FROM CF (9-point): 4.37018e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.969%
+M2 ESTIMATE FROM CF (21-point): 4.37016e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.970%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 113/200: accumulated 5646384 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26115e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.074%
+M2 ESTIMATE FROM CF (9-point): 4.37074e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.957%
+M2 ESTIMATE FROM CF (21-point): 4.37071e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.957%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 114/200: accumulated 5696352 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26500e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.136%
+M2 ESTIMATE FROM CF (9-point): 4.37703e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.814%
+M2 ESTIMATE FROM CF (21-point): 4.37701e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.815%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 115/200: accumulated 5746320 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26546e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.143%
+M2 ESTIMATE FROM CF (9-point): 4.37456e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.870%
+M2 ESTIMATE FROM CF (21-point): 4.37454e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.871%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 116/200: accumulated 5796288 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26651e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.160%
+M2 ESTIMATE FROM CF (9-point): 4.37039e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+M2 ESTIMATE FROM CF (21-point): 4.37037e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.965%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 117/200: accumulated 5846256 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26614e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.154%
+M2 ESTIMATE FROM CF (9-point): 4.37158e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.938%
+M2 ESTIMATE FROM CF (21-point): 4.37156e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.938%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 118/200: accumulated 5896224 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26319e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.107%
+M2 ESTIMATE FROM CF (9-point): 4.37033e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.966%
+M2 ESTIMATE FROM CF (21-point): 4.37030e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.967%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 119/200: accumulated 5946192 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26495e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.135%
+M2 ESTIMATE FROM CF (9-point): 4.37670e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.822%
+M2 ESTIMATE FROM CF (21-point): 4.37667e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.822%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 120/200: accumulated 5996160 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26267e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.098%
+M2 ESTIMATE FROM CF (9-point): 4.37589e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.840%
+M2 ESTIMATE FROM CF (21-point): 4.37587e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.841%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 121/200: accumulated 6046128 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26822e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.187%
+M2 ESTIMATE FROM CF (9-point): 4.38301e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.679%
+M2 ESTIMATE FROM CF (21-point): 4.38299e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.679%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 122/200: accumulated 6096096 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26957e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.209%
+M2 ESTIMATE FROM CF (9-point): 4.38275e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.685%
+M2 ESTIMATE FROM CF (21-point): 4.38273e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.685%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 123/200: accumulated 6146064 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26811e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.185%
+M2 ESTIMATE FROM CF (9-point): 4.38036e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.739%
+M2 ESTIMATE FROM CF (21-point): 4.38033e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.739%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 124/200: accumulated 6196032 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26910e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.201%
+M2 ESTIMATE FROM CF (9-point): 4.38579e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.616%
+M2 ESTIMATE FROM CF (21-point): 4.38577e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.616%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 125/200: accumulated 6246000 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26800e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.184%
+M2 ESTIMATE FROM CF (9-point): 4.38382e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.660%
+M2 ESTIMATE FROM CF (21-point): 4.38380e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.661%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 126/200: accumulated 6295968 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26723e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.171%
+M2 ESTIMATE FROM CF (9-point): 4.38582e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.615%
+M2 ESTIMATE FROM CF (21-point): 4.38580e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.615%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 127/200: accumulated 6345936 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26722e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.171%
+M2 ESTIMATE FROM CF (9-point): 4.38289e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.681%
+M2 ESTIMATE FROM CF (21-point): 4.38287e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.682%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 128/200: accumulated 6395904 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26629e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.156%
+M2 ESTIMATE FROM CF (9-point): 4.38192e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.703%
+M2 ESTIMATE FROM CF (21-point): 4.38190e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.704%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 129/200: accumulated 6445872 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26931e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.205%
+M2 ESTIMATE FROM CF (9-point): 4.38301e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.679%
+M2 ESTIMATE FROM CF (21-point): 4.38298e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.679%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 130/200: accumulated 6495840 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27131e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.236%
+M2 ESTIMATE FROM CF (9-point): 4.38453e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.644%
+M2 ESTIMATE FROM CF (21-point): 4.38450e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.645%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 131/200: accumulated 6545808 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27067e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.226%
+M2 ESTIMATE FROM CF (9-point): 4.38978e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.525%
+M2 ESTIMATE FROM CF (21-point): 4.38976e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.526%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 132/200: accumulated 6595776 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27290e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.262%
+M2 ESTIMATE FROM CF (9-point): 4.39424e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.424%
+M2 ESTIMATE FROM CF (21-point): 4.39422e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.425%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 133/200: accumulated 6645744 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27066e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.226%
+M2 ESTIMATE FROM CF (9-point): 4.39045e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.510%
+M2 ESTIMATE FROM CF (21-point): 4.39042e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.511%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 134/200: accumulated 6695712 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27130e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.236%
+M2 ESTIMATE FROM CF (9-point): 4.39344e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.442%
+M2 ESTIMATE FROM CF (21-point): 4.39342e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.443%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 135/200: accumulated 6745680 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26777e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.180%
+M2 ESTIMATE FROM CF (9-point): 4.39378e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.435%
+M2 ESTIMATE FROM CF (21-point): 4.39375e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.435%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 136/200: accumulated 6795648 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27177e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.244%
+M2 ESTIMATE FROM CF (9-point): 4.40028e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.287%
+M2 ESTIMATE FROM CF (21-point): 4.40025e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.288%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 137/200: accumulated 6845616 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27178e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.244%
+M2 ESTIMATE FROM CF (9-point): 4.40652e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.146%
+M2 ESTIMATE FROM CF (21-point): 4.40649e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.147%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 138/200: accumulated 6895584 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27262e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.257%
+M2 ESTIMATE FROM CF (9-point): 4.40947e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.079%
+M2 ESTIMATE FROM CF (21-point): 4.40944e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.080%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 139/200: accumulated 6945552 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27015e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.218%
+M2 ESTIMATE FROM CF (9-point): 4.40580e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.162%
+M2 ESTIMATE FROM CF (21-point): 4.40578e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.163%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 140/200: accumulated 6995520 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27025e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.220%
+M2 ESTIMATE FROM CF (9-point): 4.41256e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.009%
+M2 ESTIMATE FROM CF (21-point): 4.41253e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.010%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 141/200: accumulated 7045488 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26970e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.211%
+M2 ESTIMATE FROM CF (9-point): 4.40755e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.123%
+M2 ESTIMATE FROM CF (21-point): 4.40753e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.123%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 142/200: accumulated 7095456 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27205e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.248%
+M2 ESTIMATE FROM CF (9-point): 4.40950e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.078%
+M2 ESTIMATE FROM CF (21-point): 4.40947e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.079%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 143/200: accumulated 7145424 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27025e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.220%
+M2 ESTIMATE FROM CF (9-point): 4.40699e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.135%
+M2 ESTIMATE FROM CF (21-point): 4.40697e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.136%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 144/200: accumulated 7195392 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26975e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.211%
+M2 ESTIMATE FROM CF (9-point): 4.40253e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.236%
+M2 ESTIMATE FROM CF (21-point): 4.40251e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.237%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 145/200: accumulated 7245360 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27072e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.227%
+M2 ESTIMATE FROM CF (9-point): 4.40332e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.218%
+M2 ESTIMATE FROM CF (21-point): 4.40330e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.219%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 146/200: accumulated 7295328 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26954e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.208%
+M2 ESTIMATE FROM CF (9-point): 4.39731e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.355%
+M2 ESTIMATE FROM CF (21-point): 4.39728e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.355%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 147/200: accumulated 7345296 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26693e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.166%
+M2 ESTIMATE FROM CF (9-point): 4.39491e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.409%
+M2 ESTIMATE FROM CF (21-point): 4.39489e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.410%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 148/200: accumulated 7395264 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26537e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.142%
+M2 ESTIMATE FROM CF (9-point): 4.39406e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.428%
+M2 ESTIMATE FROM CF (21-point): 4.39403e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.429%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 149/200: accumulated 7445232 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26555e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.144%
+M2 ESTIMATE FROM CF (9-point): 4.39745e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.351%
+M2 ESTIMATE FROM CF (21-point): 4.39743e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.352%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 150/200: accumulated 7495200 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26971e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.211%
+M2 ESTIMATE FROM CF (9-point): 4.40819e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.108%
+M2 ESTIMATE FROM CF (21-point): 4.40816e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.109%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 151/200: accumulated 7545168 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26950e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.208%
+M2 ESTIMATE FROM CF (9-point): 4.40748e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.124%
+M2 ESTIMATE FROM CF (21-point): 4.40746e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.125%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 152/200: accumulated 7595136 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26837e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.189%
+M2 ESTIMATE FROM CF (9-point): 4.40325e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.220%
+M2 ESTIMATE FROM CF (21-point): 4.40323e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.221%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 153/200: accumulated 7645104 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27006e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.217%
+M2 ESTIMATE FROM CF (9-point): 4.40449e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.192%
+M2 ESTIMATE FROM CF (21-point): 4.40447e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.192%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 154/200: accumulated 7695072 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.27202e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.248%
+M2 ESTIMATE FROM CF (9-point): 4.40272e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.232%
+M2 ESTIMATE FROM CF (21-point): 4.40270e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.233%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 155/200: accumulated 7745040 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26825e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.188%
+M2 ESTIMATE FROM CF (9-point): 4.39505e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.406%
+M2 ESTIMATE FROM CF (21-point): 4.39503e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.406%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 156/200: accumulated 7795008 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26728e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.172%
+M2 ESTIMATE FROM CF (9-point): 4.39464e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.415%
+M2 ESTIMATE FROM CF (21-point): 4.39462e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.416%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 157/200: accumulated 7844976 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26769e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.179%
+M2 ESTIMATE FROM CF (9-point): 4.39018e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.516%
+M2 ESTIMATE FROM CF (21-point): 4.39016e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.517%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 158/200: accumulated 7894944 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26690e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.166%
+M2 ESTIMATE FROM CF (9-point): 4.38941e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.534%
+M2 ESTIMATE FROM CF (21-point): 4.38939e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.534%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 159/200: accumulated 7944912 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26678e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.164%
+M2 ESTIMATE FROM CF (9-point): 4.39023e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.515%
+M2 ESTIMATE FROM CF (21-point): 4.39021e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.516%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 160/200: accumulated 7994880 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26538e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.142%
+M2 ESTIMATE FROM CF (9-point): 4.38514e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.630%
+M2 ESTIMATE FROM CF (21-point): 4.38511e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.631%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 161/200: accumulated 8044848 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26429e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.124%
+M2 ESTIMATE FROM CF (9-point): 4.38355e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.666%
+M2 ESTIMATE FROM CF (21-point): 4.38353e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.667%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 162/200: accumulated 8094816 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26211e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.089%
+M2 ESTIMATE FROM CF (9-point): 4.38358e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.666%
+M2 ESTIMATE FROM CF (21-point): 4.38356e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.666%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 163/200: accumulated 8144784 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26239e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.094%
+M2 ESTIMATE FROM CF (9-point): 4.38325e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.673%
+M2 ESTIMATE FROM CF (21-point): 4.38323e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.674%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 164/200: accumulated 8194752 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26094e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.071%
+M2 ESTIMATE FROM CF (9-point): 4.38228e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.695%
+M2 ESTIMATE FROM CF (21-point): 4.38226e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.696%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 165/200: accumulated 8244720 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26005e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.056%
+M2 ESTIMATE FROM CF (9-point): 4.38028e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.741%
+M2 ESTIMATE FROM CF (21-point): 4.38026e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.741%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 166/200: accumulated 8294688 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.26007e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.057%
+M2 ESTIMATE FROM CF (9-point): 4.38094e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.726%
+M2 ESTIMATE FROM CF (21-point): 4.38092e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.726%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 167/200: accumulated 8344656 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25861e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.033%
+M2 ESTIMATE FROM CF (9-point): 4.37877e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.775%
+M2 ESTIMATE FROM CF (21-point): 4.37875e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.775%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 168/200: accumulated 8394624 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25664e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.002%
+M2 ESTIMATE FROM CF (9-point): 4.37443e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.873%
+M2 ESTIMATE FROM CF (21-point): 4.37441e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.874%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 169/200: accumulated 8444592 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25752e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.016%
+M2 ESTIMATE FROM CF (9-point): 4.37518e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.856%
+M2 ESTIMATE FROM CF (21-point): 4.37516e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.857%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 170/200: accumulated 8494560 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25636e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.002%
+M2 ESTIMATE FROM CF (9-point): 4.37667e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.822%
+M2 ESTIMATE FROM CF (21-point): 4.37665e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.823%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 171/200: accumulated 8544528 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25636e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.003%
+M2 ESTIMATE FROM CF (9-point): 4.37752e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.803%
+M2 ESTIMATE FROM CF (21-point): 4.37750e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.804%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 172/200: accumulated 8594496 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25529e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.020%
+M2 ESTIMATE FROM CF (9-point): 4.37715e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.811%
+M2 ESTIMATE FROM CF (21-point): 4.37713e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.812%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 173/200: accumulated 8644464 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25614e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.006%
+M2 ESTIMATE FROM CF (9-point): 4.37885e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.773%
+M2 ESTIMATE FROM CF (21-point): 4.37882e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.774%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 174/200: accumulated 8694432 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25547e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.017%
+M2 ESTIMATE FROM CF (9-point): 4.37962e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.755%
+M2 ESTIMATE FROM CF (21-point): 4.37960e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.756%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 175/200: accumulated 8744400 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25181e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.075%
+M2 ESTIMATE FROM CF (9-point): 4.37466e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.868%
+M2 ESTIMATE FROM CF (21-point): 4.37463e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.868%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 176/200: accumulated 8794368 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25260e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.063%
+M2 ESTIMATE FROM CF (9-point): 4.37557e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.847%
+M2 ESTIMATE FROM CF (21-point): 4.37554e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.848%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 177/200: accumulated 8844336 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25282e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.059%
+M2 ESTIMATE FROM CF (9-point): 4.38120e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.720%
+M2 ESTIMATE FROM CF (21-point): 4.38118e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.720%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 178/200: accumulated 8894304 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25233e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.067%
+M2 ESTIMATE FROM CF (9-point): 4.38139e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.715%
+M2 ESTIMATE FROM CF (21-point): 4.38136e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.716%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 179/200: accumulated 8944272 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25177e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.076%
+M2 ESTIMATE FROM CF (9-point): 4.38376e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.662%
+M2 ESTIMATE FROM CF (21-point): 4.38374e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.662%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 180/200: accumulated 8994240 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24967e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.109%
+M2 ESTIMATE FROM CF (9-point): 4.37858e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.779%
+M2 ESTIMATE FROM CF (21-point): 4.37855e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.780%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 181/200: accumulated 9044208 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25031e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.099%
+M2 ESTIMATE FROM CF (9-point): 4.37958e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.756%
+M2 ESTIMATE FROM CF (21-point): 4.37956e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.757%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 182/200: accumulated 9094176 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24990e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.106%
+M2 ESTIMATE FROM CF (9-point): 4.37854e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.780%
+M2 ESTIMATE FROM CF (21-point): 4.37852e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.780%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 183/200: accumulated 9144144 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.24978e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.108%
+M2 ESTIMATE FROM CF (9-point): 4.37744e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.805%
+M2 ESTIMATE FROM CF (21-point): 4.37742e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.805%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 184/200: accumulated 9194112 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25158e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.079%
+M2 ESTIMATE FROM CF (9-point): 4.38159e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.711%
+M2 ESTIMATE FROM CF (21-point): 4.38157e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.711%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 185/200: accumulated 9244080 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25081e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.091%
+M2 ESTIMATE FROM CF (9-point): 4.38270e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.686%
+M2 ESTIMATE FROM CF (21-point): 4.38268e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.686%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 186/200: accumulated 9294048 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25157e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.079%
+M2 ESTIMATE FROM CF (9-point): 4.38479e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.638%
+M2 ESTIMATE FROM CF (21-point): 4.38477e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.639%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 187/200: accumulated 9344016 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25442e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.034%
+M2 ESTIMATE FROM CF (9-point): 4.38992e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.522%
+M2 ESTIMATE FROM CF (21-point): 4.38990e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.523%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 188/200: accumulated 9393984 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25589e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.010%
+M2 ESTIMATE FROM CF (9-point): 4.39323e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.447%
+M2 ESTIMATE FROM CF (21-point): 4.39321e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.448%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 189/200: accumulated 9443952 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25636e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.002%
+M2 ESTIMATE FROM CF (9-point): 4.39428e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.423%
+M2 ESTIMATE FROM CF (21-point): 4.39426e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.424%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 190/200: accumulated 9493920 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25635e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.003%
+M2 ESTIMATE FROM CF (9-point): 4.39477e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.412%
+M2 ESTIMATE FROM CF (21-point): 4.39475e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.413%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 191/200: accumulated 9543888 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25616e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.006%
+M2 ESTIMATE FROM CF (9-point): 4.39375e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.435%
+M2 ESTIMATE FROM CF (21-point): 4.39372e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.436%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 192/200: accumulated 9593856 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25828e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.028%
+M2 ESTIMATE FROM CF (9-point): 4.39460e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.416%
+M2 ESTIMATE FROM CF (21-point): 4.39458e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.417%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 193/200: accumulated 9643824 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25669e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: 0.003%
+M2 ESTIMATE FROM CF (9-point): 4.39042e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.511%
+M2 ESTIMATE FROM CF (21-point): 4.39039e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.511%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 194/200: accumulated 9693792 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25491e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.026%
+M2 ESTIMATE FROM CF (9-point): 4.38840e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.557%
+M2 ESTIMATE FROM CF (21-point): 4.38838e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.557%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 195/200: accumulated 9743760 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25179e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.076%
+M2 ESTIMATE FROM CF (9-point): 4.38700e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.588%
+M2 ESTIMATE FROM CF (21-point): 4.38698e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.589%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 196/200: accumulated 9793728 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25312e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.054%
+M2 ESTIMATE FROM CF (9-point): 4.39490e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.409%
+M2 ESTIMATE FROM CF (21-point): 4.39487e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.410%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 197/200: accumulated 9843696 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25335e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.051%
+M2 ESTIMATE FROM CF (9-point): 4.39422e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.425%
+M2 ESTIMATE FROM CF (21-point): 4.39420e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.425%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 198/200: accumulated 9893664 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25459e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.031%
+M2 ESTIMATE FROM CF (9-point): 4.39484e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.411%
+M2 ESTIMATE FROM CF (21-point): 4.39482e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.411%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 199/200: accumulated 9943632 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25346e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.049%
+M2 ESTIMATE FROM CF (9-point): 4.39072e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.504%
+M2 ESTIMATE FROM CF (21-point): 4.39070e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.505%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+ITERATION 200/200: accumulated 9993600 trajectories. Saving the temporary result to 'CF-F-CO2-Ar-100.0.txt'
+M0 ESTIMATE FROM CF: 6.25310e-04, PRELIMINARY M0 ESTIMATE: 6.25651e-04, diff: -0.055%
+M2 ESTIMATE FROM CF (9-point): 4.39133e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.490%
+M2 ESTIMATE FROM CF (21-point): 4.39131e-01, PRELIMINARY M2 ESTIMATE: 4.41296e-01, diff: -0.491%
+INFO: Wrote 663 characters to 'CF-F-CO2-Ar-100.0.txt'
+
+Processing_Params:
+  spectrum_frequency_max: 0.00000e+00
+
+

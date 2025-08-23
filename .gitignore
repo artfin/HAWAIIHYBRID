@@ -7,6 +7,7 @@ build/*
 *.exe
 *.bak
 *.out
+!/example_configs/*.out
 *.dat
 docs/*.bbl
 docs/*.bcf
