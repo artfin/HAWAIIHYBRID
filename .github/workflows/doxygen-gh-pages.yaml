@@ -31,7 +31,6 @@ jobs:
             texlive-fonts-recommended \
             texlive-fonts-extra \
             texlive-science \
-            texlive-math-extra \
             dvipng \
             ghostscript
           pdflatex --version
