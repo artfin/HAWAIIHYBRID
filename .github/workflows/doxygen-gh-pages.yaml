@@ -24,7 +24,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y graphviz
 
-          sudo apt-get install -y texlive-full
+          sudo apt-get install -y \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-latex-recommended \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            texlive-science \
+            texlive-math-extra \
+            dvipng \
+            ghostscript
           pdflatex --version
 
           DOXYGEN_VERSION="1.14.0"
@@ -42,7 +51,9 @@ jobs:
           mkdir -p ./docs/html
           doxygen Doxyfile
 
-          cat doxydocs/html/_formulas.log
+          if [ -f "doxydocs/html/_formulas.log" ]; then
+             cat "doxydocs/html/_formulas.log"
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
