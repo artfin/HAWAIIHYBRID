@@ -19,21 +19,14 @@ jobs:
       - name: Checkout repository 
         uses: actions/checkout@v4
 
-      - name: Install Tex Live
-        uses: zauguin/install-texlive@v4 
-        with: 
-          packages: >
-            latex
-
-      - name: Use TeX Live
-        run:
-          pdflatex --version
-          latex --version
-
       - name: Install and Run Doxygen
+        with:
+          packages: latex-bin
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz
+
+          pdflatex --version
 
           DOXYGEN_VERSION="1.14.0"
           wget https://www.doxygen.nl/files/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
