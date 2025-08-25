@@ -15,5 +15,31 @@
  * - Calculate static phase-space averages using rejection sampling and adaptive Monte Carlo algorithms to estimate zeroth and second spectral moments.
  * - Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
  *   
+ * To ensure clarity, we will outline the key objects and their corresponding units of measurement. In the context of this document, the correlation function of the dipole moment, 
+ * \f$ C(t) \f$, is defined as:
+ * \f[ 
+ *   C(t) = V \langle \mu(0) \mu(t) \rangle.
+ * \f]
+ *
+ * Note that this definition differs from others, such as the one in Ref. Chistikov2021, as it does not include the 
+ * \f$ 1/(4 \pi \varepsilon_0) \f$ factor. Instead, this factor is incorporated into the definition of the spectral function. The correlation function values are produced by 
+ * `calculate_correlation_and_save` and `calculate_correlation_array_and_save` in units of (m\f$^3 \cdot\f$ atomic unit of dipole\f$^2\f$). The time is treated internally in 
+ * atomic time units, and the produced `CFnc` object stores the time in the atomic time units. 
+ * The spectral function is defined as follows:
+ * \f[ 
+ *   G(\nu) = \frac{1}{2\pi} \frac{1}{4\pi \varepsilon_0} \int\limits_{-\infty}^{+\infty} C(t) e^{-2 \pi i c \nu t} \textrm{d}t,
+ * \f]
+ * where \f$\nu\f$ is the wavenumber (\f$\textrm{cm}^{-1}\f$). 
+ * The values of spectral function are \f$\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s} = \textrm{kg} \cdot \textrm{m}^8 \cdot \textrm{s}\f$. 
  * 
+ * The binary absorption coefficient is then related to the spectral function according to:
+ * \f[ 
+ *   \alpha(\nu) = \frac{\tau(\nu)}{\rho_1 \rho_2} = \frac{(2\pi)^4 N_L^2}{3 h} \nu \left[ 1 - \exp \left( -\frac{h c \nu}{k_\textrm{B} T} \right) \right] G(\nu),
+ * \f] 
+ *
+ * where the absorption coefficient is
+ * \f[
+ *  \tau(\nu) = L^{-1} \ln (I_0 / I),
+ * \f]
+ * and \f$\rho_1\f$ and \f$\rho_2\f$ are gas densities in mixture. We will express the binary absorption coefficient as per convention in \f$\textrm{cm}^{-1}\cdot\textrm{Amagat}^{-2}\f$. 
  */
