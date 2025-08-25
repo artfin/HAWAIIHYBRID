@@ -16,12 +16,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository 
         uses: actions/checkout@v4
+
+      - name: Install Tex Live
+        uses: zauguin/install-texlive@v4 
+        with: 
+          packages: >
+            latex
 
       - name: Install and Run Doxygen
         run: |
           sudo apt-get update
+          sudo apt-get install -y graphviz
+
           DOXYGEN_VERSION="1.14.0"
           wget https://www.doxygen.nl/files/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
           tar -xvf doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
