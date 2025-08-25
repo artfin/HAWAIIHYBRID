@@ -48,6 +48,8 @@ jobs:
           mkdir -p ./docs/html
           doxygen Doxyfile
 
+          cat doxydocs/html/_formulas.log
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
