@@ -19,10 +19,11 @@ jobs:
       - name: Checkout repository 
         uses: actions/checkout@v4
 
-      - name: LaTeX
-        uses: ./
+      - name: Install LaTeX
+        uses: zauguin/install-texlive@v4
         with:
-          packages: latex-bin
+          packages: >
+            latex latex-bin latex-bin-dev
 
       - run: 
           pdflatex --version
