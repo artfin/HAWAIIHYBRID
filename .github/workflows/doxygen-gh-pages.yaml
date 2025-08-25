@@ -24,6 +24,8 @@ jobs:
         with: 
           packages: >
             latex
+
+      - name: Use TeX Live
         run:
           pdflatex --version
           latex --version
