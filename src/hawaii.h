@@ -284,12 +284,17 @@ typedef struct {
     time_t temp_rawtime;         ///< A temporary time field for the time at which the previous iteration of the iterative algorithm was completed; used for tracking elapsed time between iterations.
 } MoleculeSystem;
 
+/**
+ * @enum PairState
+ *
+ * @brief @ref PairState is an enumeration representing the possible states of a pair.
+ */
 typedef enum {
-    PAIR_STATE_NONE,
-    PAIR_STATE_FREE_AND_METASTABLE, // автоматически отделяем вклады
-    PAIR_STATE_BOUND,
-    PAIR_STATE_ALL,
-    PAIR_STATE_COUNT,
+    PAIR_STATE_NONE,                ///< Default/uninitialized state.
+    PAIR_STATE_FREE_AND_METASTABLE, ///< Free and metastable states (TODO: automatically separate the contributions based on the number of turning points).
+    PAIR_STATE_BOUND,               ///< Bound states.
+    PAIR_STATE_ALL,                 ///< Represents the totality of all possible states (aggregate value).
+    PAIR_STATE_COUNT,               ///< Enum counter value (not a valid state). Used for array sizing.
 } PairState;
 
 extern const char *PAIR_STATES[PAIR_STATE_COUNT]; 

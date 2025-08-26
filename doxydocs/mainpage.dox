@@ -23,8 +23,8 @@
  *
  * Note that this definition differs from others, such as the one in Ref. Chistikov2021, as it does not include the 
  * \f$ 1/(4 \pi \varepsilon_0) \f$ factor. Instead, this factor is incorporated into the definition of the spectral function. The correlation function values are produced by 
- * `calculate_correlation_and_save` and `calculate_correlation_array_and_save` in units of (m\f$^3 \cdot\f$ atomic unit of dipole\f$^2\f$). The time is treated internally in 
- * atomic time units, and the produced `CFnc` object stores the time in the atomic time units. 
+ * @ref calculate_correlation_and_save and @ref calculate_correlation_array_and_save in units of (\f$ \textrm{m}^3 \cdot \textrm{atomic unit of dipole}^2 \f$). The time is treated internally in 
+ * atomic time units, and the produced @ref CFnc object stores the time in the atomic time units. 
  * The spectral function is defined as follows:
  * \f[ 
  *   G(\nu) = \frac{1}{2\pi} \frac{1}{4\pi \varepsilon_0} \int\limits_{-\infty}^{+\infty} C(t) e^{-2 \pi i c \nu t} \textrm{d}t,
@@ -88,4 +88,14 @@
  * - @ref MoleculeSystem::dVdq -- @copybrief MoleculeSystem::dVdq
  * - @ref MoleculeSystem::init_rawtime -- @copybrief MoleculeSystem::init_rawtime
  * - @ref MoleculeSystem::temp_rawtime -- @copybrief MoleculeSystem::temp_rawtime
+ * 
+ * @subsection pair_state Pair State
+ * 
+ * @copybrief PairState
+ * @copydetails PairState
+ * Calculations with prepared @ref MoleculeSystem can conducted for the following pair states:
+ * - @ref PairState::PAIR_STATE_FREE_AND_METASTABLE - @copybrief PairState::PAIR_STATE_FREE_AND_METASTABLE
+ * - @ref PairState::PAIR_STATE_BOUND - @copybrief PairState::PAIR_STATE_BOUND
+ * - @ref PairState::PAIR_STATE_ALL - @copybrief PairState::PAIR_STATE_ALL
+  
  */
