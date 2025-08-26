@@ -46,6 +46,8 @@
  * 
  * @section molecule_pair_setup Setting up a molecule pair
  *
+ * @subsection monomer_subsection Monomer
+ * 
  * @copybrief MonomerType   
  * @copydetails MonomerType
  * The @ref MonomerType enumeration has the following values: 
@@ -59,7 +61,7 @@
  * @copybrief Monomer
  * @copydetails Monomer
  *
- * The @ref Monomer has the following fields:
+ * @ref Monomer has the following fields:
  * - @ref Monomer::t -- @copybrief Monomer::t
  * - @ref Monomer::II -- @copybrief Monomer::II
  * - @ref Monomer::DJ -- @copybrief Monomer::DJ
@@ -71,4 +73,19 @@
  * - @ref Monomer::torque_limit -- @copybrief Monomer::torque_limit
  * - @ref Monomer::torque_cache -- @copybrief Monomer::torque_cache
  *
+ * @subsection molecule_system_subsection Molecule System 
+ *
+ * @copybrief MoleculeSystem
+ * @copydetails MoleculeSystem
+ * @ref MoleculeSystem has the following fields:
+ * - @ref MoleculeSystem::intermolecular_qp -- @copybrief MoleculeSystem::intermolecular_qp
+ * - @ref MoleculeSystem::m1 -- @copybrief MoleculeSystem::m1
+ * - @ref MoleculeSystem::m2 -- @copybrief MoleculeSystem::m2
+ * - @ref MoleculeSystem::mu -- @copybrief MoleculeSystem::mu
+ * - @ref MoleculeSystem::Q_SIZE -- @copybrief MoleculeSystem::Q_SIZE
+ * - @ref MoleculeSystem::QP_SIZE -- @copybrief MoleculeSystem::QP_SIZE
+ * - @ref MoleculeSystem::intermediate_q -- @copybrief MoleculeSystem::intermediate_q
+ * - @ref MoleculeSystem::dVdq -- @copybrief MoleculeSystem::dVdq
+ * - @ref MoleculeSystem::init_rawtime -- @copybrief MoleculeSystem::init_rawtime
+ * - @ref MoleculeSystem::temp_rawtime -- @copybrief MoleculeSystem::temp_rawtime
  */

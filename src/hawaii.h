@@ -200,7 +200,7 @@ extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
  * monomer’s angular momentum is required at the current step of the trajectory propagation. The order of variables
  * in the `qp` array is specified by the following indices: 
  * - @ref IPHI @copybrief IPHI
- * - @ref IPPHI @copybrief IPHI
+ * - @ref IPPHI @copybrief IPPHI
  * - @ref ITHETA @copybrief ITHETA
  * - @ref IPTHETA @copybrief IPTHETA
  * - @ref IPSI @copybrief IPSI
@@ -245,23 +245,43 @@ typedef struct {
     FILE *fp_jfin_histogram;
 } Monomer; 
 
+/**
+ * @struct MoleculeSystem
+ *
+ * @brief Keep in mind that angular variables and momenta are stored within @ref MoleculeSystem in the same order as in `qp` in the @ref Monomer struct.
+ *
+ * The variables' locations are defined as follows:
+ * - @ref IPHI @copybrief IPHI
+ * - @ref IPPHI @copybrief IPPHI
+ * - @ref ITHETA @copybrief ITHETA
+ * - @ref IPTHETA @copybrief IPTHETA
+ * - @ref IR @copybrief IR
+ * - @ref IPR @copybrief IPR
+ *
+ * Keep in mind that intermolecular coordinates and monomer's coordinates are not stored contiguously. 
+ * The contiguous vector of coordinates can be assembled by calling @ref extract_q_and_write_into_ms function, which stores the coordinates in memory 
+ * pointed at by `intermediate_q`. These coordinates are passed to external functions that compute the values of intermolecular energy, its derivatives 
+ * with respect to coordinates and induced dipole. There is no guarantee that coordinates stored in 
+ * `Monomer`'s and coordinates in memory at `intermediate_q` are always in sync.  The function @ref extract_q_and_write_into_ms
+ * must be invoked if the contiguous vector of coordinates is desired at a certain point of the program execution.
+ */
 typedef struct {
-    double intermolecular_qp[6];
-    Monomer m1;
-    Monomer m2;
-    double mu;
+    double intermolecular_qp[6]; ///< Coordinates and conjugated momenta that correspond to the intermolecular motion (\f$\Phi\f$, \f$p_\Phi\f$, \f$\Theta\f$, \f$p_\Theta\f$, \f$R\f$, \f$p_R\f$) \f$
+    Monomer m1;                  ///< First monomer.
+    Monomer m2;                  ///< Second monomer.
+    double mu;                   ///< Reduced mass of molecule pair.
 
-    size_t Q_SIZE;
-    size_t QP_SIZE;
+    size_t Q_SIZE;               ///< Total number of coordinates for molecule pair.
+    size_t QP_SIZE;              ///< Total number of coordinates and momenta for molecular pair (phase point size).
 
-    double *intermediate_q;
-    double *dVdq;
+    double *intermediate_q;      ///< Contiguous vector of coordinates.
+    double *dVdq;                ///< Contiguous vector of potential energy derivatives.
 
-    size_t seed; 
+    size_t seed;
 
     // time_t: time as the number of seconds since the Epoch (1970-01-01)  
-    time_t init_rawtime; // set in init_ms 
-    time_t temp_rawtime; // used to mark the previous iteration of a longlasting calculation
+    time_t init_rawtime;         ///< Initialization time represented as the number of seconds since Unix Epoch; set in @ref init_ms.
+    time_t temp_rawtime;         ///< A temporary time field for the time at which the previous iteration of the iterative algorithm was completed; used for tracking elapsed time between iterations.
 } MoleculeSystem;
 
 typedef enum {
