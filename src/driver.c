@@ -16,6 +16,8 @@
 #define FLAG_IMPLEMENTATION
 #include "flag.h"
 
+// TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
+//
 // TODO: do we need to store the result NUMBERs on stack, for example, spectral moments?
 // TODO: do we need SWAP operation on the stack elements? 
 // TODO: do we need OVER operation on the stack elements? 
@@ -2489,7 +2491,7 @@ bool execute_add_spectra(Funcall *func, Processing_Stack *stack)
  *
  * @param n Optional: number of input spectra to process from stack top. Defaults to processing 
  *                    all available spectra from stack top. In this default case, all objects on 
- *                    stack are expected to be spectra (Spectrum). 
+ *                    stack are expected to be spectra (Spectrum).
  */ 
 {
     Spectra spectra = {0};

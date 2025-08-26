@@ -42,4 +42,33 @@
  *  \tau(\nu) = L^{-1} \ln (I_0 / I),
  * \f]
  * and \f$\rho_1\f$ and \f$\rho_2\f$ are gas densities in mixture. We will express the binary absorption coefficient as per convention in \f$\textrm{cm}^{-1}\cdot\textrm{Amagat}^{-2}\f$. 
+ *
+ * 
+ * @section molecule_pair_setup Setting up a molecule pair
+ *
+ * @copybrief MonomerType   
+ * @copydetails MonomerType
+ * The @ref MonomerType enumeration has the following values: 
+ * - @ref MonomerType::ATOM - @copybrief MonomerType::ATOM 
+ * - @ref MonomerType::LINEAR_MOLECULE - @copybrief MonomerType::LINEAR_MOLECULE  
+ * - @ref MonomerType::LINEAR_MOLECULE_REQ_INTEGER - @copybrief MonomerType::LINEAR_MOLECULE_REQ_INTEGER
+ * - @ref MonomerType::LINEAR_MOLECULE_REQ_HALFINTEGER - @copybrief MonomerType::LINEAR_MOLECULE_REQ_HALFINTEGER
+ * - @ref MonomerType::ROTOR - @copybrief MonomerType::ROTOR
+ * - @ref MonomerType::ROTOR_REQUANTIZED_ROTATION - @copybrief MonomerType::ROTOR_REQUANTIZED_ROTATION
+ *
+ * @copybrief Monomer
+ * @copydetails Monomer
+ *
+ * The @ref Monomer has the following fields:
+ * - @ref Monomer::t -- @copybrief Monomer::t
+ * - @ref Monomer::II -- @copybrief Monomer::II
+ * - @ref Monomer::DJ -- @copybrief Monomer::DJ
+ * - @ref Monomer::qp -- @copybrief Monomer::qp
+ * - @ref Monomer::dVdq -- @copybrief Monomer::dVdq
+ * - @ref Monomer::apply_requantization -- @copybrief Monomer::apply_requantization
+ * - @ref Monomer::req_switch_counter -- @copybrief Monomer::req_switch_counter
+ * - @ref Monomer::torque_cache_len -- @copybrief Monomer::torque_cache_len
+ * - @ref Monomer::torque_limit -- @copybrief Monomer::torque_limit
+ * - @ref Monomer::torque_cache -- @copybrief Monomer::torque_cache
+ *
  */

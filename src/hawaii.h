@@ -61,15 +61,15 @@ int syncfs(int);
 #include "constants.h"
 #include "arena.h"
 
-#define IPHI    0
-#define IPPHI   1
-#define ITHETA  2
-#define IPTHETA 3
-#define IR      4
-#define IPR     5
+#define IPHI    0 ///< = 0
+#define IPPHI   1 ///< = 1
+#define ITHETA  2 ///< = 2
+#define IPTHETA 3 ///< = 3
+#define IR      4 ///< = 4
+#define IPR     5 ///< = 5
 // used only in Monomer.qp
-#define IPSI    4
-#define IPPSI   5
+#define IPSI    4 ///< = 4
+#define IPPSI   5 ///< = 5
 
 #define UNUSED(x) (void)(x)
 #define TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
@@ -171,38 +171,57 @@ extern int  _print0_margin;
 extern "C" {
 #endif
 
-// This enum allows us to both differentiate between the systems of different type
-// as well as to store the size of phase point: 
-//   size(phase_point) = MonomerType%MODULO_BASE
 #define MONOMER_COUNT 6 
 #define MODULO_BASE 100
+ /**
+  * @enum MonomerType
+  * @brief @ref MonomerType enum is used to distinguish between systems of different types and stores phase point size.
+  *
+  * The size of phase point is calculated as:
+  * `size(phase_point) = MonomerType % MODULO_BASE`, 
+  * where `MODULO_BASE` is defined to 100 by default.
+  */
 typedef enum {
-    ATOM                                 = 0,
-    LINEAR_MOLECULE                      = 4,
-    LINEAR_MOLECULE_REQ_INTEGER          = MODULO_BASE + 4,
-    LINEAR_MOLECULE_REQ_HALFINTEGER      = 2*MODULO_BASE + 4,
-    ROTOR                                = 6,
-    ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,
+    ATOM                                 = 0,                 ///< Represents an atom with phase point size 0.
+    LINEAR_MOLECULE                      = 4,                 ///< Represents a linear molecule with phase point size 4. 
+    LINEAR_MOLECULE_REQ_INTEGER          = MODULO_BASE + 4,   ///< Represents a linear molecule with integer angular momentum with phase point size 4.
+    LINEAR_MOLECULE_REQ_HALFINTEGER      = 2*MODULO_BASE + 4, ///< Represents a linear molecule with half-integer angular momentum with phase point size 4.
+    ROTOR                                = 6,                 ///< Represents a rotor with phase point size 6.
+    ROTOR_REQUANTIZED_ROTATION           = MODULO_BASE + 6,   ///< Represents a rotor with requantized rotation with phase point size 6.
 } MonomerType;
 
 extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
 
-// 17.01.2025 NOTE: changed 'double I[3]' -> 'double II[3]' to avoid collision when including <complex.h> 
+/**
+ * @struct Monomer
+ * @brief @ref Monomer represents a monomer in a pair with associated dynamic variables
+ *
+ * The `apply_requantization` will be set to `true` in `rhs` to signal that the requantization of the
+ * monomer’s angular momentum is required at the current step of the trajectory propagation. The order of variables
+ * in the `qp` array is specified by the following indices: 
+ * - @ref IPHI @copybrief IPHI
+ * - @ref IPPHI @copybrief IPHI
+ * - @ref ITHETA @copybrief ITHETA
+ * - @ref IPTHETA @copybrief IPTHETA
+ * - @ref IPSI @copybrief IPSI
+ * - @ref IPPSI @copybrief IPPSI
+ * @notes 
+ * - 17.01.2025 changed 'double I[3]' -> 'double II[3]' to avoid collision when including <complex.h>
+ */
 typedef struct { 
-    MonomerType t;
-    double II[3];
-    double DJ;
+    MonomerType t;             ///< Type identifiter for the monomer
+    double II[3];              ///< values of inertia tensor
+    double DJ;                 ///< centrifugal distortion constant
     
-    double *qp;
-    double *dVdq;
+    double *qp;                ///< Dynamic variables (Euler angles and conjugated momenta)
+    double *dVdq;              ///< derivatives of potential energy with respect to coordinates pertaining to this monomer (the order of coordinates is the same as for \c qp)
    
-    // Should this be a monomer field or a bool[2] in MoleculeSystem?
-    bool apply_requantization;
+    bool apply_requantization; ///< Flag indicating whether requantization should be applied
    
-    size_t req_switch_counter; 
-    size_t torque_cache_len;
-    double torque_limit;
-    double *torque_cache;
+    size_t req_switch_counter; ///< Counter for tracking requantization switching events during the single trajectory
+    size_t torque_cache_len;   ///< Length of the torque cache array
+    double torque_limit;       ///< Torque limiting values to decide when requantization should be switched on/off
+    double *torque_cache;      ///< Cached torque values
     
     size_t nswitch_histogram_bins; 
     double nswitch_histogram_max;
