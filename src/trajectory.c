@@ -2,7 +2,10 @@
 
 #define TOLERANCE_FACTOR 1000 
    
-Trajectory init_trajectory(MoleculeSystem *ms, double reltol) 
+Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
+/** 
+ * @brief @ref init_trajectory
+ */ 
 {
     Trajectory traj = {0};
     
@@ -69,6 +72,9 @@ Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
 }
 
 void free_trajectory(Trajectory *traj)
+/** 
+ * @brief @ref free_trajectory
+ */ 
 {
     N_VDestroy(traj->y);
     N_VDestroy(traj->abstol);
@@ -126,11 +132,18 @@ bool trajectory_apply_requantization(Trajectory *traj)
     return false; 
 }
 
-void trajectory_reinit(Trajectory *traj) {
+void trajectory_reinit(Trajectory *traj) 
+/** 
+ * @brief @ref free_trajectory
+ */ 
+{
     CVodeReInit(traj->cvode_mem, 0.0, traj->y);
 }
 
 int make_step(Trajectory *traj, double tout, double *t)
+/** 
+ * @brief @ref make_step
+ */ 
 {
     int flag = CVode(traj->cvode_mem, tout, traj->y, t, CV_NORMAL);
     
@@ -163,6 +176,9 @@ int make_step(Trajectory *traj, double tout, double *t)
 }
 
 void set_initial_condition(Trajectory *traj, Array qp)
+/** 
+ * @brief @ref set_initial_condition
+ */ 
 {
     memcpy(N_VGetArrayPointer(traj->y), qp.data, qp.n * sizeof(double));
     CVodeReInit(traj->cvode_mem, 0.0, traj->y);
@@ -177,6 +193,9 @@ void set_initial_condition(Trajectory *traj, Array qp)
 }
 
 N_Vector make_vector(int size) 
+/** 
+ * @brief @ref make_vector
+ */ 
 {
     N_Vector nv = N_VNew_Serial(size);
     assert(nv != NULL); 
@@ -186,6 +205,9 @@ N_Vector make_vector(int size)
 
 
 void set_tolerance(Trajectory *traj, double tolerance) 
+/** 
+ * @brief @ref set_tolerance
+ */ 
 {
     traj->reltol = tolerance;
     for (size_t k = 0; k < traj->DIM; ++k) { 
@@ -200,7 +222,8 @@ void set_tolerance(Trajectory *traj, double tolerance)
     }
 }
 
-void reinit_trajectory(Trajectory *traj, double t) {
+void reinit_trajectory(Trajectory *traj, double t) 
+{
     CVodeReInit(traj->cvode_mem, t, traj->y);
 }
 

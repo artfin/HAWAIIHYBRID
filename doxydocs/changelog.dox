@@ -1,0 +1,70 @@
+ /**
+  * @page changelog Changelog
+  *
+  * <ul>
+  * <li><b>24.12.2024</b>: `rhsMonomer`: accepts pointer so that monomer's `qp` can be changed if `apply_requantization` flag is set.</li>
+  * <li><b>06.01.2025</b>: `Makefile`: switched to `Makefile` from build script.</li>
+  * <li><b>08.01.2025</b> added MPI library which is hidden by the guard macro, implemented `mpi_calculate_M0`. Now the MPI and non-MPI versions of `hawaii.c` are compiled into two object files.</li>
+  * <li><b>09.01.2025</b> implemented `calculate_correlation_and_save`. </li>
+  * <li><b>09.01.2025</b> Porting some of hep-functionality in `hep_hawaii.cpp`. Zeroth moment can be calculated using adaptive Monte Carlo integration over phase space.</li>
+  * <li><b>10.01.2025</b> Tracking the number of turning points is added to `correlation_eval`.</li>
+  * <li><b>10.01.2025</b> PES and its derivatives for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$ are adapted.</li>
+  * <li><b>11.01.2025</b> fixing error inverting momenta in `correlation_eval`. Calculating correlation function for $\textrm{CO}_2-Ar$ seems to be working correctly. Need to run a calculation with larger number of trajectories.</li>
+  * <li><b>12.01.2025</b> added higher-order finite-difference formulas for differentiating energy: `compute_numerical_rhs` </li>
+  * <li><b>12.01.2025</b> trajectory for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$ using kinetic energy only works correctly. Angles transformation and its jacobian needs to be adapted from FUNCHAL to account for different order of coordinates.</li>
+  * <li><b>15.01.2025</b> Run calculation of correlation function for \f$ \textrm{CO}_2-\textrm{Ar} \f$ for 10.000.000 trajectories. The correlation function is in close agreement with the previous results. Now moving on to adapting code for processing correlation functions in `hawaii`.</li>
+  * <li><b>17.01.2025</b> Adapted functions related to processing correlation function from FUNCHAL. Code implementing `LOESS` algorithm is left as-is because of the use of Eigen3.</li>
+  * <li><b>19.01.2025</b> Added checks for NaN values of dipole in
+  `correlation_eval` to avoid the corruption of the correlation function
+  estimate. At least one corrupted value of correlation function for \f$
+  \textrm{CO}_2-\textrm{Ar} \f$ has occurred during the calculation of 10.000.000 trajectories. The reason for the occurence of the NaN is unknown.  Should investigate when initial condition leading to NaN values is found.  Probably this overflow occured due to overflow in `generate_normal`</li>
+  * <li><b>19.01.2025</b> Implemented `calculate_spectral_function_using_prmu_representation_and_save` function and tested that it produces correct result for \f$ \textrm{CO}_2-\textrm{Ar} \f$at 300 K.</li>
+  * <li><b>20.01.2025</b> Enable `switch-enum` option for compiler to invoke warning in the switch-cases where one of the cases of the enum is not explicitly handled even though default case is present. </li>
+  * <li><b>20.01.2025</b> Caught a possible (but really rare) overflow error in the implementation of Box-Mueller algorithm for sampling normally distributed variable: `generate_normal`. </li>
+  * <li><b>20.01.2025</b> Estimate \f$ \textrm{M}_0 \f$ based on the spectral function obtained during each iteration of the pr-mu calculation</li>
+  * <li><b>20.01.2025</b> Estimate \f$ \textrm{M}_2 \f$ using rejection sampling and using `hep`. Works for \f$ \textrm{CO}_2-\textrm{Ar} \f$ </li>
+  * <li><b>22.01.2025</b> Trying out calculating correlation function for CO-Ar. Why is the error in \f$ \textrm{M}_2 \f$ is 13\% for 20.000.000 points? \f$ \textrm{M}_0 = 1.847 \cdot 10^{-4} \f$, \f$ \textrm{M}_2 = 4.148 \f$. There was error in passing the arguments to dipole function. The correlation function breaks at some point during the calculation. Extremely large values (1e194) occur at approximately the same time intervals in the correlation function rendering it useless. Maybe it happens because of the PES, not because of IDS?  </li>
+  * <li><b>25.01.2025</b> jacobian is working for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$. `hawaii` is extended with function to compute numerical jacobian; analytical and numerical jacobians are in close agreement.</li>
+  * <li><b>25.01.2025</b> fixed a bug in `extract_q_and_write_into_ms` where coordinates for second monomer actually were overwriting the coordinates for the first monomer </li>
+  * <li><b>26.01.2025</b> adapted dipole function for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$</li>
+  * <li><b>26.01.2025</b> `examples/mpi_phase_space_integration_ch4_co2` produces \f$ \textrm{M}_0 \f$ and \f$ \textrm{M}_2 \f$ spectral moments at 300 K which are consistent with previous estimations: \f$ \textrm{M}_0 = 8.29 \cdot 10^{-4} \f$, \f$ \textrm{M}_2 = 5.37 \f$. </li>
+  * <li><b>26.01.2025</b> differentiate between debug/release build in Makefile: apply separate compilation flags</li>
+  * <li><b>27.01.2025</b> `examples/correlation_ch4_co2` produces what seems to be a correct spectrum, the spectral moments are in agreement with their phase-space counterparts.</li>
+  * <li><b>27.01.2025</b> bug fix: desymmetrization procedure didn't propagate temperature to the output structure</li>
+  * <li><b>31.01.2025</b> Implementing `calculate_correlation_array_and_save` that employs individual trajectory reweighting to produce results at satellite temperatures: testing on \f$ \textrm{CO}_2-\textrm{Ar}\f$ in `examples/correlation_array_co2_ar`</li>
+  * <li><b>01.02.2025</b> During the correlation and pr-mu calculations for \f$ \textrm{CO}_2-\textrm{Ar} \f$ on cluster, the file with temporary result is not written (at least for several iterations at the end of which the file is supposed to be written). Turns out that if stream is flushed using `fflush` and filesystem caches for a given file descriptor are forced to be committed to disk using `syncfs` the problem is resolved.</li>
+  * <li><b>01.02.2025</b> `calculate_correlation_array_and_save` produces spectral profiles for \f$ \textrm{CO}_2-Ar \f$ (unbound states) that are in close agreement with the results obtained in 2021. Ensemble of approximately 8 million trajectories was used. </li>
+  * <li><b>06.02.2025</b> CO-Ar 300K: \f$ \textrm{M}_0 = 1.850 \cdot 10^{-4} \f$, \f$ \textrm{M}_2 = 1.884 \f$. </li>
+  * <li><b>08.02.2025</b> the factor by \f$ \textrm{ALU}^3 \f$ is moved from `save_correlation_function` to `correlation_eval`. </li>
+  * <li><b>09.02.2025</b> added `normalized` flag to CFnc, changed reading/saving correlation function from/to file</li>
+  * <li><b>09.02.2025</b> added parsing `Temperature` and `ntraj` from header of the file using regex and added averaging of correlation functions</li>
+  * <li><b>09.02.2025</b> rewrite of LOESS code to better understand what's going on there: prepare for OpenMP parallelization, check out different approaches to solve the weighted linear squares problem</li>
+  * <li><b>09.02.2025</b> loess: added OpenMP parallelization of the main loop</li>
+  * <li><b>11.02.2025</b> loess: refactored creating window \& added stubs for running outside OpenMP environment</li>
+  * <li><b>12.02.2025</b> added checking for energy conservation inside trajectory:  maybe need to check this info in `correlation_eval` and discard the outlying trajectories?}</li>
+  * <li><b>12.02.2025</b> implemented `average_correlation_functions` using `vararg`</li>
+  * <li><b>12.03.2025</b> calculated correlation functions for He-Ar at 50K and 300K using 500mln and 300mln trajectories, respectively. At 300K we achieved a decent looking spectrum, however at 50K it still looks not converged at large frequencies. Moreover, the correlation function at 50K exhibits pulsing (beating) oscillations which result in some spectral feature at 3.5 \f$ \textrm{cm}^{-1} \f$. What is it? Is it reproducible in quantum calculation? It is somewhat reproduced in quantum calculation. More investigation is needed. Probably should be discussed in separate paper on He-Ar calculations with spectra provided in wide temperature range.</li>
+  * <li><b>16.03.2025</b> `hawaii`: use appropriate partial partition function for each temperature when calculating \f$ \textrm{M}_0 \f$ before proceeding to propagate trajectories</li>
+  * <li><b>18.03.2025</b> Caught this mysterious error during bound states calculation for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$: [n01p012:2488401:0:2488401] Caught signal 7 (Bus error: nonexistent physical address)}. No stack trace, location of error unknown.</li>
+  * <li><b>23.03.2025</b> Added functions to perform D4 and D4a desymmetrization. Some fixes included as of 26.06 (d4b file).</li>
+  * <li><b>02.05.2025</b> \f$ \textrm{N}_2-\textrm{Ar} \f$ PIP-NN potential and dipole are added. \f$ \textrm{N}_2-\textrm{Ar} \f$ 300K: \f$ \textrm{M}_0 = 3.833 \cdot 10^{-5} \f$, \f$ M_2 = 0.2321. \f$</li>
+  * <li><b>03.05.2025</b> When performing calculation of the correlation function, garbage-like values were found in the correlation accumulator.  Fixed: forgot to `memset` before use. Also call to `memset` is added in `calculate_correlation_array_and_save`.</li>
+  * <li><b>03.05.2025</b> Call to `MPI_Reduce` is changed to the `MPI_Send`/`MPI_Recv` pair in `calculate_correlation_and_save`.</li>
+  * <li><b>14.05.2025</b> Applying requantization to \f$ \textrm{H}_2-\textrm{Ar} \f$ trajectory.</li>
+  * <li><b>18.05.2025</b> Added some timestamps for HAWAII output and when saving spectral function to file in prmu-representation. Added the same timestamps for correlation function and correlation function arrays.</li>
+  * <li><b>19.05.2025</b> Added PIP-NN representation of the \f$ \textrm{H}_2-\textrm{Ar} \f$ ab initio induced dipole. Checked that it produces the same values as in FUNCHAL. </li>
+  * <li><b>19.05.2025</b> experimenting with the Poisson distribution for free path in prmu representation</li>
+  * <li><b>19.05.2025</b> reviewed molecular constants for CO.  Be careful with modifying molecular constants, since potential or dipole function may heavily rely on the very specific values. It's not the case for PES for CO-Ar but may easily be in other cases.  </li>
+  * <li><b>19.05.2025</b> `MPI_AllReduce`\f$ \rightarrow \f$ `MPI_Send`/`MPI_Recv` for calculation using prmu representation.</li>
+  * <li><b>22.05.2025</b> Analytic consideration of the part of the trajectory when the linear molecule rotates freely</li>
+  * <li><b>24.05.2025</b> Receive packets out-of-order from slave processes in `calculate_spectral_function_using_prmu_representation_and_save`</li>
+  * <li><b>26.05.2025</b> Fixed `gsl_histogram_extend_right`</li>
+  * <li><b>26.05.2025</b> Introduced Arena allocator and handled the extension of the histogram when received on the master process</li>
+  * <li><b>26.05.2025</b> Introduced histograms of initial and final angular momenta in `calculate_spectral_function_using_prmu_representation_and_save`.  For now, they are printed in the output file (stdout stream). They are redirected to the corresponding files and and filepaths are customizable through the `CalcParams`.</li>
+  * <li><b>27.05.2025</b> Fixed a bug in the logic of turning on/off requantization in `calculate_spectral_function_using_prmu_representation_and_save`. It was noticed when histogram of the number of requantization switches has become available. After the fix the intensity distribution of requantized lines in the rotational band of CO-Ar became more logical and resembling the HITRAN one.</li>
+  * <li><b>28.05.2025</b> Account for the effect of centrifugal distortion when requantization is applied. The line positions of CO became in excellent agreement with those from HITRAN spectra</li>
+  * <li><b>13.07.2025</b> fixed parsing error in negative floating-point numbers in `driver`</li>
+  * <li><b>13.07.2025</b> fixed printing accumulated results in `mpi_calculate_M0`</li>
+  * <li><b>13.07.2025</b> mixed spectral moments for CO-Ar at 300 K are \f$ \textrm{M}_0(\textrm{mixed}) = 5.44\cdot 10^{-5} \f$, \f$ \textrm{M}_2 (\textrm{mixed}) = 1.46 \cdot 10^{-1} \f$.</li>
+  * </ul>
+  */

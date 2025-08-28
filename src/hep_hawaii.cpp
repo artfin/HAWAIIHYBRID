@@ -6,7 +6,9 @@ static CalcParams *gparams = NULL;
 static double gT = 0.0;
 
 void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac)
-/*
+/** 
+ * @brief @ref transform_variables
+ *
  * Input: n-dimensional point in [0; 1]^n  hypercube
  * Output: [std::vector<double>] point in phase space
  *         [double]              cumulative jacobian of the transform
@@ -112,6 +114,9 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
 }
 
 double integrand_pf(hep::mc_point<double> const& x)
+/** 
+ * @brief @ref integrand_pf
+ */
 {
     assert(gms != NULL);
     assert(gparams != NULL);
@@ -141,6 +146,9 @@ double integrand_pf(hep::mc_point<double> const& x)
 }
 
 double integrand_M0(hep::mc_point<double> const& x) 
+/** 
+ * @brief @ref integrand_M0
+ */
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -218,6 +226,9 @@ void cleanup_integrand_M2()
 }
 
 double integrand_M2(hep::mc_point<double> const& x)
+/** 
+ * @brief @ref integrand_M2
+ */ 
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -319,6 +330,9 @@ double integrand_M2(hep::mc_point<double> const& x)
 }
 
 void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q)
+/** 
+ * @brief @ref mpi_perform_integration
+ */ 
 {
     gms = ms;
     gparams = params;

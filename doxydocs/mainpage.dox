@@ -5,17 +5,18 @@
  * - [Home](index.html)
  * - [Examples](@ref examples)
  * - [Reference](@ref input_reference)
+ * - [Changelog](@ref changelog)
+ *
+ * @tableofcontents
  *
  * @section intro Introduction
- *    Welcome to the documentation for Hawaii Hybrid.
- * @tableofcontents
  *
  * Problems addressed by library
  * - Compute statistical averages over ensembles of classical trajectories restricted by chosen phase-space domains (e.g., bound or unbound states), enabling the calculation of dipole autocorrelation functions. 
  * - Calculate static phase-space averages using rejection sampling and adaptive Monte Carlo algorithms to estimate zeroth and second spectral moments.
  * - Transform correlation functions into spectral functions, apply smoothing, and convert them into spectral profiles.
  *   
- * To ensure clarity, we will outline the key objects and their corresponding units of measurement. In the context of this document, the correlation function of the dipole moment, 
+ * First, we outline the key objects and their corresponding units of measurement. In the context of this document, the correlation function of the dipole moment, 
  * \f$ C(t) \f$, is defined as:
  * \f[ 
  *   C(t) = V \langle \mu(0) \mu(t) \rangle.
@@ -25,14 +26,14 @@
  * \f$ 1/(4 \pi \varepsilon_0) \f$ factor. Instead, this factor is incorporated into the definition of the spectral function. The correlation function values are produced by 
  * @ref calculate_correlation_and_save and @ref calculate_correlation_array_and_save in units of (\f$ \textrm{m}^3 \cdot \textrm{atomic unit of dipole}^2 \f$). The time is treated internally in 
  * atomic time units, and the produced @ref CFnc object stores the time in the atomic time units. 
- * The spectral function is defined as follows:
+ * The spectral function represented as @ref SFnc object is defined as follows:
  * \f[ 
  *   G(\nu) = \frac{1}{2\pi} \frac{1}{4\pi \varepsilon_0} \int\limits_{-\infty}^{+\infty} C(t) e^{-2 \pi i c \nu t} \textrm{d}t,
  * \f]
  * where \f$\nu\f$ is the wavenumber (\f$\textrm{cm}^{-1}\f$). 
  * The values of spectral function are \f$\textrm{J} \cdot \textrm{m}^6 \cdot \textrm{s} = \textrm{kg} \cdot \textrm{m}^8 \cdot \textrm{s}\f$. 
  * 
- * The binary absorption coefficient is then related to the spectral function according to:
+ * The binary absorption coefficient stored as @ref Spectrum is then related to the spectral function according to:
  * \f[ 
  *   \alpha(\nu) = \frac{\tau(\nu)}{\rho_1 \rho_2} = \frac{(2\pi)^4 N_L^2}{3 h} \nu \left[ 1 - \exp \left( -\frac{h c \nu}{k_\textrm{B} T} \right) \right] G(\nu),
  * \f] 
@@ -50,7 +51,7 @@
  * 
  * @copybrief MonomerType   
  * @copydetails MonomerType
- * The @ref MonomerType enumeration has the following values: 
+ * The @ref MonomerType enumeration contains the following values: 
  * - @ref MonomerType::ATOM - @copybrief MonomerType::ATOM 
  * - @ref MonomerType::LINEAR_MOLECULE - @copybrief MonomerType::LINEAR_MOLECULE  
  * - @ref MonomerType::LINEAR_MOLECULE_REQ_INTEGER - @copybrief MonomerType::LINEAR_MOLECULE_REQ_INTEGER
@@ -88,7 +89,13 @@
  * - @ref MoleculeSystem::dVdq -- @copybrief MoleculeSystem::dVdq
  * - @ref MoleculeSystem::init_rawtime -- @copybrief MoleculeSystem::init_rawtime
  * - @ref MoleculeSystem::temp_rawtime -- @copybrief MoleculeSystem::temp_rawtime
- * 
+ *
+ * @copybrief init_ms
+ * @copydetails init_ms
+ *
+ * @copybrief init_ms_from_monomers
+ * @copydetails init_ms_from_monomers
+ *  
  * @subsection pair_state Pair State
  * 
  * @copybrief PairState
@@ -97,5 +104,138 @@
  * - @ref PairState::PAIR_STATE_FREE_AND_METASTABLE - @copybrief PairState::PAIR_STATE_FREE_AND_METASTABLE
  * - @ref PairState::PAIR_STATE_BOUND - @copybrief PairState::PAIR_STATE_BOUND
  * - @ref PairState::PAIR_STATE_ALL - @copybrief PairState::PAIR_STATE_ALL
-  
+ * 
+ * @subsection energy_subsec Energy calculations: core components 
+ * 
+ * @copybrief kinetic_energy  
+ * @copydetails kinetic_energy 
+ *
+ * @copybrief Hamiltonian  
+ * @copydetails Hamiltonian
+ * 
+ * @copybrief pesPtr
+ * @copydetails pesPtr
+ * 
+ * @copybrief dpesPtr
+ * @copydetails dpesPtr
+ * 
+ * @copybrief dipolePtr
+ * @copydetails dipolePtr
+ *
+ * @section sampling_section Sampling the phase-space point
+ *
+ * @copybrief q_generator  
+ * @copydetails q_generator 
+ *
+ * @copybrief p_generator  
+ * @copydetails p_generator 
+ *
+ * @copybrief reject  
+ * @copydetails reject 
+ * 
+ * @section trajectory_section Propagating trajectories 
+ *
+ * @copybrief init_trajectory  
+ * @copydetails init_trajectory 
+ *
+ * @copybrief rhs  
+ * @copydetails rhs
+ *
+ * @copybrief rhsMonomer 
+ * @copydetails rhsMonomer
+ *
+ * @copybrief compute_numerical_rhs 
+ * @copydetails compute_numerical_rhs
+ *
+ * @copybrief compute_numerical_derivatives 
+ * @copydetails compute_numerical_derivatives
+ *
+ * @copybrief compute_numerical_jac 
+ * @copydetails compute_numerical_jac
+ * 
+ * @copybrief free_trajectory  
+ * @copydetails free_trajectory 
+ *
+ * @copybrief make_step  
+ * @copydetails make_step 
+ *
+ * @copybrief set_initial_condition  
+ * @copydetails set_initial_condition 
+ *
+ * @copybrief make_vector  
+ * @copydetails make_vector 
+ *
+ * @copybrief set_tolerance  
+ * @copydetails set_tolerance 
+ *
+ * @section requantization_section Conducting angular momentum requantiation
+ * 
+ * @copybrief j_monomer 
+ * @copydetails j_monomer
+ * 
+ * @copybrief torque_monomer 
+ * @copydetails torque_monomer
+ * 
+ * @copybrief find_closest_integer 
+ * @copydetails find_closest_integer
+ * 
+ * @copybrief find_closest_half_integer 
+ * @copydetails find_closest_half_integer
+ *
+ * @section averages_phase_space_section Computing averages over the phase space
+ * 
+ * @copybrief analytic_full_partition_function_by_V 
+ * @copydetails analytic_full_partition_function_by_V
+ * 
+ * @copybrief calculate_M0 
+ * @copydetails calculate_M0
+ * 
+ * @copybrief mpi_calculate_M0 
+ * @copydetails mpi_calculate_M0
+ * 
+ * @copybrief calculate_M2 
+ * @copydetails calculate_M2
+ * 
+ * @copybrief mpi_calculate_M2 
+ * @copydetails mpi_calculate_M2
+ * 
+ * @copybrief compute_dHdp 
+ * @copydetails compute_dHdp
+ * 
+ * @copybrief transform_variables 
+ * @copydetails transform_variables
+ * 
+ * @copybrief integrand_pf 
+ * @copydetails integrand_pf
+ * 
+ * @copybrief integrand_M0 
+ * @copydetails integrand_M0
+ * 
+ * @copybrief integrand_M2 
+ * @copydetails integrand_M2
+ * 
+ * @copybrief mpi_perform_integration 
+ * @copydetails mpi_perform_integration
+ * 
+ * @section averages_ensemble_section Performing averaging over trajectory ensembles
+ * 
+ * @copybrief calculate_correlation_and_save 
+ * @copydetails calculate_correlation_and_save 
+ * 
+ * @copybrief calculate_correlation_array_and_save 
+ * @copydetails calculate_correlation_array_and_save 
+ * 
+ * @copybrief calculate_spectral_function_using_prmu_representation_and_save 
+ * @copydetails calculate_spectral_function_using_prmu_representation_and_save 
+ * 
+ * @copybrief correlation_eval 
+ * @copydetails correlation_eval
+ * 
+ * @copybrief correlation_eval_zimmerman_trick 
+ * @copydetails correlation_eval_zimmerman_trick
+ * 
+ * @copybrief invert_momenta 
+ * @copydetails invert_momenta
+ * 
+ * @section processing_section Processing the results
  */

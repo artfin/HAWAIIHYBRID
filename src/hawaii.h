@@ -175,10 +175,9 @@ extern "C" {
 #define MODULO_BASE 100
  /**
   * @enum MonomerType
-  * @brief @ref MonomerType enum is used to distinguish between systems of different types and stores phase point size.
+  * @brief @ref MonomerType enum is used to distinguish between systems of different types and stores the phase point size.
   *
-  * The size of phase point is calculated as:
-  * `size(phase_point) = MonomerType % MODULO_BASE`, 
+  * The size of phase point is calculated as `size(phase_point) = MonomerType % MODULO_BASE`, 
   * where `MODULO_BASE` is defined to 100 by default.
   */
 typedef enum {
@@ -194,34 +193,34 @@ extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
 
 /**
  * @struct Monomer
- * @brief @ref Monomer represents a monomer in a pair with associated dynamic variables
- *
- * The `apply_requantization` will be set to `true` in `rhs` to signal that the requantization of the
- * monomer’s angular momentum is required at the current step of the trajectory propagation. The order of variables
- * in the `qp` array is specified by the following indices: 
+ * @brief @ref Monomer represents a monomer in a pair with associated dynamic variables.
+ * The order of variables in the `qp` array is specified by the following indices: 
  * - @ref IPHI @copybrief IPHI
  * - @ref IPPHI @copybrief IPPHI
  * - @ref ITHETA @copybrief ITHETA
  * - @ref IPTHETA @copybrief IPTHETA
  * - @ref IPSI @copybrief IPSI
  * - @ref IPPSI @copybrief IPPSI
+ *
+ * The `apply_requantization` will be set to `true` in function computing the right-hand side values of Hamilton equations of motion (within @ref rhs)
+ * to signal that the requantization of the monomer’s angular momentum is required at the current step of the trajectory propagation.  
  * @notes 
- * - 17.01.2025 changed 'double I[3]' -> 'double II[3]' to avoid collision when including <complex.h>
+ * - 17.01.2025: renamed `I[3]` to `II[3]` to avoid collision when including the header file `complex.h` 
  */
 typedef struct { 
-    MonomerType t;             ///< Type identifiter for the monomer
-    double II[3];              ///< values of inertia tensor
-    double DJ;                 ///< centrifugal distortion constant
+    MonomerType t;             ///< Type identifier for the monomer.
+    double II[3];              ///< Values of inertia tensor.
+    double DJ;                 ///< Centrifugal distortion constant.
     
-    double *qp;                ///< Dynamic variables (Euler angles and conjugated momenta)
-    double *dVdq;              ///< derivatives of potential energy with respect to coordinates pertaining to this monomer (the order of coordinates is the same as for \c qp)
+    double *qp;                ///< Dynamic variables (Euler angles and conjugated momenta).
+    double *dVdq;              ///< Derivatives of potential energy with respect to coordinates pertaining to this monomer (the order of coordinates is the same as for \c qp).
    
-    bool apply_requantization; ///< Flag indicating whether requantization should be applied
+    bool apply_requantization; ///< Flag indicating whether requantization should be applied.
    
-    size_t req_switch_counter; ///< Counter for tracking requantization switching events during the single trajectory
-    size_t torque_cache_len;   ///< Length of the torque cache array
-    double torque_limit;       ///< Torque limiting values to decide when requantization should be switched on/off
-    double *torque_cache;      ///< Cached torque values
+    size_t req_switch_counter; ///< Counter for tracking requantization switching events during the single trajectory.
+    size_t torque_cache_len;   ///< Length of the torque cache array.
+    double torque_limit;       ///< Torque limiting values to decide when requantization should be switched on/off.
+    double *torque_cache;      ///< Cached torque values.
     
     size_t nswitch_histogram_bins; 
     double nswitch_histogram_max;
@@ -248,9 +247,9 @@ typedef struct {
 /**
  * @struct MoleculeSystem
  *
- * @brief Keep in mind that angular variables and momenta are stored within @ref MoleculeSystem in the same order as in `qp` in the @ref Monomer struct.
+ * @brief Angular variables and conjugated momenta are stored within the @ref MoleculeSystem struct in the same order as within the `qp` of @ref Monomer struct.
  *
- * The variables' locations are defined as follows:
+ * The variables' indices in the `intermolecular_qp` array are defined as follows:
  * - @ref IPHI @copybrief IPHI
  * - @ref IPPHI @copybrief IPPHI
  * - @ref ITHETA @copybrief ITHETA
@@ -258,7 +257,7 @@ typedef struct {
  * - @ref IR @copybrief IR
  * - @ref IPR @copybrief IPR
  *
- * Keep in mind that intermolecular coordinates and monomer's coordinates are not stored contiguously. 
+ * Keep in mind that intermolecular coordinates and monomer's coordinates are not stored contiguously (monomer's coordinates are stored within the @ref Monomer structure). 
  * The contiguous vector of coordinates can be assembled by calling @ref extract_q_and_write_into_ms function, which stores the coordinates in memory 
  * pointed at by `intermediate_q`. These coordinates are passed to external functions that compute the values of intermolecular energy, its derivatives 
  * with respect to coordinates and induced dipole. There is no guarantee that coordinates stored in 
@@ -462,9 +461,13 @@ typedef struct {
 } Tracker;
 
 
-/* ----------------------------------------------------  */
-/*    User-Supplied Functions: loaded from dynamic libs  */
-/* ----------------------------------------------------  */
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* --------------------------   User-Supplied Functions: loaded from dynamic libs --------------------------------- */
+/* ---------------------------------------------------------------------------------------------------------------- */
+/**
+ * \typedef dipolePtr
+ * @ref dipolePtr
+ */ 
 typedef void (*dipolePtr)(double*, double[3]);
 extern dipolePtr dipole_1;
 extern dipolePtr dipole_2;
@@ -473,12 +476,28 @@ typedef void (*dipoleFree)(void);
 extern dipoleFree free_dipole_1;
 extern dipoleFree free_dipole_2;
 
+/** 
+ * \typedef pesPtr 
+ * @ref pes function accepts an array of `Q_SIZE` variables. @ref MoleculeSystem describes the order of variables.
+ * The pointer to @ref pes is a global variable in `hawaii.c` file. The potential energy function is loaded from the 
+ * dynamic library (see keyword @ref subsec_so_potential in @ref input_reference). 
+ * Intermolecular distance is measured in Bohrs,  while angles are measured in radians. 
+ * The function is expected to return energy in units of Hartree.
+ */
 typedef double (*pesPtr)(double*);
 extern pesPtr pes;
 
+/**
+ * \typedef dpesPtr
+ * @ref dpes function accepts an array of `Q_SIZE` variables. @ref MoleculeSystem describes the order of variables. 
+ * The pointer to @ref dpes is a global variable in `hawaii.c` file. The derivative of potential energy function is loaded
+ * from the dynamic library (see keyword @ref subsec_so_potential in @ref input_reference). 
+ * Intermolecular distance measured in Bohrs, while angles are measured in radians. The function is expected to return an array 
+ * of derivatives of energy in units of Hartree/Bohr of length `Q_SIZE`. 
+ */ 
 typedef void (*dpesPtr)(double*, double*);
 extern dpesPtr dpes;
-/* ----------------------------------------------------  */
+/* ---------------------------------------------------------------------------------------------------------------- */
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *I1, double *I2, size_t seed); 
 MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t seed);

@@ -72,6 +72,10 @@ MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
 };
 
 MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t seed)
+/**
+ * @brief Function @ref init_ms_from_monomers prepares the @ref MoleculeSystem based on the provided @ref Monomer structs, sets up memory buffers
+ * and initializes random number generator.
+ */
 {
     INIT_WRANK;
     
@@ -167,6 +171,20 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
 }
 
 MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, double *II2, size_t seed) 
+/**
+ * @brief Function @ref init_ms prepares the @ref MoleculeSystem based on the specified monomer types, sets up memory buffers
+ * and initializes random number generator.
+ *
+ * @param mu: Reduced mass of the molecule pair
+ * @param t1: Type of the first monomer
+ * @param t2: Type of the second monomer
+ * @param I1: Inertia tensor values for the first monomer. If the monomer is MonomerType::ATOM, no values will be read from the pointer,
+ *            so `NULL` can be passed. Two and three values are expected for linear molecule (@ref MonomerType::LINEAR_MOLECULE, 
+ *            @ref MonomerType::LINEAR_MOLECULE_REQ_INTEGER and @ref MonomerType::LINEAR_MOLECULE_REQ_HALFINTEGER) and rotor 
+ *            (@ref MonomerType::ROTOR and @ref MonomerType::ROTOR_REQUANTIZED_ROTATION).
+ * @param I2: Inertia tensor values for the second monomer.
+ * @param seed: Seed to set up random number generator (Mersenne Twister). A unique seed will be produced if `0` value is passed. 
+ */
 {
     INIT_WRANK;
 
@@ -340,19 +358,23 @@ const char* display_monomer_type(MonomerType t) {
 //} 
 
 double find_closest_integer(double j) 
-/*
+/** 
+ * @brief @ref find_closest_integer
+ *
  * requantization to:
  *    0.0, 1.0, 2.0, 3.0 ...
- */
+ */ 
 {
     return round(j); 
 }
 
 double find_closest_half_integer(double j) 
-/*
+/** 
+ * @brief @ref find_closest_half_integer
+ *
  * requantization to:
  *    0.0, 0.5, 1.5, 2.5, 3.5 ...
- */
+ */ 
 {
 
    if (j < 0.25) return 0.0;
@@ -374,6 +396,9 @@ double find_closest_half_integer(double j)
 }
 
 void j_monomer(Monomer m, double j[3])
+/** 
+ * @brief @ref j_monomer
+ */ 
 {
     switch (m.t) {
         case ATOM: TODO("j_monomer"); 
@@ -400,6 +425,9 @@ void j_monomer(Monomer m, double j[3])
 
 double torque_monomer(Monomer m)
 // torque: T = dJ/dt 
+/** 
+ * @brief @ref torque_monomer
+ */ 
 {
     switch (m.t) {
         case ATOM: return 0.0;
@@ -427,7 +455,11 @@ double torque_monomer(Monomer m)
     UNREACHABLE("torque_monomer");
 }
 
-void rhsMonomer(Monomer *m, double *deriv) {
+void rhsMonomer(Monomer *m, double *deriv) 
+/** 
+ * @brief @ref rhsMonomer
+ */ 
+{
     switch (m->t) {
         case ATOM: break;
         case LINEAR_MOLECULE_REQ_INTEGER: 
@@ -500,6 +532,9 @@ void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
 }
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
+/** 
+ * @brief @ref rhs
+ */ 
 {
     UNUSED(t);
 
@@ -558,6 +593,9 @@ int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 
 
 gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double *qmol), double *qlab, size_t ninput_coordinates, size_t noutput_coordinates, size_t order)
+/** 
+ * @brief @ref compute_numerical_jac
+ */ 
 {
     gsl_matrix *jac = gsl_matrix_alloc(ninput_coordinates, noutput_coordinates);
     for (size_t i = 0; i < ninput_coordinates; ++i) {
@@ -690,6 +728,9 @@ gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double 
 }
 
 Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t len, size_t order)
+/** 
+ * @brief @ref compute_numerical_derivatives
+ */ 
 {
     Array derivatives = create_array(len);
     
@@ -774,7 +815,10 @@ Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t le
     return derivatives;
 }
 
-Array compute_numerical_rhs(MoleculeSystem *ms, size_t order) 
+Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
+/** 
+ * @brief @ref compute_numerical_rhs
+ */ 
 {
     Array derivatives = create_array(ms->QP_SIZE);
     Array qp = create_array(ms->QP_SIZE);
@@ -967,7 +1011,27 @@ Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
     return derivatives;
 }
 
-double kinetic_energy(MoleculeSystem *ms) {
+double kinetic_energy(MoleculeSystem *ms) 
+/**
+ * @brief Function @ref kinetic_energy computes the kinetic energy at the phase-point stored in @ref MoleculeSystem.
+ *
+ * The kinetic energy in the laboratory frame of reference is calculated in parts. The part corresponding to intermolecular degrees of freedom:
+ * \f[
+ *     T_\textrm{int} = \frac{p_R^2}{2 \mu} + \frac{p_\Theta^2}{2 \mu R^2} + \frac{p_\Phi^2}{2\mu R^2 \sin^2 \Theta};
+ * \f]
+ *
+ * to linear molecule:
+ * \f[ 
+ *     T_\textrm{lin} = \frac{p_\theta^2}{2 I} + \frac{p_\varphi^2}{2 I \sin^2 \theta};
+ * \f]
+ * and to rotor:
+ * \f[
+ *     T_\textrm{rotor} = \frac{1}{2 I_1 \sin^2 \theta_2} \Big[ \left( p_\varphi - p_\psi \cos \theta \right) \sin \psi + p_\theta \sin \theta \cos \psi \Big]^2 \\
+ *     + \frac{1}{2 I_2 \sin^2 \theta} \Big[ \left( p_\varphi - p_\psi \cos \theta \right) \cos \psi - p_\theta \sin \theta \sin \psi \Big]^2 \\
+ *     + \frac{1}{2 I_3} \left( p_\psi \right)^2.
+ * \f] 
+ */
+{
     double Phi = ms->intermolecular_qp[IPHI]; UNUSED(Phi);
     double pPhi = ms->intermolecular_qp[IPPHI];
     double Theta = ms->intermolecular_qp[ITHETA];
@@ -1077,7 +1141,11 @@ void extract_q_and_write_into_ms(MoleculeSystem *ms) {
     extract_q(ms->m2.qp,             ms->intermediate_q+6/2+(ms->m1.t%MODULO_BASE)/2, ms->m2.t%MODULO_BASE);
 }
 
-void invert_momenta(MoleculeSystem *ms) {
+void invert_momenta(MoleculeSystem *ms) 
+/** 
+ * @brief @ref invert_momenta
+ */
+{
     for (size_t i = 1; i < 6; i += 2) {
         ms->intermolecular_qp[i] = -ms->intermolecular_qp[i];
     }
@@ -1092,7 +1160,12 @@ void invert_momenta(MoleculeSystem *ms) {
 }
 
 
-double Hamiltonian(MoleculeSystem *ms) {
+double Hamiltonian(MoleculeSystem *ms)
+/**
+ * @brief Function @ref Hamiltonian calls @ref kinetic_energy function to compute kinetic energy, assembles a contiguous vector of coordinates 
+ * via calling @ref extract_q_and_write_into_ms and passes it to external @ref pes function. The obtained values are added and returned. 
+ */
+{
     extract_q_and_write_into_ms(ms);
 
     double V = pes(ms->intermediate_q);
@@ -1129,7 +1202,12 @@ double generate_normal(double sigma)
     return r;
 }
 
-void q_generator(MoleculeSystem *ms, CalcParams *params) 
+void q_generator(MoleculeSystem *ms, CalcParams *params)
+/**
+ * @brief Function @ref q_generator generates \f$ R \f$ with density \f$ \rho \sim R^2 \f$ in the range [`params.sampler_Rmin`, `params.sampler_Rmax`]. 
+ * The distributions of \f$ \varphi, \psi \f$ are \f$ \varphi, \psi \sim U[0, 2\pi] \f$ and for \f$ \theta \f$ is \f$ \cos \theta \sim U[0, 1] \f$. 
+ * Implemented for intermolecular degrees of freedom, linear molecule and rotor. 
+ */ 
 {
     assert(params->sampler_Rmin > 0);
     assert(params->sampler_Rmax > 0);
@@ -1223,6 +1301,9 @@ static void p_generator_rotor(Monomer *m, double Temperature)
 
 
 void p_generator(MoleculeSystem *ms, double Temperature)
+/**
+ * @brief Function @ref p_generator samples momenta \f$ p \f$ from distribution \f$ \rho \sim e^{-K/kT} \f$ at given temperature. 
+ */ 
 {
     double sqrt_MUKT = sqrt(ms->mu / HkT * Temperature);
     double sinTheta = sin(ms->intermolecular_qp[ITHETA]);
@@ -1272,6 +1353,12 @@ void p_generator(MoleculeSystem *ms, double Temperature)
 }
 
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
+/**
+ * @brief @ref reject applies the rejection step to the phase-point that is stored in the @ref MoleculeSystem. 
+ * It presupposes that the provided phase-point is sampled from \f$ \rho \sim e^{-K/kT} \f$ using @ref q_generator and 
+ * @ref p_generator functions. The random variable \f$ u \sim U[0, 1] \f$ is chosen, to determine whether the current 
+ * phase-point is to be accepted with probability \f$ \rho \sim \exp(-H/kT) \f$.   
+ */
 {
     static double PRECAUTION_FACTOR = 1.5;
 
@@ -1307,8 +1394,11 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
 }
 
 void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
-// Running mean/variance formulas taken from GSL 1.15
-// https://github.com/ampl/gsl/blob/master/monte/plain.c 
+/** 
+ * @brief @ref calculate_M0
+ * Running mean/variance formulas taken from GSL 1.15
+ * https://github.com/ampl/gsl/blob/master/monte/plain.c 
+ */ 
 {
     assert(params->initialM0_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1374,6 +1464,9 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 }
 
 void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp) 
+/** 
+ * @brief @ref compute_dHdp
+ */ 
 {
     double R      = ms->intermolecular_qp[IR];
     double pR     = ms->intermolecular_qp[IPR];
@@ -1402,12 +1495,11 @@ void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp)
 }
 
 void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
-//no changes yet
-
-// Running mean/variance formulas taken from GSL 1.15
-// https://github.com/ampl/gsl/blob/master/monte/plain.c 
-
-
+/** 
+ * @brief @ref calculate_M2
+ * Running mean/variance formulas taken from GSL 1.15
+ * https://github.com/ampl/gsl/blob/master/monte/plain.c 
+ */ 
 {
     assert(params->initialM2_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1499,6 +1591,9 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
 
 #ifdef USE_MPI
 void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
+/** 
+ * @brief @ref mpi_calculate_M0
+ */ 
 {
     assert(params->initialM0_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1616,7 +1711,9 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
 }
 
 void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, double *m, double *q)
-//no changes yet
+/** 
+ * @brief @ref mpi_calculate_M2
+ */ 
 {
     assert(params->initialM2_npoints > 0);
     assert(fabs(params->pesmin) > 1e-15);
@@ -1762,6 +1859,9 @@ void track_turning_points(Tracker *tr, double R)
 
 
 int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+/** 
+ * @brief @ref correlation_eval_zimmerman_trick
+ */ 
 // TODO: Use temporary arena instead of malloc
 {
     // TODO: this function *for now* only works for autocorrelation 
@@ -1987,6 +2087,9 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
 }
 
 int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+/** 
+ * @brief @ref correlation_eval
+ */ 
 // TODO: Use temporary arena instead of malloc 
 {
     double *correlation_forw = malloc(params->MaxTrajectoryLength * sizeof(double));
@@ -2229,6 +2332,10 @@ void gsl_fft_square(double *farr, size_t N) {
 #include "hep_hawaii.h"
 
 CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature)
+/** 
+ * @brief @ref calculate_correlation_array_and_save
+ *
+ */
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -2659,7 +2766,11 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 } 
 
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
-// TODO: check 'sampler_Rmin': we want to catch the situation when it's too low for given Temperature
+/** 
+ * @brief @ref calculate_correlation_and_save
+ *
+ * TODO: check 'sampler_Rmin': we want to catch the situation when it's too low for given Temperature
+ */ 
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -3008,6 +3119,10 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
+/** 
+ * @brief @ref calculate_spectral_function_using_prmu_representation_and_save
+ *
+ */
 {
     // TODO: should we do any M0/M2 estimates at the beginning and then show the convergence throughtout the iterations? 
     assert(dipole_1 != NULL);
