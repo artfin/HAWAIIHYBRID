@@ -60,7 +60,7 @@
   * <li><b>24.05.2025</b> Receive packets out-of-order from slave processes in `calculate_spectral_function_using_prmu_representation_and_save`</li>
   * <li><b>26.05.2025</b> Fixed `gsl_histogram_extend_right`</li>
   * <li><b>26.05.2025</b> Introduced Arena allocator and handled the extension of the histogram when received on the master process</li>
-  * <li><b>26.05.2025</b> Introduced histograms of initial and final angular momenta in `calculate_spectral_function_using_prmu_representation_and_save`.  For now, they are printed in the output file (stdout stream). They are redirected to the corresponding files and and filepaths are customizable through the `CalcParams`.</li>
+  * <li><b>26.05.2025</b> Introduced histograms of initial and final angular momenta in `calculate_spectral_function_using_prmu_representation_and_save`.  For now, they are printed in the output file (stdout stream). Need to add the option to redirect them to the corresponding files and and customize filepaths through the `CalcParams` struct.</li>
   * <li><b>27.05.2025</b> Fixed a bug in the logic of turning on/off requantization in `calculate_spectral_function_using_prmu_representation_and_save`. It was noticed when histogram of the number of requantization switches has become available. After the fix the intensity distribution of requantized lines in the rotational band of CO-Ar became more logical and resembling the HITRAN one.</li>
   * <li><b>28.05.2025</b> Account for the effect of centrifugal distortion when requantization is applied. The line positions of CO became in excellent agreement with those from HITRAN spectra</li>
   * <li><b>13.07.2025</b> fixed parsing error in negative floating-point numbers in `driver`</li>
