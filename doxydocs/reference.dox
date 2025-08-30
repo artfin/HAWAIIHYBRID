@@ -15,22 +15,24 @@
  *   USE_ZIMMERMANN_TRICK = true ! boolean value
  *   CALCULATION_TYPE = CORRELATION_SINGLE ! plain string (no quotation marks)
  *   CF_FILENAME = "example.txt" ! double-quoted string
- *   TEMPERATURES = {100.0, 200.0, 300.0} ! an array of integer values
+ *   TEMPERATURES = {100.0, 200.0, 300.0} ! an array of floating-point values
  *   CF_FILENAMES = {"example1.txt", "example2.txt"} ! an array of double-quoted strings
  * \endcode
  *
  * `&INPUT` section provides overall control of the calculation, for example, calculation type, pair state, reduced mass, paths to dynamic libraries containing potential energy 
- * and induced dipole functions, and output files. The available input parameters are described in Section 1. 
+ * and induced dipole functions, and output files. The available input parameters are described in Section @ref input_block. 
  *
  * `&MONOMER` section specifies the types of interacting monomers through the `MONOMER_TYPE` field along with their molecular constants such as inertia tensor values and 
- * centrifugal constant. The available paramters are listed in Section 2. 
+ * centrifugal constant. The available paramters are listed in Section @ref monomer_block. 
  *
  * `&PROCESSING` section configures the data pipeline using a stack machine model, where each command manipulates the implicit data stack. Unlike the `&INPUT` and `&MONOMER` sections, 
  * the `&PROCESSING` section also contains an order-sensitive sequence of commands that execute sequentially, consuming inputs from the top of the stack and pushing the results back 
  * for subsequent commands. A typical pipeline begins with loading data using `READ_CF`, which pushes a correlation function onto the stack. Then `CF_TO_SF` consumes the correlation 
  * function and pushes corresponding spectral function. Commands like `COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE` and `COMPUTE_Mn_QUANTUM_DETAILED_BALANCE` consume the spectral function, 
  * requiring the user to first call `DUP()` to preserve the original spectral function if further commands will be operating on it. By the end of the processing script, the stack must 
- * be empty, ensuring all data has been processed or saved. The available functions are described in detail below.
+ * be empty, ensuring all data has been processed or saved. The detailed description for each function is provided in Section @ref processing_block. 
+ *
+ * List of available variables and functions in the input file:
  *
  * <table>
  * <tr><th>Number</th><th>Variable of Function Name</th></tr>
@@ -116,7 +118,9 @@
  * </table>            
  *
  *
+ ****************************************************************************************
  * @section input_block Input Block
+ ****************************************************************************************
  *
  * @subsection subsec_calculation_type `CALCULATION_TYPE` 
  * The program performs calculations based on the specified `CALCULATION_TYPE`. 
@@ -173,9 +177,13 @@
  *
  * @subsection subsec_satellite_temperatures `SATELLITE_TEMPERATURES` 
  *
+ ****************************************************************************************
  * @section monomer_block Monomer Block 
+ ****************************************************************************************
  * 
- * @section processing Processing Block
+ ****************************************************************************************
+ * @section processing_block Processing Block
+ ****************************************************************************************
  *   
  * @subsection subsec_read_cf `READ_CF` 
  * (See @ref execute_read_cf)

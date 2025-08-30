@@ -4,7 +4,10 @@
    
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol)
 /** 
- * @brief @ref init_trajectory
+ * @brief @ref init_trajectory initializes a @ref Trajectory structure for propagating Hamilton's equations 
+ * of motion for the provided molecule system. The trajectory will be configured with the specified
+ * with the specified relative tolerance for numerical integration. The returned @ref Trajectory should be 
+ * properly freed using @ref free_trajectory after use to avoid memory leaks.
  */ 
 {
     Trajectory traj = {0};
@@ -143,6 +146,10 @@ void trajectory_reinit(Trajectory *traj)
 int make_step(Trajectory *traj, double tout, double *t)
 /** 
  * @brief @ref make_step
+ * Invokes the main function of CVode and, if enabled, applies requantization to the monomers' angular momenta.  When the `apply_requantization` flag within the 
+ * @ref MoleculSystem is set, * the momenta in `qp` are rescaled to adjust the angular momentum to the nearest half-integer or integer, according to the 
+ * requantization rule which is represented within the Monomer type. Subsequently, the function synchronizes the internal trajectory phase-space vector 
+ * with the @ref MoleculeSystem's phase-space vector, and reinitializes the state of CVode to reset its state since a sudden change of phase-point has occured.
  */ 
 {
     int flag = CVode(traj->cvode_mem, tout, traj->y, t, CV_NORMAL);

@@ -9,7 +9,8 @@
   * <li><b>09.01.2025</b> Porting some of hep-functionality in `hep_hawaii.cpp`. Zeroth moment can be calculated using adaptive Monte Carlo integration over phase space.</li>
   * <li><b>10.01.2025</b> Tracking the number of turning points is added to `correlation_eval`.</li>
   * <li><b>10.01.2025</b> PES and its derivatives for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$ are adapted.</li>
-  * <li><b>11.01.2025</b> fixing error inverting momenta in `correlation_eval`. Calculating correlation function for $\textrm{CO}_2-Ar$ seems to be working correctly. Need to run a calculation with larger number of trajectories.</li>
+  * <li><b>11.01.2025</b> fixing error inverting momenta in
+  `correlation_eval`. Calculating correlation function for \f$ \textrm{CO}_2-Ar \f$ seems to be working correctly. Need to run a calculation with larger number of trajectories.</li>
   * <li><b>12.01.2025</b> added higher-order finite-difference formulas for differentiating energy: `compute_numerical_rhs` </li>
   * <li><b>12.01.2025</b> trajectory for \f$ \textrm{CH}_4-\textrm{CO}_2 \f$ using kinetic energy only works correctly. Angles transformation and its jacobian needs to be adapted from FUNCHAL to account for different order of coordinates.</li>
   * <li><b>15.01.2025</b> Run calculation of correlation function for \f$ \textrm{CO}_2-\textrm{Ar} \f$ for 10.000.000 trajectories. The correlation function is in close agreement with the previous results. Now moving on to adapting code for processing correlation functions in `hawaii`.</li>

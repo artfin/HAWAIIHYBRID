@@ -91,6 +91,24 @@
  * 
  * @section trajectory_section Propagating trajectories 
  *
+ * @copybrief Trajectory
+ * @copydetails Trajectory
+ * @ref Trajectory has the following fields:
+ * - @ref Trajectory::ms -- @copybrief Trajectory::ms
+ * - @ref Trajectory::DIM -- @copybrief Trajectory::DIM
+ * - @ref Trajectory::mxsteps -- @copybrief Trajectory::mxsteps
+ * - @ref Trajectory::y -- @copybrief Trajectory::y
+ * - @ref Trajectory::abstol -- @copybrief Trajectory::abstol
+ * - @ref Trajectory::reltol -- @copybrief Trajectory::reltol
+ * - @ref Trajectory::A -- @copybrief Trajectory::A
+ * - @ref Trajectory::LS -- @copybrief Trajectory::LS
+ * - @ref Trajectory::cvode_mem -- @copybrief Trajectory::cvode_mem
+ * - @ref Trajectory::temp_qp -- @copybrief Trajectory::temp_qp
+ * - @ref Trajectory::ic -- @copybrief Trajectory::ic
+ * - @ref Trajectory::check_energy_conservation -- @copybrief Trajectory::check_energy_conservation
+ * - @ref Trajectory::E0 -- @copybrief Trajectory::E0
+ * - @ref Trajectory::E_last -- @copybrief Trajectory::E_last
+ *
  * @copybrief init_trajectory  
  * @copydetails init_trajectory 
  *

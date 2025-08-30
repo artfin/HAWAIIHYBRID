@@ -24,22 +24,22 @@ extern int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
 
 typedef struct
 {
-    size_t DIM;
-    size_t mxsteps;
-    N_Vector y;
-    N_Vector abstol;
-    realtype reltol; 
-    SUNMatrix A;
-    SUNLinearSolver LS;
-    void *cvode_mem;
+    size_t DIM; ///< Number of Hamilton's equations of motion (system dimension). 
+    size_t mxsteps; ///< Maximum number of internal time steps for the solver.
+    N_Vector y; ///< Internal phase-space vector (current step of the system).
+    N_Vector abstol; ///< Absolute tolerance for each variable in the ODE system.
+    realtype reltol; ///< Relative tolerance for the ODE solver.
+    SUNMatrix A; ///< Matrix structure for storing jacobian information. 
+    SUNLinearSolver LS; ///< Linear solver object for the ODE system.
+    void *cvode_mem; ///< Pointer to the CVODE memory block (solver internal state).
     // 
-    Array temp_qp; 
-    MoleculeSystem* ms;
-    N_Vector ic; 
+    Array temp_qp;  ///< Temporary storage array for coordinates and momenta during trajectorypropagation.
+    MoleculeSystem* ms; ///< Pointer to MoleculeSystem.
+    N_Vector ic; ///< Initial conditions for the trajectory.
     // -- energy conservation 
-    bool check_energy_conservation;
-    double E0;
-    double E_last;
+    bool check_energy_conservation; ///< Flag indicating whether to monitor energy conservation during trajectory propagation.
+    double E0; ///< Initial total energy of the system (used for conservation checks).
+    double E_last; ///< Energy value from the last computed step (for tracking changes in energy).
 } Trajectory;
 
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 

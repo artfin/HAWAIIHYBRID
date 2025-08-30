@@ -397,7 +397,14 @@ double find_closest_half_integer(double j)
 
 void j_monomer(Monomer m, double j[3])
 /** 
- * @brief @ref j_monomer
+ * @brief @ref j_monomer computes the magnitude of angular momentum of passed-in monomer. <span style="color:red;">Currently, implemented only for linear molecules.</span>
+ *  \f[ 
+        [\textrm{linear molecule}]: j = \begin{bmatrix}
+          - p_\theta \sin \varphi - p_\varphi \cos \varphi / \tan \theta \\
+          p_\theta \cos \varphi - p_\varphi \sin \varphi / \tan \theta \\
+          p_\varphi
+        \end{bmatrix} 
+ *  \f] 
  */ 
 {
     switch (m.t) {
@@ -426,7 +433,16 @@ void j_monomer(Monomer m, double j[3])
 double torque_monomer(Monomer m)
 // torque: T = dJ/dt 
 /** 
- * @brief @ref torque_monomer
+ * @brief @ref torque_monomer computes the magnitude of torque (time-derivative of angular momentum) of passed-in monomer. 
+ * Requires the derivative of potential Monomer::dVdq to be set within the monomer. 
+ * <span style="color:red;">Currently, implemented only for linear molecules.</span>
+ * \f[
+       [\textrm{linear molecule}]: \tau = \begin{bmatrix}
+            \displaystyle \sin \varphi \frac{\diff{V}}{\diff{\theta}} + \cos \varphi / \tan \theta \frac{\diff{V}}{\diff{\varphi}} \\
+            \displaystyle -\cos \varphi \frac{\diff{V}}{\diff{\theta}} + \sin \varphi / \tan \theta \frac{\diff{V}}{\diff{\varphi}} \\
+            \displaystyle -\frac{\diff{V}}{\diff{\varphi}}
+        \end{bmatrix}
+ * \f] 
  */ 
 {
     switch (m.t) {
@@ -457,7 +473,10 @@ double torque_monomer(Monomer m)
 
 void rhsMonomer(Monomer *m, double *deriv) 
 /** 
- * @brief @ref rhsMonomer
+ * @brief @ref rhsMonomer dispatches between computing the right-hand side of Hamilton's equations of motion
+ * depending on the type of monomer. In addition to differentiating the kinetic energy, the derivatives of potential energy, 
+ * which are taken from @ref Monomer::dVdq, are also added to compute the right-hand side.   
+ * @ref rhsMonomer does not account for requantization which should happen after this function has been called.
  */ 
 {
     switch (m->t) {
@@ -533,7 +552,11 @@ void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
 
 int rhs(realtype t, N_Vector y, N_Vector ydot, void *data)
 /** 
- * @brief @ref rhs
+ * @brief @ref rhs function is passed to `CVode` library to propagate the trajectory. First, the phase-point coordinates are stored into @ref MoleculeSystem struct. 
+ * A contiguous vector of coordinates is assembled via @ref extract_q_and_write_into_ms. Next, by calling the external function @ref dpes, the derivatives of potential 
+ * energy are computed  and stored into MoleculeSystem::dVdq field. The components of derivative vector are then copied into the field Monomer::dVdq of the corresponding 
+ * @ref Monomer via the call to @ref extract_dVdq_and_write_into_monomers. The right-hand side of Hamilton's equations with respect to intermolecular degrees of freedom 
+ * are readily obtained and filled into output `ydot`, while the derivatives with respect to monomer's coordinates are handled by @ref rhsMonomer function.
  */ 
 {
     UNUSED(t);
@@ -729,7 +752,7 @@ gsl_matrix* compute_numerical_jac(void (*transform_angles)(double *qlab, double 
 
 Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t len, size_t order)
 /** 
- * @brief @ref compute_numerical_derivatives
+ * @brief @ref compute_numerical_derivatives   
  */ 
 {
     Array derivatives = create_array(len);
@@ -817,7 +840,11 @@ Array compute_numerical_derivatives(double (*f)(double *q), double *q, size_t le
 
 Array compute_numerical_rhs(MoleculeSystem *ms, size_t order)
 /** 
- * @brief @ref compute_numerical_rhs
+ * @brief @ref compute_numerical_rhs Computes the right-hand side of Hamilton's equations of motion using finite-difference formulas. 
+ * The returned Array contains derivatives whose order corresponds to variable ordering employed in the @ref MoleculeSystem structure.
+ *
+ * @param ms Pointer to the MoleculeSystem for which to compute the derivatives.
+ * @param order Order of the finite-difference formula to employ for calculation. 
  */ 
 {
     Array derivatives = create_array(ms->QP_SIZE);
