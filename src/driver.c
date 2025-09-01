@@ -3205,8 +3205,7 @@ int main(int argc, char* argv[])
     int rest_argc = flag_rest_argc();
     char **rest_argv = flag_rest_argv();
 
-    if (rest_argc > 1) {
-        PRINT0("ERROR: only 1 non flag argument is expected\n");
+    if (rest_argc != 1) {
         usage();
         exit(1); 
     }
