@@ -2739,8 +2739,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
-    gsl_histogram *nswitch_histogram = NULL;
-    FILE *fp_nswitch_histogram = NULL;
 
         Arena a = {0};
 
@@ -2760,18 +2758,18 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
 		
-	size_t nswitch_histogram_bins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
-        double nswitch_histogram_max = DEFAULT_NSWITCH_HISTOGRAM_MAX;
-        const char *nswitch_histogram_filename = DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
-        
-        nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
-        gsl_histogram_set_ranges_uniform(nswitch_histogram, 0.0, nswitch_histogram_max);
-        
-        if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
-            fp_nswitch_histogram = stdout;
-       	} else {
-            fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
-       	}
+	size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
+	double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
+	const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
+
+		if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
+			            ms->m1.fp_nswitch_histogram = stdout;
+		} else {
+			ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
+		}
+
+		ms->m1.nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
+		gsl_histogram_set_ranges_uniform(ms->m1.nswitch_histogram, 0.0, nswitch_histogram_max);
 	}
 
     FILE *fp = NULL; 
@@ -2947,7 +2945,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
-
+		ms->m1.req_switch_counter = 0;
 			    
                 int status;
                 if (params->use_zimmermann_trick) {
@@ -2956,20 +2954,18 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
 		    
-		if (nswitch_histogram && status == 0) {
-  	           size_t req_switches = ms->m1.req_switch_counter; 
-   	          if (req_switches > nswitch_histogram->range[nswitch_histogram->n]) {
-    	             gsl_histogram_extend_right(nswitch_histogram, 
-    	                 req_switches - nswitch_histogram->range[nswitch_histogram->n] + 1);
-    	         }
-   	          gsl_histogram_increment(nswitch_histogram, req_switches);
-  	       }
 
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
+			if (ms->m1.nswitch_histogram != NULL) {
+			if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
+				ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
+			}
+                gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
+		    }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
                     local_crln[i] += params->partial_partition_function_ratio * crln[i];
@@ -3053,6 +3049,12 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_crln_est_11pt, hep_M2, (M2_crln_est_11pt - hep_M2)/hep_M2*100.0);
         }
 
+	if (ms->m1.nswitch_histogram != NULL) {
+		double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
+		printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
+		write_histogram(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
+	}
+		
         if (_wrank == 0) {
             _print0_suppress_info = true;
             int r = write_correlation_function_ext(fp, total_crln);
@@ -3076,23 +3078,18 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         total_crln.data[i] /= total_crln.ntraj;
     }
     total_crln.normalized = true;
+	    if (ms->m1.nswitch_histogram != NULL) {
+	    gsl_histogram_free(ms->m1.nswitch_histogram);
+	    if (ms->m1.fp_nswitch_histogram != stdout) {
+		    fclose(ms->m1.fp_nswitch_histogram);
+	    }
+    }
 	
 if (ms->m1.torque_cache) {
     ms->m1.torque_cache = NULL;  
     arena_free(&a);              
 }
 
-    if (nswitch_histogram) {
-        if (_wrank == 0) {
-            double count = gsl_histogram_sum(nswitch_histogram);
-            printf("Requantization switch statistics (based on %d trajectories):\n", (int)count);
-            write_histogram(fp_nswitch_histogram, nswitch_histogram, count);
-        }
-        gsl_histogram_free(nswitch_histogram);
-        if (fp_nswitch_histogram && fp_nswitch_histogram != stdout) {
-            fclose(fp_nswitch_histogram);
-        }
-    }
 
     return total_crln; 
 }
