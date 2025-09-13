@@ -416,6 +416,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_CF", // tests (+), docs (+)
     "WRITE_SF", // tests (+), docs (+)
     "WRITE_SPECTRUM", // tests (+), docs (+)
+    "WRITE_FLOAT",
     "CF_TO_SF", // docs (+), tests (+)
     "ADD_SPECTRA", // tests (+), docs (+)
     "FIT_BASELINE", // tests (+), docs (+), is name descriptive enough?
@@ -446,18 +447,21 @@ typedef union {
     CFnc cf;
     SFnc sf;
     Spectrum sp;
+    double double_number;
 } Stack_Item; 
  
 typedef enum {
     STACK_ITEM_CF = 0,
     STACK_ITEM_SF,
     STACK_ITEM_SPECTRUM,
+    STACK_ITEM_FLOAT,
 } Stack_Item_Type;
 
-const char *STACK_ITEM_TYPES[] = {
-    [STACK_ITEM_CF] = "CF", 
-    [STACK_ITEM_SF] = "SF",
+static const char *STACK_ITEM_TYPES[] = {
+    [STACK_ITEM_CF]       = "CF",
+    [STACK_ITEM_SF]       = "SF",
     [STACK_ITEM_SPECTRUM] = "SPECTRUM",
+    [STACK_ITEM_FLOAT]    = "FLOAT",
 };
 
 typedef struct {
@@ -744,7 +748,7 @@ bool get_token(Lexer *l) {
        
         // NOTE: this allows only for one-line strings
         // do not see the use for multi-line strings for now 
-        for (c = peek_char(l); (c != '\0') && (c != '"') && !isspace(c); c = peek_char(l)) {
+        for (c = peek_char(l); (c != '\0') && (c != '"'); c = peek_char(l)) {
             da_append(&(*l).string_storage, c);
             skip_char(l);
         }
@@ -1331,8 +1335,9 @@ void parse_monomer_block(Lexer *l, Monomer *m)
     }
 } 
 
+void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ, Loc *loc); 
 
-void parse_processing_block(Lexer *l, Processing_Params *processing_params) 
+void parse_processing_block(Lexer *l, Processing_Stack *stack, Processing_Params *processing_params) 
 {
     while (true) {
         get_token(l);
@@ -1341,128 +1346,132 @@ void parse_processing_block(Lexer *l, Processing_Params *processing_params)
             return;
         }
 
-        expect_one_of_tokens(l, 3, TOKEN_KEYWORD, TOKEN_FUNCALL);
+        expect_one_of_tokens(l, 3, TOKEN_KEYWORD, TOKEN_FUNCALL, TOKEN_FLOAT);
 
         switch (l->token_type) {
-            case TOKEN_KEYWORD: {
-                get_and_expect_token(l, TOKEN_EQ);
-                get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
+        case TOKEN_FLOAT: {
+            double *double_number = malloc(1*sizeof(double));
+            *double_number = l->double_number;
+            stack_push_with_type(stack, (void*) double_number, STACK_ITEM_FLOAT, &l->loc);
+        } break; 
 
-                switch (l->keyword_type) {
-                    case KEYWORD_SPECTRUM_FREQUENCY_MAX: processing_params->spectrum_frequency_max = l->double_number; break; 
-                    default: {
-                        PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
-                               l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
-                        exit(1);
-                    }
+        case TOKEN_KEYWORD: {
+            get_and_expect_token(l, TOKEN_EQ);
+            get_and_expect_token(l, EXPECT_TOKEN_AFTER_KEYWORD[l->keyword_type]);
+
+            switch (l->keyword_type) {
+                case KEYWORD_SPECTRUM_FREQUENCY_MAX: processing_params->spectrum_frequency_max = l->double_number; break; 
+                default: {
+                    PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &PROCESSING block\n",
+                           l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
+                    exit(1);
                 }
-
-                break;
             }
-            case TOKEN_FUNCALL: {
-                Funcall f = {0};
+        } break;
 
-                bool funcall_is_available = false;
-                for (size_t i = 0; i < sizeof(AVAILABLE_FUNCS)/sizeof(AVAILABLE_FUNCS[0]); ++i) {
-                    if (strcasecmp(l->string_storage.items, AVAILABLE_FUNCS[i]) == 0) {
-                        funcall_is_available = true;
-                        break;
-                    }
+        case TOKEN_FUNCALL: {
+            Funcall f = {0};
+
+            bool funcall_is_available = false;
+            for (size_t i = 0; i < sizeof(AVAILABLE_FUNCS)/sizeof(AVAILABLE_FUNCS[0]); ++i) {
+                if (strcasecmp(l->string_storage.items, AVAILABLE_FUNCS[i]) == 0) {
+                    funcall_is_available = true;
+                    break;
                 }
-                if (!funcall_is_available) {
-                    PRINT0("ERROR: %s:%d:%d: funcall '%s' is unknown and cannot be used within PROCESSING block\n",
-                            l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
+            }
+            if (!funcall_is_available) {
+                PRINT0("ERROR: %s:%d:%d: funcall '%s' is unknown and cannot be used within PROCESSING block\n",
+                        l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
 
-                    exit(1); 
-                }
+                exit(1); 
+            }
 
-                f.name = strdup(l->string_storage.items);
-                f.loc = (Loc) {
-                    .input_path = strdup(l->loc.input_path),
-                    .line_number = l->loc.line_number,
-                    .line_offset = l->loc.line_offset-(int)l->token_len+1,
-                }; 
+            f.name = strdup(l->string_storage.items);
+            f.loc = (Loc) {
+                .input_path = strdup(l->loc.input_path),
+                .line_number = l->loc.line_number,
+                .line_offset = l->loc.line_offset-(int)l->token_len+1,
+            }; 
 
-                get_and_expect_token(l, TOKEN_OPAREN);
-                
-                bool finished = false;
-                while (!finished) {
-                    Funcall_Argument arg = {0};
+            get_and_expect_token(l, TOKEN_OPAREN);
+            
+            bool finished = false;
+            while (!finished) {
+                Funcall_Argument arg = {0};
 
+                get_token(l);
+                expect_one_of_tokens(l, 6, TOKEN_CPAREN, TOKEN_STRING, TOKEN_COMMA, TOKEN_INTEGER, TOKEN_DQSTRING, TOKEN_FLOAT);
+               
+                if (l->token_type == TOKEN_STRING) {
+                    arg.name = strdup(l->string_storage.items);
+                    arg.name_loc = (Loc) {
+                        .input_path = strdup(l->loc.input_path),
+                        .line_number = l->loc.line_number,
+                        .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                    };
+
+                    get_and_expect_token(l, TOKEN_EQ);
                     get_token(l);
-                    expect_one_of_tokens(l, 6, TOKEN_CPAREN, TOKEN_STRING, TOKEN_COMMA, TOKEN_INTEGER, TOKEN_DQSTRING, TOKEN_FLOAT);
-                   
-                    if (l->token_type == TOKEN_STRING) {
-                        arg.name = strdup(l->string_storage.items);
-                        arg.name_loc = (Loc) {
-                            .input_path = strdup(l->loc.input_path),
-                            .line_number = l->loc.line_number,
-                            .line_offset = l->loc.line_offset-(int)l->token_len+1,
-                        };
+                } 
 
-                        get_and_expect_token(l, TOKEN_EQ);
-                        get_token(l);
-                    } 
-
-                    switch (l->token_type) {
-                        case TOKEN_INTEGER: {
-                          arg.typ = FUNCALL_ARGUMENT_INTEGER;
-                          arg.int_number = l->int_number;
-                          arg.value_loc = (Loc) {
-                              .input_path = strdup(l->loc.input_path),
-                              .line_number = l->loc.line_number,
-                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
-                          };
-                          da_append(&f.args, arg);
-                          break;
-                        }
-                        case TOKEN_DQSTRING: {
-                          arg.typ = FUNCALL_ARGUMENT_STRING;
-                          arg.string_storage = strdup(l->string_storage.items);
-                          arg.value_loc = (Loc) {
-                              .input_path = strdup(l->loc.input_path),
-                              .line_number = l->loc.line_number,
-                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
-                          };
-                          da_append(&f.args, arg);
-                          break;
-                        }
-                        case TOKEN_FLOAT: {
-                          arg.typ = FUNCALL_ARGUMENT_FLOAT;
-                          arg.double_number = l->double_number;
-                          arg.value_loc = (Loc) {
-                              .input_path = strdup(l->loc.input_path),
-                              .line_number = l->loc.line_number,
-                              .line_offset = l->loc.line_offset-(int)l->token_len+1,
-                          };
-                          da_append(&f.args, arg);
-                          break;
-                        }
-                        case TOKEN_COMMA: {
-                          break;
-                        }
-                        case TOKEN_CPAREN: {
-                          finished = true;
-                          break;
-                        }
-                        default: {
-                          PRINT0("ERROR: %s:%d:%d: unexpected argument\n",
-                                  l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1);
-                          exit(1);
-                        } 
+                switch (l->token_type) {
+                    case TOKEN_INTEGER: {
+                      arg.typ = FUNCALL_ARGUMENT_INTEGER;
+                      arg.int_number = l->int_number;
+                      arg.value_loc = (Loc) {
+                          .input_path = strdup(l->loc.input_path),
+                          .line_number = l->loc.line_number,
+                          .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                      };
+                      da_append(&f.args, arg);
+                      break;
                     }
+                    case TOKEN_DQSTRING: {
+                      arg.typ = FUNCALL_ARGUMENT_STRING;
+                      arg.string_storage = strdup(l->string_storage.items);
+                      arg.value_loc = (Loc) {
+                          .input_path = strdup(l->loc.input_path),
+                          .line_number = l->loc.line_number,
+                          .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                      };
+                      da_append(&f.args, arg);
+                      break;
+                    }
+                    case TOKEN_FLOAT: {
+                      arg.typ = FUNCALL_ARGUMENT_FLOAT;
+                      arg.double_number = l->double_number;
+                      arg.value_loc = (Loc) {
+                          .input_path = strdup(l->loc.input_path),
+                          .line_number = l->loc.line_number,
+                          .line_offset = l->loc.line_offset-(int)l->token_len+1,
+                      };
+                      da_append(&f.args, arg);
+                      break;
+                    }
+                    case TOKEN_COMMA: {
+                      break;
+                    }
+                    case TOKEN_CPAREN: {
+                      finished = true;
+                      break;
+                    }
+                    default: {
+                      PRINT0("ERROR: %s:%d:%d: unexpected argument\n",
+                              l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1);
+                      exit(1);
+                    } 
                 }
-
-                da_append(&processing_params->fs, f);
-                break;
             }
 
-            default: UNREACHABLE("parse_processing_block");
+            da_append(&processing_params->fs, f);
+        } break;
+
+        default: UNREACHABLE("parse_processing_block");
         } 
     }
 } 
 
-void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Monomer *m1, Monomer *m2, Processing_Params *processing_params)
+void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Monomer *m1, Monomer *m2, Processing_Stack *processing_stack, Processing_Params *processing_params)
 {
     size_t monomer_blocks_count = 0;
     Monomer *m = m1;
@@ -1490,7 +1499,8 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
             m = m2;
             monomer_blocks_count++; 
         } else if (strcasecmp(l->string_storage.items, "&PROCESSING") == 0) {
-            parse_processing_block(l, processing_params);
+            parse_processing_block(l, processing_stack, processing_params);
+
         } else {
             PRINT0("ERROR: %s:%d:%d: found unknown block name '%s'\n",
                    l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1,
@@ -1533,9 +1543,19 @@ void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type t
     };
 
     switch (typ) {
-        case STACK_ITEM_CF: memcpy(&tagged_item.item.cf, item, sizeof(CFnc)); break;
-        case STACK_ITEM_SF: memcpy(&tagged_item.item.sf, item, sizeof(SFnc)); break;
-        case STACK_ITEM_SPECTRUM: memcpy(&tagged_item.item.sp, item, sizeof(Spectrum)); break; 
+    case STACK_ITEM_CF: {
+        memcpy(&tagged_item.item.cf, item, sizeof(CFnc)); 
+    } break;
+    case STACK_ITEM_SF: {
+        memcpy(&tagged_item.item.sf, item, sizeof(SFnc)); 
+    } break;
+    case STACK_ITEM_SPECTRUM: {
+        memcpy(&tagged_item.item.sp, item, sizeof(Spectrum)); 
+    } break;
+    case STACK_ITEM_FLOAT: {
+        memcpy(&tagged_item.item.double_number, item, sizeof(double));
+        free(item); 
+    } break;
     }
     
     da_append(stack, tagged_item); 
@@ -2216,33 +2236,33 @@ bool execute_dup2(Funcall *func, Processing_Stack *stack)
     for (size_t i = 0; i < 2; ++i) {
         Tagged_Stack_Item *ts_item = items[i];
         switch (ts_item->typ) {
-          case STACK_ITEM_CF: {
+        case STACK_ITEM_CF: {
             CFnc cf_copy = copy_cfnc(ts_item->item.cf);
             stack_push(stack, (Tagged_Stack_Item) {
                 .item.cf = cf_copy,
                 .typ = STACK_ITEM_CF,
                 .loc = func->loc,
             });
-            break;
-          }
-          case STACK_ITEM_SF: {
+        } break; 
+        case STACK_ITEM_SF: {
             SFnc sf_copy = copy_sfnc(ts_item->item.sf);
             stack_push(stack, (Tagged_Stack_Item) {
                    .item.sf = sf_copy,
                    .typ = STACK_ITEM_SF,
                    .loc = func->loc, 
                    });
-            break;
-          } 
-          case STACK_ITEM_SPECTRUM: {
+        }  break; 
+        case STACK_ITEM_SPECTRUM: {
             Spectrum sp_copy = copy_spectrum(ts_item->item.sp);
             stack_push(stack, (Tagged_Stack_Item) {
                       .item.sp = sp_copy,
                       .typ = STACK_ITEM_SPECTRUM,
                       .loc = func->loc, 
                      });
-            break;
-          }
+        } break;
+        case STACK_ITEM_FLOAT: {
+            assert(false);
+        } break; 
         }
     }
 
@@ -2269,33 +2289,33 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
     INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
 
     switch (tagged_item->typ) {
-      case STACK_ITEM_CF: {
+    case STACK_ITEM_CF: {
         CFnc cf_copy = copy_cfnc(tagged_item->item.cf);
         stack_push(stack, (Tagged_Stack_Item) {
             .item.cf = cf_copy,
             .typ = STACK_ITEM_CF,
             .loc = func->loc,
         });
-        break;
-      }
-      case STACK_ITEM_SF: {
+    } break;
+    case STACK_ITEM_SF: {
         SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
         stack_push(stack, (Tagged_Stack_Item) {
                .item.sf = sf_copy,
                .typ = STACK_ITEM_SF,
                .loc = func->loc, 
                });
-        break;
-      } 
-      case STACK_ITEM_SPECTRUM: {
+    } break; 
+    case STACK_ITEM_SPECTRUM: {
         Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
         stack_push(stack, (Tagged_Stack_Item) {
                   .item.sp = sp_copy,
                   .typ = STACK_ITEM_SPECTRUM,
                   .loc = func->loc, 
                  });
-        break;
-      }
+    } break;
+    case STACK_ITEM_FLOAT: {
+        assert(false);
+    } break; 
     }
 
     return true;
@@ -2801,6 +2821,60 @@ bool execute_write_sf(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
+bool execute_write_float(Funcall *func, Processing_Stack *stack)
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_FLOAT);
+    double double_number = tagged_item.item.double_number;
+
+    expect_n_funcall_arguments(func, 3);
+
+    const char *filename;
+    {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        expect_string_funcall_argument(func, &arg);
+        filename = arg.string_storage;
+    }
+
+    const char *mode;
+    {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        expect_string_funcall_argument(func, &arg);
+        mode = arg.string_storage;
+    }
+
+    const char *format_str;
+    {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        expect_string_funcall_argument(func, &arg);
+        format_str = arg.string_storage;
+    }
+    
+    bool ok = (mode[0] == 'w') || (mode[0] == 'a');  
+
+    if (!ok || strlen(mode) > 1) {
+        ERROR("%s:%d:%d: recognized modes for writing to file are \"w\" and \"a\" but got \"%s\"",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset, mode);
+        return false;
+    }
+
+    // TODO: should we apply renaming strategy in case when we are overwriting an existing file? 
+    FILE *fp = fopen(filename, mode);
+
+    size_t nchars = fprintf(fp, format_str, double_number);
+
+    fclose(fp); 
+    
+    switch (mode[0]) { 
+    case 'w': INFO("Wrote %zu characters to '%s'\n", nchars, filename); break;
+    case 'a': INFO("Appended %zu characters to '%s'\n", nchars, filename); break;
+    default: UNREACHABLE("execute_write_float");
+    } 
+
+    return true; 
+}
+
+
 bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
  * @brief Writes spectrum (Spectrum) to output file
@@ -2953,11 +3027,9 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
-int run_processing(Processing_Params *processing_params) 
+int run_processing(Processing_Stack *stack, Processing_Params *processing_params) 
 {
     int result = 0;
-
-    Processing_Stack stack = {0};
 
     for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
         Funcall *func = &processing_params->fs.items[pc];
@@ -2968,80 +3040,83 @@ int run_processing(Processing_Params *processing_params)
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            if (!execute_read_cf(func, &stack)) return_defer(1);
+            if (!execute_read_cf(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
-            if (!execute_read_sf(func, &stack)) return_defer(1);
+            if (!execute_read_sf(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
-            if (!execute_read_spectrum(func, &stack)) return_defer(1); 
+            if (!execute_read_spectrum(func, stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            if (!execute_cf_to_sf(func, &stack)) return_defer(1); 
+            if (!execute_cf_to_sf(func, stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            stack.return_code = !execute_cmp(func, &stack);
+            stack->return_code = !execute_cmp(func, stack);
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
-            if (!execute_drop(func, &stack)) return_defer(1);
+            if (!execute_drop(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "DROP2") == 0) {
-            if (!execute_drop2(func, &stack)) return_defer(1);
+            if (!execute_drop2(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
-            if (!execute_fit_baseline(func, &stack)) return_defer(1); 
+            if (!execute_fit_baseline(func, stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
-            if (!execute_average_cfs(func, &stack)) return_defer(1); 
+            if (!execute_average_cfs(func, stack)) return_defer(1); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
-            if (!execute_dup(func, &stack)) return_defer(1);
+            if (!execute_dup(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "DUP2") == 0) {
-            if (!execute_dup2(func, &stack)) return_defer(1);
+            if (!execute_dup2(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params)) return_defer(1);
+            if (!execute_compute_mn_classical_detailed_balance(func, stack, processing_params)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_quantum_detailed_balance(func, &stack, processing_params)) return_defer(1);
+            if (!execute_compute_mn_quantum_detailed_balance(func, stack, processing_params)) return_defer(1);
 
         } else if (strcasecmp(funcname, "INT3") == 0) {
-            execute_int3(func, &stack);
+            execute_int3(func, stack);
             return_defer(1);
 
         } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
-            if (!execute_add_spectra(func, &stack)) return_defer(1);
+            if (!execute_add_spectra(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
-            if (!execute_alpha(func, &stack)) return_defer(1);
+            if (!execute_alpha(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D1") == 0) {
-            if (!execute_D1(func, &stack)) return_defer(1);
+            if (!execute_D1(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D2") == 0) {
-            if (!execute_D2(func, &stack)) return_defer(1);
+            if (!execute_D2(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
-            if (!execute_D3(func, &stack)) return_defer(1);
+            if (!execute_D3(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4") == 0) {
-            if (!execute_D4(func, &stack)) return_defer(1);
+            if (!execute_D4(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4a") == 0) {
-            if (!execute_D4a(func, &stack)) return_defer(1);
+            if (!execute_D4a(func, stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "SMOOTH") == 0) {
-            if (!execute_smooth(func, &stack)) return_defer(1);
+            if (!execute_smooth(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            if (!execute_write_cf(func, &stack)) return_defer(1);
+            if (!execute_write_cf(func, stack)) return_defer(1);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            if (!execute_write_sf(func, &stack)) return_defer(1);
+            if (!execute_write_sf(func, stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            if (!execute_write_spectrum(func, &stack, processing_params)) return_defer(1);
+            if (!execute_write_spectrum(func, stack, processing_params)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "WRITE_FLOAT") == 0) {
+            if (!execute_write_float(func, stack)) return_defer(1);
 
         } else {
             PRINT0("\n\n");
@@ -3054,26 +3129,41 @@ int run_processing(Processing_Params *processing_params)
         _print0_margin = 0;
     }
 
-    if (stack.count > 0) {
+    if (stack->count > 0) {
         PRINT0("\n\n");
         PRINT0("WARNING: Stack is not empty at the end of processing.\n");
         PRINT0("  Stack trace:\n");
-        for (size_t i = 0; i < stack.count; ++i) {
-            Loc *loc = &stack.items[i].loc;
-            PRINT0("    %zu: %s created at %s:%d:%d\n", 
-                   i, STACK_ITEM_TYPES[stack.items[i].typ], loc->input_path, loc->line_number, loc->line_offset);
+        for (size_t i = 0; i < stack->count; ++i) {
+            Tagged_Stack_Item *titem = &stack->items[i];
+            Loc *loc = &titem->loc;
 
-            switch (stack.items[i].typ) {
-                case STACK_ITEM_CF:       free_cfnc(stack.items[i].item.cf); break;
-                case STACK_ITEM_SF:       free_sfnc(stack.items[i].item.sf); break;
-                case STACK_ITEM_SPECTRUM: free_spectrum(stack.items[i].item.sp); break;
+            switch (stack->items[i].typ) {
+            case STACK_ITEM_CF: {
+                PRINT0("    %zu: %s created at %s:%d:%d\n", 
+                       i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
+                free_cfnc(stack->items[i].item.cf); 
+            } break;
+            case STACK_ITEM_SF: {
+                PRINT0("    %zu: %s created at %s:%d:%d\n", 
+                       i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
+                free_sfnc(stack->items[i].item.sf); 
+            } break;
+            case STACK_ITEM_SPECTRUM: {
+                PRINT0("    %zu: %s created at %s:%d:%d\n", 
+                       i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
+                free_spectrum(stack->items[i].item.sp); 
+            } break;
+            case STACK_ITEM_FLOAT: {
+                PRINT0("    %zu: %s(%.5e) created at %s:%d:%d\n",
+                      i, STACK_ITEM_TYPES[titem->typ], titem->item.double_number, loc->input_path, loc->line_number, loc->line_offset); 
+            } break;
             }
         }
 
         return 1; 
     }
 
-    return stack.return_code; 
+    return stack->return_code; 
 
 defer:
     _print0_margin = 0;
@@ -3230,7 +3320,9 @@ int main(int argc, char* argv[])
     Monomer monomer2  = {0};
     CalcParams calc_params = {0};
     Processing_Params processing_params = {0};
-    parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
+    Processing_Stack processing_stack = {0};
+    parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_stack, &processing_params);
+    
     
     if (*debug) {
         PRINT0("--------------------------------------------------\n");
@@ -3276,7 +3368,7 @@ int main(int argc, char* argv[])
             calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
            
             if (_wrank == 0) { 
-                if (run_processing(&processing_params)) {
+                if (run_processing(&processing_stack, &processing_params)) {
                     PRINT0("ERROR: an error occured when running PROCESSING block\n");
                     exit(1); 
                 }
@@ -3329,7 +3421,7 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            if (run_processing(&processing_params)) {
+            if (run_processing(&processing_stack, &processing_params)) {
                 PRINT0("\n");
                 ERROR("failed to execute commands in the PROCESSING block\n");
                 exit(1); 
