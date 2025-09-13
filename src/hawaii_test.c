@@ -39,76 +39,45 @@ typedef struct {
     size_t capacity;
 } Reports;
 
-const char *TEST_NAMES[] = {
-    "empty-processing.conf",
-    "read-cf.conf",
-    "read-sf.conf",
-    "convert-cf-to-sf.conf",
-    "cf-to-sf-argtype.conf",
-    "string-literal.conf",
-    "naked-drop.conf",
-    "naked-dup.conf",
-    "cmp.conf",
-    "fit-baseline-nargs.conf",
-    "average-cfs.conf",
-    "compute-classical-moments.conf",
-    "compute-classical-moments-with-truncation.conf",
-    "compute-classical-moments-nargs.conf",
-    "compute-classical-moments-argname.conf",
-    "compute-classical-moments-argtype.conf",
-    "compute-quantum-moments.conf",
-    "compute-quantum-moments-with-truncation.conf",
-    "compute-quantum-moments-nargs.conf",
-    "compute-quantum-moments-argname.conf",
-    "compute-quantum-moments-argtype.conf",
-    "compute-alpha.conf",
-    "desymmetrizations.conf",
-    "d1-argtype-sp.conf",
-    "write-cf.conf",
-    "write-sf.conf",
-    "write-sp.conf",
-    "add-spectra.conf",
-    "dup2.conf",
-    "drop2.conf",
-    "smooth.conf",
-};
-#define TEST_COUNT sizeof(TEST_NAMES)/sizeof(TEST_NAMES[0]) 
 
-Status EXPECTED_RUN_STATUS[TEST_COUNT] = {
-    Success,
-    Fail,
-    Fail,
-    Success,
-    Fail,
-    Fail,
-    Fail,
-    Fail,
-    Fail,
-    Fail,
-    Fail,
-    Success,
-    Success,
-    Fail,
-    Fail,
-    Fail,
-    Success,
-    Success,
-    Fail,
-    Fail,
-    Fail,
-    Fail,
-    Success,
-    Fail,
-    Success,
-    Success,
-    Success,
-    Success,
-    Fail,
-    Fail,
-    Success,
+Report EXPECTED_TESTS_STATUS[] = {
+    { .name = "empty-processing.conf",                         .run_status = Success },
+    { .name = "read-cf.conf",                                  .run_status = Fail },
+    { .name = "read-sf.conf",                                  .run_status = Fail },
+    { .name = "convert-cf-to-sf.conf",                         .run_status = Success },
+    { .name = "cf-to-sf-argtype.conf",                         .run_status = Fail },
+    { .name = "string-literal.conf",                           .run_status = Fail },
+    { .name = "naked-drop.conf",                               .run_status = Fail },
+    { .name = "naked-dup.conf",                                .run_status = Fail },
+    { .name = "cmp.conf",                                      .run_status = Fail },
+    { .name = "fit-baseline-nargs.conf",                       .run_status = Fail },
+    { .name = "average-cfs.conf",                              .run_status = Fail },
+    { .name = "compute-classical-moments.conf",                .run_status = Success },
+    { .name = "compute-classical-moments-with-truncation.conf",.run_status = Success },
+    { .name = "compute-classical-moments-nargs.conf",          .run_status = Fail },
+    { .name = "compute-classical-moments-argname.conf",        .run_status = Fail },
+    { .name = "compute-classical-moments-argtype.conf",        .run_status = Fail },
+    { .name = "compute-quantum-moments.conf",                  .run_status = Success },
+    { .name = "compute-quantum-moments-with-truncation.conf",  .run_status = Success },
+    { .name = "compute-quantum-moments-nargs.conf",            .run_status = Fail },
+    { .name = "compute-quantum-moments-argname.conf",          .run_status = Fail },
+    { .name = "compute-quantum-moments-argtype.conf",          .run_status = Fail },
+    { .name = "compute-alpha.conf",                            .run_status = Fail },
+    { .name = "desymmetrizations.conf",                        .run_status = Success },
+    { .name = "d1-argtype-sp.conf",                            .run_status = Fail },
+    { .name = "write-cf.conf",                                 .run_status = Success },
+    { .name = "write-sf.conf",                                 .run_status = Success },
+    { .name = "write-sp.conf",                                 .run_status = Success },
+    { .name = "add-spectra.conf",                              .run_status = Success },
+    { .name = "dup2.conf",                                     .run_status = Fail },
+    { .name = "drop2.conf",                                    .run_status = Fail },
+    { .name = "smooth.conf",                                   .run_status = Success },
+    { .name = "inv-d3.conf",                                   .run_status = Success },
+    { .name = "swap.conf",                                     .run_status = Success },
 };
 
-static_assert(TEST_COUNT == 31, "");
+#define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0]) 
+static_assert(TEST_COUNT == 33, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
@@ -132,7 +101,7 @@ void usage(void)
 bool test_exists(const char *test_name) 
 {
     for (size_t j = 0; j < TEST_COUNT; ++j) {
-        if (strcmp(TEST_NAMES[j], test_name) == 0) return true;
+        if (strcmp(EXPECTED_TESTS_STATUS[j].name, test_name) == 0) return true;
     }
 
     printf("ERROR: test '%s' is not found\n", test_name);
@@ -147,7 +116,7 @@ void collect_test_reports(Reports *reports)
     String_Builder out_filename_content = {0};
 
     for (size_t i = 0; i < TEST_COUNT; ++i) {
-        const char *test_name = TEST_NAMES[i];
+        const char *test_name = EXPECTED_TESTS_STATUS[i].name;
         Report report = {
             .name = strdup(test_name),
             .run_status = run_test(&cmd, test_name),
@@ -215,7 +184,7 @@ int main(int argc, char *argv[])
                 Report *report = &reports.items[i];
                 printf("%2zu \t%-40s\t", i+1, report->name);
 
-                if (report->run_status == EXPECTED_RUN_STATUS[i]) {
+                if (report->run_status == EXPECTED_TESTS_STATUS[i].run_status) {
                     printf("\e[32m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
                 } else {
                     printf("\e[31m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
