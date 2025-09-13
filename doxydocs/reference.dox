@@ -96,20 +96,23 @@
  * <tr><td>#56</td><td>@ref subsec_cmp</td></tr>
  * <tr><td>#57</td><td>@ref subsec_dup</td></tr>
  * <tr><td>#58</td><td>@ref subsec_dup2</td></tr>
- * <tr><td>#59</td><td>@ref subsec_drop</td></tr>
- * <tr><td>#60</td><td>@ref subsec_drop2</td></tr>
- * <tr><td>#61</td><td>@ref subsec_fit_baseline</td></tr>
- * <tr><td>#62</td><td>@ref subsec_average_cfs</td></tr>
- * <tr><td>#63</td><td>@ref subsec_compute_mn_classical_detailed_balance</td></tr>
- * <tr><td>#64</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
- * <tr><td>#65</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
- * <tr><td>#66</td><td>@ref subsec_int3</td></tr>
- * <tr><td>#67</td><td>@ref subsec_alpha</td></tr>
- * <tr><td>#68</td><td>@ref subsec_d1</td></tr>
- * <tr><td>#69</td><td>@ref subsec_d2</td></tr>
- * <tr><td>#70</td><td>@ref subsec_d3</td></tr>
- * <tr><td>#71</td><td>@ref subsec_d4</td></tr>
- * <tr><td>#72</td><td>@ref subsec_d4a</td></tr>
+ * <tr><td>#59</td><td>@ref subsec_swap</td></tr>
+ * <tr><td>#60</td><td>@ref subsec_rot</td></tr>
+ * <tr><td>#61</td><td>@ref subsec_drop</td></tr>
+ * <tr><td>#62</td><td>@ref subsec_drop2</td></tr>
+ * <tr><td>#63</td><td>@ref subsec_fit_baseline</td></tr>
+ * <tr><td>#64</td><td>@ref subsec_average_cfs</td></tr>
+ * <tr><td>#65</td><td>@ref subsec_compute_mn_classical_detailed_balance</td></tr>
+ * <tr><td>#66</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
+ * <tr><td>#67</td><td>@ref subsec_compute_mn_quantum_detailed_balance</td></tr>
+ * <tr><td>#68</td><td>@ref subsec_int3</td></tr>
+ * <tr><td>#69</td><td>@ref subsec_alpha</td></tr>
+ * <tr><td>#70</td><td>@ref subsec_d1</td></tr>
+ * <tr><td>#71</td><td>@ref subsec_d2</td></tr>
+ * <tr><td>#72</td><td>@ref subsec_d3</td></tr>
+ * <tr><td>#73</td><td>@ref subsec_d4</td></tr>
+ * <tr><td>#74</td><td>@ref subsec_d4a</td></tr>
+ * <tr><td>#73</td><td>@ref subsec_inv_d3</td></tr>
  * <tr><td>#73</td><td>@ref subsec_add_spectra</td></tr>
  * <tr><td>#74</td><td>@ref subsec_smooth</td></tr>
  * <tr><td>#75</td><td>@ref subsec_write_cf</td></tr>
@@ -220,6 +223,16 @@
  * @copybrief execute_dup2
  * @copydetails execute_dup2
  *
+ * @subsection subsec_swap `SWAP` 
+ * (See @ref execute_swap)
+ * @copybrief execute_swap
+ * @copydetails execute_swap
+ *
+ * @subsection subsec_rot `ROT` 
+ * (See @ref execute_rot)
+ * @copybrief execute_rot
+ * @copydetails execute_rot
+ *
  * @subsection subsec_drop `DROP` 
  * (See @ref execute_drop)
  * @copybrief execute_drop 
@@ -294,6 +307,11 @@
  * (See @ref execute_D4a)
  * @copybrief execute_D4a
  * @copydetails execute_D4a
+ *
+ * @subsection subsec_inv_d3 `INV_D3` 
+ * (See @ref execute_inv_d3)
+ * @copybrief execute_inv_d3
+ * @copydetails execute_inv_d3
  *
  * @subsection subsec_write_cf `WRITE_CF` 
  * @copybrief execute_write_cf
