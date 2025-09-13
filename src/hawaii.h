@@ -651,12 +651,14 @@ Spectrum compute_alpha(SFnc sf);
 
 SFnc desymmetrize_d1(SFnc sf); 
 SFnc desymmetrize_d2(SFnc sf); 
-SFnc desymmetrize_schofield(SFnc sf); 
+SFnc desymmetrize_schofield_sf(SFnc sf); 
+Spectrum desymmetrize_schofield_sp(Spectrum sp); 
 SFnc desymmetrize_egelstaff(SFnc sf);
 SFnc desymmetrize_egelstaff_from_cf(CFnc cf);
 SFnc desymmetrize_frommhold(SFnc sf);
 SFnc desymmetrize_frommhold_from_cf(CFnc cf);
 CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
+Spectrum inv_desymmetrize_schofield(Spectrum sp);
 
 double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
 

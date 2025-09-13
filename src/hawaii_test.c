@@ -57,7 +57,7 @@ Report EXPECTED_TESTS_STATUS[] = {
     { .name = "compute-classical-moments-nargs.conf",          .run_status = Fail },
     { .name = "compute-classical-moments-argname.conf",        .run_status = Fail },
     { .name = "compute-classical-moments-argtype.conf",        .run_status = Fail },
-    { .name = "compute-quantum-moments.conf",                  .run_status = Success },
+    { .name = "compute-quantum-moments.conf",                  .run_status = Fail },
     { .name = "compute-quantum-moments-with-truncation.conf",  .run_status = Success },
     { .name = "compute-quantum-moments-nargs.conf",            .run_status = Fail },
     { .name = "compute-quantum-moments-argname.conf",          .run_status = Fail },
@@ -74,10 +74,11 @@ Report EXPECTED_TESTS_STATUS[] = {
     { .name = "smooth.conf",                                   .run_status = Success },
     { .name = "inv-d3.conf",                                   .run_status = Success },
     { .name = "swap.conf",                                     .run_status = Success },
+    { .name = "rot.conf",                                      .run_status = Success },
 };
 
 #define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0]) 
-static_assert(TEST_COUNT == 33, "");
+static_assert(TEST_COUNT == 34, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));

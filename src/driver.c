@@ -18,8 +18,6 @@
 
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
-// TODO: do we need to store the result NUMBERs on stack, for example, spectral moments?
-// TODO: do we need SWAP operation on the stack elements? 
 // TODO: do we need OVER operation on the stack elements? 
 //
 // TODO: investigate a normalization issue within
@@ -417,6 +415,7 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_SF", // tests (+), docs (+)
     "WRITE_SPECTRUM", // tests (+), docs (+)
     "WRITE_FLOAT",
+    "PRINT",
     "CF_TO_SF", // docs (+), tests (+)
     "ADD_SPECTRA", // tests (+), docs (+)
     "FIT_BASELINE", // tests (+), docs (+), is name descriptive enough?
@@ -429,9 +428,12 @@ static const char *AVAILABLE_FUNCS[] = {
     "D3", // docs (+), tests (+)
     "D4",  // docs (+), tests (+)
     "D4a",  // docs (+), tests (+)
+    "INV_D3", // tests (+) 
     "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
     "DUP2", // docs (+), tests (+) 
+    "SWAP", // tests (+) 
+    "ROT", // tests (+)
     "CMP", // docs (+), tests (+)
     "DROP", // docs (+), tests (+)
     "DROP2", // docs (+), tests (+)
@@ -748,15 +750,16 @@ bool get_token(Lexer *l) {
        
         // NOTE: this allows only for one-line strings
         // do not see the use for multi-line strings for now 
-        for (c = peek_char(l); (c != '\0') && (c != '"'); c = peek_char(l)) {
+        for (c = peek_char(l); (c != '\0') && (c != '"') && (c != '\n'); c = peek_char(l)) {
             da_append(&(*l).string_storage, c);
             skip_char(l);
         }
         
         if (c != '"') {
-            PRINT0("ERROR: %s:%d:%d: unfinished string literal\n", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
+            ERROR("%s:%d:%d: unfinished string literal", l->loc.input_path, l->loc.line_number, l->loc.line_offset);
             exit(1);
         }
+
         skip_char(l); // consume finishing '"'
         da_append(&(*l).string_storage, 0);
     }
@@ -1337,7 +1340,7 @@ void parse_monomer_block(Lexer *l, Monomer *m)
 
 void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type typ, Loc *loc); 
 
-void parse_processing_block(Lexer *l, Processing_Stack *stack, Processing_Params *processing_params) 
+void parse_processing_block(Lexer *l, Processing_Params *processing_params) 
 {
     while (true) {
         get_token(l);
@@ -1350,9 +1353,17 @@ void parse_processing_block(Lexer *l, Processing_Stack *stack, Processing_Params
 
         switch (l->token_type) {
         case TOKEN_FLOAT: {
-            double *double_number = malloc(1*sizeof(double));
-            *double_number = l->double_number;
-            stack_push_with_type(stack, (void*) double_number, STACK_ITEM_FLOAT, &l->loc);
+            Funcall f = {
+                .name = "PUSH_FLOAT",
+                .loc = l->loc, 
+            };
+            Funcall_Argument arg = {
+                .typ = FUNCALL_ARGUMENT_FLOAT,
+                .double_number = l->double_number,
+                .value_loc = l->loc,
+            };
+            da_append(&f.args, arg);
+            da_append(&processing_params->fs, f);
         } break; 
 
         case TOKEN_KEYWORD: {
@@ -1471,7 +1482,7 @@ void parse_processing_block(Lexer *l, Processing_Stack *stack, Processing_Params
     }
 } 
 
-void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Monomer *m1, Monomer *m2, Processing_Stack *processing_stack, Processing_Params *processing_params)
+void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Monomer *m1, Monomer *m2, Processing_Params *processing_params)
 {
     size_t monomer_blocks_count = 0;
     Monomer *m = m1;
@@ -1499,7 +1510,7 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
             m = m2;
             monomer_blocks_count++; 
         } else if (strcasecmp(l->string_storage.items, "&PROCESSING") == 0) {
-            parse_processing_block(l, processing_stack, processing_params);
+            parse_processing_block(l, processing_params);
 
         } else {
             PRINT0("ERROR: %s:%d:%d: found unknown block name '%s'\n",
@@ -1554,7 +1565,6 @@ void stack_push_with_type(Processing_Stack *stack, void *item, Stack_Item_Type t
     } break;
     case STACK_ITEM_FLOAT: {
         memcpy(&tagged_item.item.double_number, item, sizeof(double));
-        free(item); 
     } break;
     }
     
@@ -1835,7 +1845,7 @@ bool execute_cf_to_sf(Funcall *func, Processing_Stack *stack)
 
 bool execute_cmp(Funcall *func, Processing_Stack *stack)
 /**
- * @brief CMP compares two top stack elements (CFnc, SFnc, or Spectrum) for equality.
+ * @brief CMP compares two top stack elements (CFnc, SFnc, Spectrum or Floats) for equality.
  *
  * CMP performs a deep comparison of the two toptmost stack elements, checking:
  * - metadata: Temperature, length, trajectory count
@@ -1843,11 +1853,28 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
  *    an absolute threshold is assume, for CF and SF values a relative threshold is
  *    assumed. 
  *
+ * @param reltol Optional: relative tolerance for comparing floats (default: 1e-3)
+ *
  * On failure, an error message is printed detailing the differing fields.
  * The processing_stack's (Processing_Stack) `return_code` is set to the result of CMP.
  */
 {
-    expect_n_funcall_arguments(func, 0);
+    double reltol = 1e-3;
+
+    if (func->args.count > 0) {
+        Funcall_Argument arg = shift_funcall_argument(func);
+        const char *expected_name = "reltol";
+        
+        if ((arg.name != NULL) && (strcasecmp(arg.name, expected_name) != 0)) {
+            ERROR("%s:%d:%d: function call %s expects a named argument '%s' but got '%s'\n",
+                    func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                    func->name, expected_name, arg.name);
+            exit(1); 
+        }
+        
+        expect_float_funcall_argument(func, &arg);
+        reltol = arg.double_number;
+    }
 
     if (stack->count < 2) {
         PRINT0("ERROR: %s:%d:%d: CMP requires at least 2 elements on the stack but found %zu\n",
@@ -1877,7 +1904,23 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
     double freq_abstol = 1e-6; // cm-1
     double value_reltol = 1e-4;
 
-    if (typ1 == STACK_ITEM_CF) {
+    switch (typ1) {
+    case STACK_ITEM_FLOAT: {
+        double double_number1 = tagged_item1.item.double_number;
+        double double_number2 = tagged_item2.item.double_number;
+        double r = fabs(double_number1 - double_number2)/fabs(double_number1);
+
+        if (r > reltol) { 
+            INFO("CMP: comparison between floats failed: %.5e and %.5e differ by %.3f%%, exceeding tolerance %.3f%%\n",
+                 double_number1, double_number2, r*100.0, reltol*100.0);
+            return_defer(false);
+        }
+
+        INFO("CMP: floats considered equal: %.5e and %.5e differ by %.3f%% < tolerance %.3f%%\n",
+             double_number1, double_number2, r*100.0, reltol*100.0);
+        return_defer(true);
+    } break;
+    case STACK_ITEM_CF: {
         CFnc *cf1 = &tagged_item1.item.cf;
         CFnc *cf2 = &tagged_item2.item.cf;
        
@@ -1927,12 +1970,13 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
         
         if (!result) {
             INFO("CMP: comparison returned 'false' (objects are NOT equal)\n");
-            return false;
+            return_defer(result);
         }
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
-        return true;
-    } else if (typ1 == STACK_ITEM_SF) {
+        return_defer(result);
+    } break;
+    case STACK_ITEM_SF: {
         SFnc *sf1 = &tagged_item1.item.sf;
         SFnc *sf2 = &tagged_item2.item.sf;
 
@@ -1986,7 +2030,8 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return_defer(true);
-    } else if (typ1 == STACK_ITEM_SPECTRUM) {
+    } break;
+    case STACK_ITEM_SPECTRUM: {
         Spectrum *sp1 = &tagged_item1.item.sp;
         Spectrum *sp2 = &tagged_item2.item.sp;
 
@@ -2040,6 +2085,8 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
 
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return_defer(true);
+    } break;
+    default: UNREACHABLE("execute_cmp");
     } 
 
 defer:
@@ -2286,10 +2333,10 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
     }
 
     Tagged_Stack_Item *tagged_item = stack_peek_top_with_type(stack);
-    INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
 
     switch (tagged_item->typ) {
     case STACK_ITEM_CF: {
+        INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
         CFnc cf_copy = copy_cfnc(tagged_item->item.cf);
         stack_push(stack, (Tagged_Stack_Item) {
             .item.cf = cf_copy,
@@ -2298,6 +2345,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
         });
     } break;
     case STACK_ITEM_SF: {
+        INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
         SFnc sf_copy = copy_sfnc(tagged_item->item.sf);
         stack_push(stack, (Tagged_Stack_Item) {
                .item.sf = sf_copy,
@@ -2306,6 +2354,7 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
                });
     } break; 
     case STACK_ITEM_SPECTRUM: {
+        INFO("Dupicating %s on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ]);
         Spectrum sp_copy = copy_spectrum(tagged_item->item.sp);
         stack_push(stack, (Tagged_Stack_Item) {
                   .item.sp = sp_copy,
@@ -2314,12 +2363,99 @@ bool execute_dup(Funcall *func, Processing_Stack *stack)
                  });
     } break;
     case STACK_ITEM_FLOAT: {
-        assert(false);
+        double double_number = tagged_item->item.double_number;
+        INFO("Dupicating %s(%.5e) on processing stack\n", STACK_ITEM_TYPES[tagged_item->typ], double_number);
+        stack_push_with_type(stack, (void*) &double_number, STACK_ITEM_FLOAT, &func->loc); 
     } break; 
     }
 
     return true;
 }
+
+bool execute_print(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief PRINT 
+ */
+{
+    if (stack->count == 0) {
+        ERROR("%s:%d:%d: cannot execute PRINT - no elements on stack\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        return false;
+    }
+
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+
+    switch (tagged_item.typ) {
+    case STACK_ITEM_FLOAT: {
+        PRINT0("%s(%.5e)\n",  STACK_ITEM_TYPES[tagged_item.typ], tagged_item.item.double_number); 
+    } break;
+    default: assert(false);
+    }
+
+    return true;
+}
+
+bool execute_rot(Funcall *func, Processing_Stack *stack) 
+/**
+ * @brief ROT rotates the third item to top 
+ *
+ * Schematically presenting the top stack elements: 
+ *    (before) ... a b c -- (after) ... b c a
+ *
+ * Fails if the stack size is less than 3.
+ */
+{
+    if (stack->count < 3) {
+        ERROR("%s:%d:%d: cannot execute ROT - no elements on stack\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        return false;
+    }
+
+    Tagged_Stack_Item c = stack_pop_with_type(stack, func->loc);
+    Tagged_Stack_Item b = stack_pop_with_type(stack, func->loc);
+    Tagged_Stack_Item a = stack_pop_with_type(stack, func->loc);
+
+    stack_push(stack, b);
+    stack_push(stack, c);
+    stack_push(stack, a);
+    
+    INFO("%s %s %s -> %s %s %s\n", 
+         STACK_ITEM_TYPES[a.typ], STACK_ITEM_TYPES[b.typ], STACK_ITEM_TYPES[c.typ], 
+         STACK_ITEM_TYPES[b.typ], STACK_ITEM_TYPES[c.typ], STACK_ITEM_TYPES[a.typ]);
+
+    return true;
+}
+
+
+bool execute_swap(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief SWAP swaps the top element with the one below in the processing stack.
+ *
+ * Schematically presenting the top stack elements: 
+ *    (before) ... a b -- (after) ... b a
+ *
+ * Fails if the stack size is less than 2.
+ */
+{
+    if (stack->count < 2) {
+        ERROR("%s:%d:%d: cannot execute SWAP - no elements on stack\n",
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
+        return false;
+    }
+    
+    Tagged_Stack_Item top = stack_pop_with_type(stack, func->loc); 
+    Tagged_Stack_Item below_top = stack_pop_with_type(stack, func->loc); 
+
+    stack_push(stack, top);
+    stack_push(stack, below_top);
+
+    INFO("%s %s -> %s %s\n", 
+         STACK_ITEM_TYPES[below_top.typ], STACK_ITEM_TYPES[top.typ], 
+         STACK_ITEM_TYPES[top.typ], STACK_ITEM_TYPES[below_top.typ]);
+
+    return true;
+}
+
 
 bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
@@ -2327,7 +2463,8 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
  * detailed balance.
  * 
  * Calculates the n-th order spectral moment from either a correlation function (CFnc) 
- * or spectral function (SFnc) on stack top assuming classical detailed balance.
+ * or spectral function (SFnc) on stack top assuming classical detailed balance. Pushes
+ * the obtained spectral moment on stack.
  *
  * @param n Required: order of spectral moment (passed as integer argument)
  *
@@ -2370,13 +2507,19 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
         }
 
         double Mn = compute_Mn_from_sf_using_classical_detailed_balance(*sf, n);
-        INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn); 
+        INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn);
+    
+        stack_push_with_type(stack, (void*) &Mn, STACK_ITEM_FLOAT, &func->loc);
+
     } else if (tagged_item.typ == STACK_ITEM_CF) {
         CFnc *cf = &tagged_item.item.cf;
 
         double Mn;
         compute_Mn_from_cf_using_classical_detailed_balance(*cf, n, &Mn);
         INFO("Spectral moment using classical detailed balance [based on CF] = %.5e\n", Mn);
+        
+        stack_push_with_type(stack, (void*) &Mn, STACK_ITEM_FLOAT, &func->loc);
+
     } else if (tagged_item.typ == STACK_ITEM_SPECTRUM) {
         ERROR("%s:%d:%d: calculation of the spectral moment using classical detailed balance is not implemented for Spectrum\n",
               func->loc.input_path, func->loc.line_number, func->loc.line_offset);
@@ -2392,7 +2535,7 @@ bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack
  * detailed balance.
  *
  * Calculates the n-th order spectral moment from a spectral function (SFnc) on stack
- * assuming quantum detailed balance.
+ * assuming quantum detailed balance. Pushes the obtained spectral moment on stack.
  *
  * @param n Required: order of spectral moment (passed as integer argument)
  *
@@ -2436,6 +2579,8 @@ bool execute_compute_mn_quantum_detailed_balance(Funcall *func, Processing_Stack
     double Mn = compute_Mn_from_sf_using_quantum_detailed_balance(*sf, n);
     INFO("Spectral moment using quantum detailed balance [based on SF] = %.5e\n", Mn); 
 
+    stack_push_with_type(stack, (void*) &Mn, STACK_ITEM_FLOAT, &func->loc);
+
     return true;
 }
 
@@ -2452,13 +2597,21 @@ void execute_int3(Funcall *func, Processing_Stack *stack)
     PRINT0("BREAKPOINT INTERRUPT ISSUED\n");
     PRINT0("Stack trace:\n");
     _print0_margin = 4;
-    for (size_t i = 0; i < stack->count; ++i) {
+    for (size_t i = 0; i < stack->count; ++i) 
+    {
         Tagged_Stack_Item *stack_item = &stack->items[i];
         Loc *loc = &stack_item->loc;
-        PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
-                loc->input_path, loc->line_number, loc->line_offset);
 
-        if (stack_item->typ == STACK_ITEM_CF) {
+        switch (stack_item->typ) {
+        case STACK_ITEM_FLOAT: {
+            PRINT0("%zu: %s(%.5e) created at %s:%d:%d\n", 
+                    i, STACK_ITEM_TYPES[stack_item->typ], stack_item->item.double_number, 
+                    loc->input_path, loc->line_number, loc->line_offset);
+        } break;
+        case STACK_ITEM_CF: {
+            PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
+                    loc->input_path, loc->line_number, loc->line_offset);
+
             CFnc *cf = &stack_item->item.cf; 
             PRINT0("t           = %p\n", cf->t);
             PRINT0("data        = %p\n", cf->data);
@@ -2467,8 +2620,11 @@ void execute_int3(Funcall *func, Processing_Stack *stack)
             PRINT0("ntraj       = %.6lf\n", cf->ntraj);
             PRINT0("Temperature = %.2lf\n", cf->Temperature);
             PRINT0("normalized  = %d\n\n", cf->normalized); 
+        } break; 
+        case STACK_ITEM_SF: {
+            PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
+                    loc->input_path, loc->line_number, loc->line_offset);
 
-        } else if (stack_item->typ == STACK_ITEM_SF) {
             SFnc *sf = &stack_item->item.sf; 
             PRINT0("nu          = %p\n", sf->nu);
             PRINT0("data        = %p\n", sf->data);
@@ -2477,8 +2633,11 @@ void execute_int3(Funcall *func, Processing_Stack *stack)
             PRINT0("ntraj       = %.6lf\n", sf->ntraj);
             PRINT0("Temperature = %.2lf\n", sf->Temperature);
             PRINT0("normalized  = %d\n\n", sf->normalized);
+        } break;
+        case STACK_ITEM_SPECTRUM: {
+            PRINT0("%zu: %s created at %s:%d:%d\n", i, STACK_ITEM_TYPES[stack_item->typ], 
+                    loc->input_path, loc->line_number, loc->line_offset);
 
-        } else if (stack_item->typ == STACK_ITEM_SPECTRUM) {
             Spectrum *sp = &stack_item->item.sp;
             PRINT0("nu          = %p\n", sp->nu);
             PRINT0("data        = %p\n", sp->data);
@@ -2487,6 +2646,7 @@ void execute_int3(Funcall *func, Processing_Stack *stack)
             PRINT0("ntraj       = %.6lf\n", sp->ntraj);
             PRINT0("Temperature = %.2lf\n", sp->Temperature);
             PRINT0("normalized  = %d\n\n", sp->normalized); 
+        } break;
         } 
     }
 }
@@ -2701,20 +2861,51 @@ bool execute_D2(Funcall *func, Processing_Stack *stack)
 
 bool execute_D3(Funcall *func, Processing_Stack *stack)
 /**
- * @brief Applies D3 desymmetrization to the spectral function (SFnc) on the 
+ * @brief Applies D3 desymmetrization to the spectral function (SFnc) or spectrum (Spectrum)
+ * on the top of the stack.
+ */ 
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_one_of_items_on_stack(&func->loc, &tagged_item, 2, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
+
+    switch (tagged_item.typ) {
+    case STACK_ITEM_SF: {
+        SFnc sf = tagged_item.item.sf;
+        SFnc sfd3 = desymmetrize_schofield_sf(sf);
+        free_sfnc(sf);
+
+        stack_push_with_type(stack, (void*) &sfd3, STACK_ITEM_SF, &func->loc);
+    } break;
+
+    case STACK_ITEM_SPECTRUM: {
+        Spectrum sp = tagged_item.item.sp;
+        Spectrum spd3 = desymmetrize_schofield_sp(sp);
+        free_spectrum(sp);
+
+        stack_push_with_type(stack, (void*) &spd3, STACK_ITEM_SPECTRUM, &func->loc);
+    } break;
+
+    default: UNREACHABLE("execute_D3");
+    } 
+    return true; 
+}
+
+bool execute_inv_D3(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief Applies inverse of D3 desymmetrization to the spectrum (Spectrum) on the 
  * top of the stack.
  */ 
 // TODO: allow expecting SF or Spectrum
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM);
 
-    SFnc *sf = &tagged_item.item.sf;
-    SFnc sfd3 = desymmetrize_schofield(*sf);
-    free_sfnc(*sf);
+    Spectrum *sp = &tagged_item.item.sp;
+    Spectrum invsp = inv_desymmetrize_schofield(*sp);
+    free_spectrum(*sp);
 
-    stack_push_with_type(stack, (void*) &sfd3, STACK_ITEM_SF, &func->loc);
-    return true; 
+    stack_push_with_type(stack, (void*) &invsp, STACK_ITEM_SPECTRUM, &func->loc);
+    return true;
 }
 
 bool execute_D4(Funcall *func, Processing_Stack *stack)
@@ -2874,6 +3065,18 @@ bool execute_write_float(Funcall *func, Processing_Stack *stack)
     return true; 
 }
 
+bool execute_push_float(Funcall *func, Processing_Stack *stack) 
+{
+    expect_n_funcall_arguments(func, 1); 
+    Funcall_Argument arg = shift_funcall_argument(func);
+    expect_float_funcall_argument(func, &arg);
+
+    stack_push_with_type(stack, (void*) &arg.double_number, STACK_ITEM_FLOAT, &arg.value_loc);
+    INFO("Pushing FLOAT(%.5e)\n", arg.double_number);
+
+    return true;
+}
+
 
 bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
@@ -3027,8 +3230,10 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
-int run_processing(Processing_Stack *stack, Processing_Params *processing_params) 
+int run_processing(Processing_Params *processing_params) 
 {
+    Processing_Stack stack = {0};
+
     int result = 0;
 
     for (size_t pc = 0; pc < processing_params->fs.count; ++pc) {
@@ -3040,83 +3245,98 @@ int run_processing(Processing_Stack *stack, Processing_Params *processing_params
         _print0_margin = 2;
 
         if (strcasecmp(funcname, "READ_CF") == 0) {
-            if (!execute_read_cf(func, stack)) return_defer(1);
+            if (!execute_read_cf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SF") == 0) {
-            if (!execute_read_sf(func, stack)) return_defer(1);
+            if (!execute_read_sf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "READ_SPECTRUM") == 0) {
-            if (!execute_read_spectrum(func, stack)) return_defer(1); 
+            if (!execute_read_spectrum(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CF_TO_SF") == 0) {
-            if (!execute_cf_to_sf(func, stack)) return_defer(1); 
+            if (!execute_cf_to_sf(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "CMP") == 0) {
-            stack->return_code = !execute_cmp(func, stack);
+            stack.return_code = !execute_cmp(func, &stack);
 
         } else if (strcasecmp(funcname, "DROP") == 0) {
-            if (!execute_drop(func, stack)) return_defer(1);
+            if (!execute_drop(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "DROP2") == 0) {
-            if (!execute_drop2(func, stack)) return_defer(1);
+            if (!execute_drop2(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "FIT_BASELINE") == 0) {
-            if (!execute_fit_baseline(func, stack)) return_defer(1); 
+            if (!execute_fit_baseline(func, &stack)) return_defer(1); 
         
         } else if (strcasecmp(funcname, "AVERAGE_CFS") == 0) {
-            if (!execute_average_cfs(func, stack)) return_defer(1); 
+            if (!execute_average_cfs(func, &stack)) return_defer(1); 
 
         } else if (strcasecmp(funcname, "DUP") == 0) {
-            if (!execute_dup(func, stack)) return_defer(1);
+            if (!execute_dup(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "DUP2") == 0) {
-            if (!execute_dup2(func, stack)) return_defer(1);
+            if (!execute_dup2(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "SWAP") == 0) {
+            if (!execute_swap(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "ROT") == 0) {
+            if (!execute_rot(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "PRINT") == 0) {
+            if (!execute_print(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_classical_detailed_balance(func, stack, processing_params)) return_defer(1);
+            if (!execute_compute_mn_classical_detailed_balance(func, &stack, processing_params)) return_defer(1);
         
         } else if (strcasecmp(funcname, "COMPUTE_Mn_QUANTUM_DETAILED_BALANCE") == 0) {
-            if (!execute_compute_mn_quantum_detailed_balance(func, stack, processing_params)) return_defer(1);
+            if (!execute_compute_mn_quantum_detailed_balance(func, &stack, processing_params)) return_defer(1);
 
         } else if (strcasecmp(funcname, "INT3") == 0) {
-            execute_int3(func, stack);
+            execute_int3(func, &stack);
             return_defer(1);
 
         } else if (strcasecmp(funcname, "ADD_SPECTRA") == 0) {
-            if (!execute_add_spectra(func, stack)) return_defer(1);
+            if (!execute_add_spectra(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "ALPHA") == 0) {
-            if (!execute_alpha(func, stack)) return_defer(1);
+            if (!execute_alpha(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D1") == 0) {
-            if (!execute_D1(func, stack)) return_defer(1);
+            if (!execute_D1(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D2") == 0) {
-            if (!execute_D2(func, stack)) return_defer(1);
+            if (!execute_D2(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
-            if (!execute_D3(func, stack)) return_defer(1);
+            if (!execute_D3(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4") == 0) {
-            if (!execute_D4(func, stack)) return_defer(1);
+            if (!execute_D4(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4a") == 0) {
-            if (!execute_D4a(func, stack)) return_defer(1);
+            if (!execute_D4a(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "INV_D3") == 0) {
+            if (!execute_inv_D3(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "SMOOTH") == 0) {
-            if (!execute_smooth(func, stack)) return_defer(1);
+            if (!execute_smooth(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            if (!execute_write_cf(func, stack)) return_defer(1);
+            if (!execute_write_cf(func, &stack)) return_defer(1);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            if (!execute_write_sf(func, stack)) return_defer(1);
+            if (!execute_write_sf(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            if (!execute_write_spectrum(func, stack, processing_params)) return_defer(1);
+            if (!execute_write_spectrum(func, &stack, processing_params)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_FLOAT") == 0) {
-            if (!execute_write_float(func, stack)) return_defer(1);
+            if (!execute_write_float(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "PUSH_FLOAT") == 0) {
+            if (!execute_push_float(func, &stack)) return_defer(1);
 
         } else {
             PRINT0("\n\n");
@@ -3129,29 +3349,29 @@ int run_processing(Processing_Stack *stack, Processing_Params *processing_params
         _print0_margin = 0;
     }
 
-    if (stack->count > 0) {
+    if (stack.count > 0) {
         PRINT0("\n\n");
         PRINT0("WARNING: Stack is not empty at the end of processing.\n");
         PRINT0("  Stack trace:\n");
-        for (size_t i = 0; i < stack->count; ++i) {
-            Tagged_Stack_Item *titem = &stack->items[i];
+        for (size_t i = 0; i < stack.count; ++i) {
+            Tagged_Stack_Item *titem = &stack.items[i];
             Loc *loc = &titem->loc;
 
-            switch (stack->items[i].typ) {
+            switch (stack.items[i].typ) {
             case STACK_ITEM_CF: {
                 PRINT0("    %zu: %s created at %s:%d:%d\n", 
                        i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
-                free_cfnc(stack->items[i].item.cf); 
+                free_cfnc(stack.items[i].item.cf); 
             } break;
             case STACK_ITEM_SF: {
                 PRINT0("    %zu: %s created at %s:%d:%d\n", 
                        i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
-                free_sfnc(stack->items[i].item.sf); 
+                free_sfnc(stack.items[i].item.sf); 
             } break;
             case STACK_ITEM_SPECTRUM: {
                 PRINT0("    %zu: %s created at %s:%d:%d\n", 
                        i, STACK_ITEM_TYPES[titem->typ], loc->input_path, loc->line_number, loc->line_offset);
-                free_spectrum(stack->items[i].item.sp); 
+                free_spectrum(stack.items[i].item.sp); 
             } break;
             case STACK_ITEM_FLOAT: {
                 PRINT0("    %zu: %s(%.5e) created at %s:%d:%d\n",
@@ -3163,7 +3383,7 @@ int run_processing(Processing_Stack *stack, Processing_Params *processing_params
         return 1; 
     }
 
-    return stack->return_code; 
+    return stack.return_code; 
 
 defer:
     _print0_margin = 0;
@@ -3320,8 +3540,7 @@ int main(int argc, char* argv[])
     Monomer monomer2  = {0};
     CalcParams calc_params = {0};
     Processing_Params processing_params = {0};
-    Processing_Stack processing_stack = {0};
-    parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_stack, &processing_params);
+    parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
     
     if (*debug) {
@@ -3368,7 +3587,7 @@ int main(int argc, char* argv[])
             calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
            
             if (_wrank == 0) { 
-                if (run_processing(&processing_stack, &processing_params)) {
+                if (run_processing(&processing_params)) {
                     PRINT0("ERROR: an error occured when running PROCESSING block\n");
                     exit(1); 
                 }
@@ -3421,7 +3640,7 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            if (run_processing(&processing_stack, &processing_params)) {
+            if (run_processing(&processing_params)) {
                 PRINT0("\n");
                 ERROR("failed to execute commands in the PROCESSING block\n");
                 exit(1); 

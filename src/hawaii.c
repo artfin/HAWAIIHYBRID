@@ -5693,13 +5693,13 @@ SFnc idct_cf_to_sf(CFnc cf)
 }
 */
 
-SFnc desymmetrize_schofield(SFnc sf) 
+SFnc desymmetrize_schofield_sf(SFnc sf) 
 {
     SFnc sfd = {
         .nu          = (double*) malloc(sf.len * sizeof(double)),
         .data        = (double*) malloc(sf.len * sizeof(double)),
         .len         = sf.len,
-        .capacity    = sf.capacity,
+        .capacity    = sf.len,
         .ntraj       = sf.ntraj,
         .Temperature = sf.Temperature,
         .normalized  = sf.normalized,
@@ -5713,6 +5713,50 @@ SFnc desymmetrize_schofield(SFnc sf)
     }
 
     return sfd;
+}
+
+Spectrum desymmetrize_schofield_sp(Spectrum sp) 
+{
+    Spectrum spd = {
+        .nu          = (double*) malloc(sp.len * sizeof(double)),
+        .data        = (double*) malloc(sp.len * sizeof(double)),
+        .len         = sp.len,
+        .capacity    = sp.len,
+        .ntraj       = sp.ntraj,
+        .Temperature = sp.Temperature,
+        .normalized  = sp.normalized,
+    };
+
+    memcpy(spd.nu, sp.nu, sp.len * sizeof(double));
+
+    for (size_t i = 0; i < sp.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * sp.Temperature);
+        spd.data[i] = sp.data[i] * exp(hnukt / 2.0);
+    }
+
+    return spd;
+}
+
+Spectrum inv_desymmetrize_schofield(Spectrum sp)
+{
+    Spectrum invsp = {
+        .nu          = (double*) malloc(sp.len * sizeof(double)),
+        .data        = (double*) malloc(sp.len * sizeof(double)),
+        .len         = sp.len,
+        .capacity    = sp.len,
+        .ntraj       = sp.ntraj,
+        .Temperature = sp.Temperature,
+        .normalized  = sp.normalized,
+    };
+
+    memcpy(invsp.nu, sp.nu, sp.len * sizeof(double));
+
+    for (size_t i = 0; i < sp.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * sp.Temperature);
+        invsp.data[i] = sp.data[i] / exp(hnukt / 2.0);
+    }
+
+    return invsp;
 }
 
 SFnc desymmetrize_d1(SFnc sf) 
@@ -5835,7 +5879,7 @@ SFnc desymmetrize_frommhold(SFnc sf)
 
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
-    return desymmetrize_schofield(sf_egf);
+    return desymmetrize_schofield_sf(sf_egf);
 }
 
 SFnc desymmetrize_egelstaff_from_cf(CFnc cf)
@@ -5856,7 +5900,7 @@ SFnc desymmetrize_egelstaff_from_cf(CFnc cf)
 
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
-    return desymmetrize_schofield(sf_egf);
+    return desymmetrize_schofield_sf(sf_egf);
 }
 
 SFnc desymmetrize_frommhold_from_cf(CFnc cf)
@@ -5877,7 +5921,7 @@ SFnc desymmetrize_frommhold_from_cf(CFnc cf)
 
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
-    return desymmetrize_schofield(sf_egf);
+    return desymmetrize_schofield_sf(sf_egf);
 }
 
 SFnc desymmetrize_egelstaff(SFnc sf)
@@ -5898,7 +5942,7 @@ SFnc desymmetrize_egelstaff(SFnc sf)
 
     SFnc sf_egf = idct_cf_to_sf(cf_egf);
 
-    return desymmetrize_schofield(sf_egf);
+    return desymmetrize_schofield_sf(sf_egf);
 }
 
 Spectrum compute_alpha(SFnc sf) 
