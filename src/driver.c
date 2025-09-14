@@ -16,6 +16,11 @@
 #define FLAG_IMPLEMENTATION
 #include "flag.h"
 
+#include <gsl/gsl_integration.h>
+
+#define CSPLINE_IMPLEMENTATION
+#include "cspline.h"
+
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
 // TODO: do we need OVER operation on the stack elements? 
@@ -2456,6 +2461,42 @@ bool execute_swap(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
+typedef struct {
+    CSpline *spline;
+    double T;
+} Mn_Integrand_Params;
+
+double m0_integrand(double nu, void *params) {
+    Mn_Integrand_Params* integrand_params = (Mn_Integrand_Params*) params; 
+    CSpline *spl = integrand_params->spline;
+    double T = integrand_params->T;
+        
+    double hnukt = Planck * LightSpeed_cm * nu / (Boltzmann * T);
+
+    double spval;
+    if (!cspline_eval(spl, nu, &spval)) {
+        PRINT0("Spline evaluation failed for nu = %.5e\n", nu);
+        exit(1);
+    }
+
+    return spval / nu / (1.0 - exp(-hnukt)); 
+}
+
+double m2_integrand(double nu, void *params) {
+    Mn_Integrand_Params* integrand_params = (Mn_Integrand_Params*) params; 
+    CSpline *spl = integrand_params->spline;
+    double T = integrand_params->T;
+    
+    double hnukt = Planck * LightSpeed_cm * nu / (Boltzmann * T);
+
+    double spval;
+    if (!cspline_eval(spl, nu, &spval)) {
+        printf("Spline evaluation failed\n");
+        exit(1);
+    }
+
+    return spval * nu / (1.0 - exp(-hnukt)); 
+}
 
 bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
 /**
@@ -2476,7 +2517,7 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
     expect_n_funcall_arguments(func, 1);
 
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_one_of_items_on_stack(&func->loc, &tagged_item, 2, STACK_ITEM_CF, STACK_ITEM_SF);
+    expect_one_of_items_on_stack(&func->loc, &tagged_item, 3, STACK_ITEM_CF, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
 
     int n;
     {
@@ -2494,7 +2535,8 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
 
     INFO("Spectral moment order: n = %d\n", n); 
 
-    if (tagged_item.typ == STACK_ITEM_SF) {
+    switch (tagged_item.typ) {
+    case STACK_ITEM_SF: {
         SFnc *sf = &tagged_item.item.sf;
 
         if (processing_params->spectrum_frequency_max > 0) {
@@ -2510,8 +2552,8 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
         INFO("Spectral moment using classical detailed balance [based on SF] = %.5e\n", Mn);
     
         stack_push_with_type(stack, (void*) &Mn, STACK_ITEM_FLOAT, &func->loc);
-
-    } else if (tagged_item.typ == STACK_ITEM_CF) {
+    } break;
+    case STACK_ITEM_CF: {
         CFnc *cf = &tagged_item.item.cf;
 
         double Mn;
@@ -2520,10 +2562,80 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
         
         stack_push_with_type(stack, (void*) &Mn, STACK_ITEM_FLOAT, &func->loc);
 
-    } else if (tagged_item.typ == STACK_ITEM_SPECTRUM) {
-        ERROR("%s:%d:%d: calculation of the spectral moment using classical detailed balance is not implemented for Spectrum\n",
-              func->loc.input_path, func->loc.line_number, func->loc.line_offset);
-        return false; 
+    } break; 
+    case STACK_ITEM_SPECTRUM: {
+        Spectrum *sp = &tagged_item.item.sp;
+            
+        INFO("Using clamped spline for approximating spectral profile (zero derivative on both boundaries)\n"); 
+
+        double left_deriv = 0.0;
+        double right_deriv = 0.0;
+        CSpline* spl = cspline_init(sp->nu, sp->data, sp->len, left_deriv, right_deriv); 
+
+        /* spline interpolation */
+        Mn_Integrand_Params params = {
+            .spline = spl,
+            .T = sp->Temperature,
+        };
+        
+        double nu_min = 0.0; 
+        double nu_max = sp->nu[sp->len - 1]; 
+       
+        gsl_integration_cquad_workspace *w = gsl_integration_cquad_workspace_alloc(1000);
+
+        double result, error;
+        size_t nevals;
+
+        switch (n) {
+        case 0: {
+            gsl_function F = {
+               .function = &m0_integrand,
+               .params = &params,
+            };
+
+            double relerr = 1e-5;
+
+            gsl_integration_cquad(&F, nu_min, nu_max, 0, relerr, w, &result, &error, &nevals);
+
+            double M0 = 2.0 * result;
+            double M0err = 2.0 * error;
+
+            INFO("Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
+            INFO("Integrand evaluated %zu times\n", nevals);
+            INFO("M0 = %.5e +/- %.5e\n", M0, M0err);
+
+            stack_push_with_type(stack, (void*) &M0, STACK_ITEM_FLOAT, &func->loc);
+       } break;
+       case 2: {
+            gsl_integration_cquad_workspace *w = gsl_integration_cquad_workspace_alloc(1000);
+
+            gsl_function F = {
+               .function = &m2_integrand,
+               .params = &params,
+            };
+
+            double relerr = 1e-7;
+            gsl_integration_cquad(&F, nu_min, nu_max, 0, relerr, w, &result, &error, &nevals);
+
+            double M2 = 2.0 * result;
+            double M2err = 2.0 * error;
+
+            INFO("Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
+            INFO("Integrand evaluated %zu times\n", nevals);
+            INFO("M2 = %.5e +/- %.5e\n", M2, M2err);
+            
+            stack_push_with_type(stack, (void*) &M2, STACK_ITEM_FLOAT, &func->loc);
+       } break;
+
+       default: ERROR("Calculating spectral moment from profile is not implemented for n = %d\n", n);
+       } 
+
+        cspline_free(params.spline);
+
+        gsl_integration_cquad_workspace_free(w);
+
+    } break;
+    default: UNREACHABLE("execute_compute_mn_classical_detailed_balance");
     }
 
     return true;
@@ -2901,6 +3013,13 @@ bool execute_inv_D3(Funcall *func, Processing_Stack *stack)
     expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM);
 
     Spectrum *sp = &tagged_item.item.sp;
+
+    if (sp->Temperature <= 0.0) {
+        ERROR("%s:%d:%d: cannot perform inverse D3 at T = %.3e\n", 
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset, sp->Temperature);
+        exit(1); 
+    }
+
     Spectrum invsp = inv_desymmetrize_schofield(*sp);
     free_spectrum(*sp);
 
@@ -3051,7 +3170,11 @@ bool execute_write_float(Funcall *func, Processing_Stack *stack)
 
     // TODO: should we apply renaming strategy in case when we are overwriting an existing file? 
     FILE *fp = fopen(filename, mode);
-
+    
+    //printf("format_str:\n");
+    //for (int i = 0; format_str[i] != '\0'; i++) {
+    //    printf("%c\n", format_str[i]);
+    //} 
     size_t nchars = fprintf(fp, format_str, double_number);
 
     fclose(fp); 
