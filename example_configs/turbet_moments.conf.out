@@ -1,0 +1,53 @@
+*****************************************************
+*********** HAWAII HYBRID v0.1 **********************
+*****************************************************
+Loaded configuration file: turbet_moments.conf
+&INPUT
+    CALCULATION_TYPE = PROCESSING
+&END
+
+&PROCESSING
+    READ_SPECTRUM("MT_CH4_CO2/Turbet2020/Turbet2020-200.0K.txt")
+      
+    INV_D3()
+    DUP()
+      COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE(n = 0)
+      WRITE_FLOAT("Turbet2020-moments.txt", "a", "200.0 %.6e ")
+      
+      COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE(n = 2)
+      WRITE_FLOAT("Turbet2020-moments.txt", "a", "%.6e")
+&END
+
+
+[1] READ_SPECTRUM
+  INFO: Reading spectrum from MT_CH4_CO2/Turbet2020/Turbet2020-200.0K.txt
+  INFO: # of lines in header: 1
+  WARNING: no match found for pattern '# AVERAGE OVER ([0-9]+\.[0-9]+) TRAJECTORIES' in header
+  INFO: captured temperature: 200.000000
+
+[2] INV_D3
+
+[3] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[4] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Using clamped spline for approximating spectral profile (zero derivative on both boundaries)
+  INFO: Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree
+  INFO: Integrand evaluated 505 times
+  INFO: M0 = 8.61048e-04 +/- 8.36048e-09
+
+[5] WRITE_FLOAT
+  INFO: Appended 19 characters to 'Turbet2020-moments.txt'
+
+[6] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 2
+  INFO: Using clamped spline for approximating spectral profile (zero derivative on both boundaries)
+  INFO: Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree
+  INFO: Integrand evaluated 3783 times
+  INFO: M2 = 3.79466e+00 +/- 3.67271e-07
+
+[7] WRITE_FLOAT
+  INFO: Appended 12 characters to 'Turbet2020-moments.txt'
+
+INFO: PROCESSING block run successfully
