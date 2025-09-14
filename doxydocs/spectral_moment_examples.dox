@@ -1,0 +1,15 @@
+/**
+ * @page spectral_moment_examples Examples of calculating spectral moments
+ * @tableofcontents
+ *
+ * @section section_mixed_moment CO-Ar mixed (induced dipole-permanent dipole) spectral moment
+ * @include mixed-moment-CO-Ar.conf 
+ *
+ * @section section_spectral_moment_from_profile Calculating spectral moments from spectral profile
+ * @include turbet_moments.conf 
+ * <details>
+ * <summary>View Output</summary>
+ * @verbinclude turbet_moments.conf.out 
+ * </details>
+ *
+ */

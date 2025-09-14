@@ -1,0 +1,8 @@
+/**
+ * @page misc_examples Miscellaneous examples
+ * @tableofcontents
+ *
+ * @section section_averaging Averaging correlation functions for CH4-CO2
+ * @include averaging-cfs.conf
+ *
+ */

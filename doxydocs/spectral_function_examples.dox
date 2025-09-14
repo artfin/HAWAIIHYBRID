@@ -1,0 +1,11 @@
+/**
+ * @page spectral_function_examples Examples of calculating spectral function
+ * @tableofcontents
+ *
+ * @section section_co_ar_prmu CO-Ar spectral function (permanent dipole) in pr/mu representation applying requantization
+ * @include prmu_co_ar_req+poisson.conf
+ *
+ * @section section_h2_ar_req H2-Ar spectral function (induced dipole) in pr/mu representation applying requantization
+ * @include prmu_h2_ar_requantized.conf
+ *
+ */
