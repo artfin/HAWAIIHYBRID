@@ -17,6 +17,7 @@
 #define DEFAULT_JFIN_HISTOGRAM_MAX  35.0
 
 #define DEFAULT_NSWITCH_HISTOGRAM_FILENAME1 "nswitch.dat.1"
+#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME2 "nswitch.dat.2"
 #define DEFAULT_NSWITCH_HISTOGRAM_BINS 20
 #define DEFAULT_NSWITCH_HISTOGRAM_MAX 20.0
 
@@ -100,6 +101,9 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
     {
         memcpy(&ms.m1, m1, sizeof(Monomer));
         memcpy(&ms.m2, m2, sizeof(Monomer));
+
+        ms.m1.index = 1;
+        ms.m2.index = 2;
     }
 
     PRINT0("    INITIALIZING MOLECULE SYSTEM %s-%s\n", display_monomer_type(ms.m1.t), display_monomer_type(ms.m2.t));
@@ -195,6 +199,7 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
         exit(1);
     }
 
+    ms.m1.index = 1;
     ms.m1.t = t1;
 
     switch (t1) {
@@ -218,7 +223,9 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     ms.m1.qp   = malloc((t1%MODULO_BASE)   * sizeof(double));
     ms.m1.dVdq = malloc((t1%MODULO_BASE)/2 * sizeof(double));
 
+    ms.m2.index = 2;
     ms.m2.t = t2;
+
     switch (t2) {
         case ATOM: break;
         case LINEAR_MOLECULE_REQ_HALFINTEGER:
@@ -332,6 +339,12 @@ void free_ms(MoleculeSystem *ms) {
     if (ms->m2.jini_histogram != NULL)    gsl_histogram_free(ms->m2.jini_histogram);
     if (ms->m2.jfin_histogram != NULL)    gsl_histogram_free(ms->m2.jfin_histogram);
     if (ms->m2.nswitch_histogram != NULL) gsl_histogram_free(ms->m2.nswitch_histogram);
+
+    if (ms->m1.nswitch_histogram_filename != NULL) free(ms->m1.nswitch_histogram_filename);
+    if (ms->m2.nswitch_histogram_filename != NULL) free(ms->m2.nswitch_histogram_filename);
+
+    if (ms->m1.jini_histogram_filename != NULL) free(ms->m1.jini_histogram_filename);
+    if (ms->m2.jini_histogram_filename != NULL) free(ms->m2.jini_histogram_filename);
 
     free(ms->intermediate_q);
     free(ms->dVdq);
@@ -2867,6 +2880,121 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     return ca_total;
 } 
 
+void setup_nswitch_histogram_for_monomer(Monomer *m)
+{
+    if ((m->t != LINEAR_MOLECULE_REQ_INTEGER) && (m->t != LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        INFO("nswitch histogram is not set up for monomer %d (%s)\n\n", m->index, display_monomer_type(m->t)); 
+        return;
+    }
+
+    if (m->nswitch_histogram_bins <= 0) m->nswitch_histogram_bins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
+    if (m->nswitch_histogram_max  <= 0) m->nswitch_histogram_max  = DEFAULT_NSWITCH_HISTOGRAM_MAX;
+
+    if (m->nswitch_histogram_filename == NULL) {
+        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
+        switch (m->index) {
+        case 1: {
+            m->nswitch_histogram_filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME1);
+        } break;
+        case 2: {
+            m->nswitch_histogram_filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME2);
+        } break;
+        default: UNREACHABLE("setup_nswitch_histogram_for_monomer"); 
+        }
+    }
+        
+    PRINT0("Initializing histogram to store number of requantization switches for monomer %d (%s) on individual trajectories within the range"
+            " [%.1e -- %.1e] using %zu bins\n", m->index, display_monomer_type(m->t), 0.0, m->nswitch_histogram_max, m->nswitch_histogram_bins);
+
+    if (strcmp(m->nswitch_histogram_filename, "stdout") == 0) {
+        PRINT0("Outputting the histogram to standard output\n\n");
+        m->fp_nswitch_histogram = stdout;
+    } else {
+        PRINT0("Writing the histogram to %s\n\n", m->nswitch_histogram_filename);
+        m->fp_nswitch_histogram = fopen(m->nswitch_histogram_filename, "w");
+    }
+
+     m->nswitch_histogram = gsl_histogram_alloc(m->nswitch_histogram_bins);
+     gsl_histogram_set_ranges_uniform(m->nswitch_histogram, 0.0, m->nswitch_histogram_max);
+}
+
+void setup_jini_histogram_for_monomer(Monomer *m)
+{
+    if ((m->t != LINEAR_MOLECULE) && (m->t != LINEAR_MOLECULE_REQ_INTEGER) && (m->t != LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        INFO("jini histogram is not set up for monomer %d (%s)\n\n", m->index, display_monomer_type(m->t));
+        return;
+    }
+
+    if (m->jini_histogram_bins <= 0) m->jini_histogram_bins = DEFAULT_JINI_HISTOGRAM_BINS;
+    if (m->jini_histogram_max  <= 0) m->jini_histogram_max  = DEFAULT_JINI_HISTOGRAM_MAX;
+
+    if (m->jini_histogram_filename == NULL) {
+        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
+        switch (m->index) {
+        case 1: {
+            m->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME1);
+        } break;
+        case 2: {
+            m->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME2);
+        } break;
+        default: UNREACHABLE("setup_jini_histogram_for_monomer");
+        }
+    } 
+
+    PRINT0("Initializing histogram to store initial angular momenta values for monomer %d (%s) within the range [%.3e...%.3e] using %zu bins\n",
+            m->index, display_monomer_type(m->t), 0.0, m->jini_histogram_max, m->jini_histogram_bins);
+
+    if (strcmp(m->jini_histogram_filename, "stdout") == 0) {
+        PRINT0("Outputting the histogram to standard output\n\n");
+        m->fp_jini_histogram = stdout;
+    } else {
+        PRINT0("Writing the histogram to %s\n\n", m->jini_histogram_filename);
+        m->fp_jini_histogram = fopen(m->jini_histogram_filename, "w");
+    }
+
+    m->jini_histogram = gsl_histogram_alloc(m->jini_histogram_bins);
+    gsl_histogram_set_ranges_uniform(m->jini_histogram, 0, m->jini_histogram_max);
+}
+
+
+void setup_jfin_histogram_for_monomer(Monomer *m)
+{
+    if ((m->t != LINEAR_MOLECULE) && (m->t != LINEAR_MOLECULE_REQ_INTEGER) && (m->t != LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        INFO("jfin histogram is not set up for monomer %d (%s)\n\n", m->index, display_monomer_type(m->t));
+        return;
+    }
+    
+    if (m->jfin_histogram_bins <= 0) m->jfin_histogram_bins = DEFAULT_JFIN_HISTOGRAM_BINS;
+    if (m->jfin_histogram_max  <= 0) m->jfin_histogram_max  = DEFAULT_JFIN_HISTOGRAM_MAX;
+    
+    if (m->jfin_histogram_filename == NULL) {
+        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
+        switch (m->index) {
+        case 1: {
+            m->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME1);
+        } break;
+        case 2: {
+            m->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME2);
+        } break;
+        default: UNREACHABLE("setup_jfin_histogram_for_monomer");
+        }
+    }
+
+    PRINT0("Initializing histogram to store final angular momenta values for monomer %d (%s) within the range [%.3e...%.3e] using %zu bins\n",
+            m->index, display_monomer_type(m->t), 0.0, m->jfin_histogram_max, m->jfin_histogram_bins);
+
+    if (strcmp(m->jfin_histogram_filename, "stdout") == 0) {
+        PRINT0("Outputting the histogram to standard output\n\n");
+        m->fp_jfin_histogram = stdout;
+    } else {
+        PRINT0("Writing the histogram to %s\n\n", m->jfin_histogram_filename);
+        m->fp_jfin_histogram = fopen(m->jfin_histogram_filename, "w");
+    }
+
+    m->jfin_histogram = gsl_histogram_alloc(m->jfin_histogram_bins);
+    gsl_histogram_set_ranges_uniform(m->jfin_histogram, 0, m->jfin_histogram_max);
+}
+
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 /** 
  * @brief @ref calculate_correlation_and_save
@@ -2897,19 +3025,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         // @artfin: we should probably allocate this in init_ not here
         ms->m1.torque_cache = (double*)arena_alloc(&a, ms->m1.torque_cache_len * sizeof(double));
         memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
-		
-        size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
-        double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
-        const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
-
-		if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
-            ms->m1.fp_nswitch_histogram = stdout;
-		} else {
-			ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
-		}
-
-		ms->m1.nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
-		gsl_histogram_set_ranges_uniform(ms->m1.nswitch_histogram, 0.0, nswitch_histogram_max);
 	}
 
     FILE *fp = NULL; 
@@ -3023,15 +3138,38 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("\n\n"); 
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    pair state (pair_state):                                             %s\n",   PAIR_STATES[params->ps]);
-    PRINT0("    trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
-    PRINT0("    # of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
-    PRINT0("    partial partition function (partial_partition_function_ratio):       %.6e\n", params->partial_partition_function_ratio);
-    PRINT0("    sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
-    PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
-    PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
-    PRINT0("    use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
+
+    _print0_margin = 4;
+    PRINT0("pair state (pair_state):                                             %s\n",   PAIR_STATES[params->ps]);
+    PRINT0("trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
+    PRINT0("# of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
+    PRINT0("maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
+    PRINT0("partial partition function (partial_partition_function_ratio):       %.6e\n", params->partial_partition_function_ratio);
+    PRINT0("sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
+    PRINT0("maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
+    PRINT0("CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
+    PRINT0("use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
+    
+
+    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
+            PRINT0("Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
+        } else if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
+            PRINT0("Applying requantization to nearest half-integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
+        }
+        PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
+        PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
+
+    } 
+    
+    setup_nswitch_histogram_for_monomer(&ms->m1);
+    setup_nswitch_histogram_for_monomer(&ms->m2);
+    
+    setup_jini_histogram_for_monomer(&ms->m1);
+    setup_jfin_histogram_for_monomer(&ms->m1);
+
+    setup_jini_histogram_for_monomer(&ms->m2);
+    setup_jfin_histogram_for_monomer(&ms->m2);
 
     if (ms->m1.DJ > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
@@ -3045,8 +3183,10 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         exit(1);
     }
 
+    _print0_margin = 0;
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n");
+    
    
     if (ms->m1.initial_j >= 0) {
         // TODO: does it really make sense to implement this?
@@ -3112,7 +3252,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
-		ms->m1.req_switch_counter = 0;
+                ms->m1.req_switch_counter = 0;
 			    
                 int status;
                 if (params->use_zimmermann_trick) {
@@ -3351,13 +3491,15 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("\n\n");
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating spectral function using pr/mu representation at T = %.2f using following parameters:\n", Temperature);
-    PRINT0("    trajectories to be calculated (total_trajectories):                       %zu\n",  params->total_trajectories);
-    PRINT0("    # of iterations that the calculation is divided into (niterations):       %zu\n",  params->niterations);
-    PRINT0("    maximum length of trajectory (MaxTrajectoryLength):                       %zu samples\n",  params->MaxTrajectoryLength);
-    PRINT0("    sampling time of dipole on trajectory (sampling_time):                    %.2f a.t.u.\n", params->sampling_time);
-    PRINT0("    initial intermolecular distance (R0):                                     %.2f a.u.\n", params->R0);
-    PRINT0("    CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
-    PRINT0("    approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
+
+    _print0_margin = 4;
+    PRINT0("trajectories to be calculated (total_trajectories):                       %zu\n",  params->total_trajectories);
+    PRINT0("# of iterations that the calculation is divided into (niterations):       %zu\n",  params->niterations);
+    PRINT0("maximum length of trajectory (MaxTrajectoryLength):                       %zu samples\n",  params->MaxTrajectoryLength);
+    PRINT0("sampling time of dipole on trajectory (sampling_time):                    %.2f a.t.u.\n", params->sampling_time);
+    PRINT0("initial intermolecular distance (R0):                                     %.2f a.u.\n", params->R0);
+    PRINT0("CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
+    PRINT0("approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
     
     ms->m1.nswitch_histogram = NULL;
     ms->m2.nswitch_histogram = NULL;
@@ -3366,115 +3508,35 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("\n");
 
         if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
-            PRINT0("  Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
+            PRINT0("Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
         } else if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
-            PRINT0("  Applying requantization to nearest half-integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
+            PRINT0("Applying requantization to nearest half-integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
         }
-        PRINT0("    limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
-        PRINT0("    torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
+        PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
+        PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
 
-        size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
-        double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
-        const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
-        PRINT0("    Initializing histogram to store number of requantization switches on individual trajectories within the range"
-               " [%.1e -- %.1e] using %zu bins\n", 0.0, nswitch_histogram_max, nswitch_histogram_bins);
-
-        if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n\n");
-            ms->m1.fp_nswitch_histogram = stdout;
-        } else {
-            PRINT0("    Writing the histogram to %s\n\n", nswitch_histogram_filename);
-            ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
-        }
-
-        ms->m1.nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
-        gsl_histogram_set_ranges_uniform(ms->m1.nswitch_histogram, 0.0, nswitch_histogram_max);
     }
+        
+    setup_nswitch_histogram_for_monomer(&ms->m1);
     
     if ((ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         assert(false);
     }
-
-    if ((ms->m1.t == LINEAR_MOLECULE) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-        size_t jini_histogram_bins = (ms->m1.jini_histogram_bins > 0) ? ms->m1.jini_histogram_bins : DEFAULT_JINI_HISTOGRAM_BINS;
-        double jini_histogram_max = (ms->m1.jini_histogram_max > 0) ? ms->m1.jini_histogram_max : DEFAULT_JINI_HISTOGRAM_MAX;
-        const char *jini_histogram_filename = (ms->m1.jini_histogram_filename != NULL) ? arena_strdup(&a, ms->m1.jini_histogram_filename) : DEFAULT_JINI_HISTOGRAM_FILENAME1;
-        PRINT0("    Initializing histogram to store initial angular momenta values for 1st monomer (%s) within the range [%.3e...%.3e] using %zu bins\n",
-               display_monomer_type(ms->m1.t), 0.0, jini_histogram_max, jini_histogram_bins);
-   
-        if (strcmp(jini_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n\n");
-            ms->m1.fp_jini_histogram = stdout;
-        } else {
-            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-            ms->m1.fp_jini_histogram = fopen(jini_histogram_filename, "w");
-        }
-
-        ms->m1.jini_histogram = gsl_histogram_alloc(jini_histogram_bins);
-        gsl_histogram_set_ranges_uniform(ms->m1.jini_histogram, 0, jini_histogram_max);
-         
-        size_t jfin_histogram_bins = (ms->m1.jfin_histogram_bins > 0) ? ms->m1.jfin_histogram_bins : DEFAULT_JFIN_HISTOGRAM_BINS;
-        double jfin_histogram_max = (ms->m1.jfin_histogram_max > 0) ? ms->m1.jfin_histogram_max : DEFAULT_JFIN_HISTOGRAM_MAX;
-        const char *jfin_histogram_filename = (ms->m1.jfin_histogram_filename != NULL) ? arena_strdup(&a, ms->m1.jfin_histogram_filename) : DEFAULT_JFIN_HISTOGRAM_FILENAME1;
-
-        PRINT0("    Initializing histogram to store final angular momenta values for 1st monomer (%s) within the range [%.3e...%.3e] using %zu bins\n",
-               display_monomer_type(ms->m1.t), 0.0, jfin_histogram_max, jfin_histogram_bins);
-   
-        if (strcmp(jfin_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n\n");
-            ms->m1.fp_jfin_histogram = stdout;
-        } else {
-            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-            ms->m1.fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
-        }
-
-        ms->m1.jfin_histogram = gsl_histogram_alloc(jfin_histogram_bins);
-        gsl_histogram_set_ranges_uniform(ms->m1.jfin_histogram, 0, jfin_histogram_max);
-    }
     
-    if ((ms->m2.t == LINEAR_MOLECULE) || (ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-        size_t jini_histogram_bins = (ms->m2.jini_histogram_bins > 0) ? ms->m2.jini_histogram_bins : DEFAULT_JINI_HISTOGRAM_BINS;
-        double jini_histogram_max = (ms->m2.jini_histogram_max > 0) ? ms->m2.jini_histogram_max : DEFAULT_JINI_HISTOGRAM_MAX;
-        const char *jini_histogram_filename = (ms->m2.jini_histogram_filename != NULL) ? arena_strdup(&a, ms->m2.jini_histogram_filename) : DEFAULT_JINI_HISTOGRAM_FILENAME2;
-        PRINT0("    Initializing histogram to store initial angular momenta values for 2nd monomer within the range [%.3e...%.3e] using %zu bins\n",
-               0.0, jini_histogram_max, jini_histogram_bins);
-   
-        if (strcmp(jini_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n\n");
-            ms->m2.fp_jini_histogram = stdout;
-        } else {
-            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-            ms->m2.fp_jini_histogram = fopen(jini_histogram_filename, "w");
-        }
+    setup_nswitch_histogram_for_monomer(&ms->m2);
 
-        ms->m2.jini_histogram = gsl_histogram_alloc(jini_histogram_bins);
-        gsl_histogram_set_ranges_uniform(ms->m2.jini_histogram, 0, jini_histogram_max);
-         
-        size_t jfin_histogram_bins = (ms->m2.jfin_histogram_bins > 0) ? ms->m2.jfin_histogram_bins : DEFAULT_JFIN_HISTOGRAM_BINS;
-        double jfin_histogram_max = (ms->m2.jfin_histogram_max > 0) ? ms->m2.jfin_histogram_max : DEFAULT_JFIN_HISTOGRAM_MAX;
-        const char *jfin_histogram_filename = (ms->m2.jfin_histogram_filename != NULL) ? arena_strdup(&a, ms->m2.jfin_histogram_filename) : DEFAULT_JFIN_HISTOGRAM_FILENAME2;
+    setup_jini_histogram_for_monomer(&ms->m1);
+    setup_jfin_histogram_for_monomer(&ms->m1);
 
-        PRINT0("    Initializing histogram to store final angular momenta values for 2nd monomer within the range [%.3e...%.3e] using %zu bins\n",
-               0.0, jfin_histogram_max, jfin_histogram_bins);
-   
-        if (strcmp(jfin_histogram_filename, "stdout") == 0) {
-            PRINT0("    Outputting the histogram to standard output\n\n");
-            ms->m2.fp_jfin_histogram = stdout;
-        } else {
-            PRINT0("    Writing the histogram to %s\n\n", jini_histogram_filename);
-            ms->m2.fp_jfin_histogram = fopen(jfin_histogram_filename, "w");
-        }
-
-        ms->m2.jfin_histogram = gsl_histogram_alloc(jfin_histogram_bins);
-        gsl_histogram_set_ranges_uniform(ms->m2.jfin_histogram, 0, jfin_histogram_max);
-    }
+    setup_jini_histogram_for_monomer(&ms->m2); 
+    setup_jfin_histogram_for_monomer(&ms->m2);
 
     gsl_rng *gsl_rng_state = NULL;
     gsl_histogram *R_histogram = NULL;
 
     if (params->average_time_between_collisions > 0) {
-        PRINT0("    The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
-        PRINT0("    average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n", 
+        PRINT0("The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
+        PRINT0("average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n", 
                params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9); 
     
         gsl_rng_env_setup();
@@ -3482,18 +3544,18 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         gsl_rng_state = gsl_rng_alloc(gsl_rng_mt19937);
         gsl_rng_set(gsl_rng_state, ms->seed);
 
-        PRINT0("    Initializing histogram to store maximum intermolecular distances (R) within the range [%.3e...%.3e] using %d bins\n",
+        PRINT0("Initializing histogram to store maximum intermolecular distances (R) within the range [%.3e...%.3e] using %d bins\n",
                params->R0, R_HISTOGRAM_MAX, R_HISTOGRAM_BINS);
         
         R_histogram = gsl_histogram_alloc(R_HISTOGRAM_BINS);
         gsl_histogram_set_ranges_uniform(R_histogram, params->R0, R_HISTOGRAM_MAX);
     } else {
-        PRINT0("    The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
+        PRINT0("The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
     }
 
     if (ms->m1.initial_j >= 0) {
         PRINT0("\n");
-        PRINT0("    The initial conditions for 1st monomer will use fixed J = %.3e\n", ms->m1.initial_j);
+        PRINT0("The initial conditions for 1st monomer will use fixed J = %.3e\n", ms->m1.initial_j);
         PRINT0("\n");
     }
 
@@ -3510,7 +3572,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     IIini_m1[2] = ms->m1.II[2];
     if (ms->m1.DJ > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
-        PRINT0("    An effective rotational constant (which accounts for centrifugal distortion) will be used. "
+        PRINT0("An effective rotational constant (which accounts for centrifugal distortion) will be used. "
                "The following value D for the 1st monomer is provided: %.5e cm-1\n", ms->m1.DJ);
     }
     
@@ -3523,15 +3585,16 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     if (params->odd_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
         
-        PRINT0("  Trajectories with odd j-values are assigned a spin weight of %.3e\n", params->odd_j_spin_weight);
+        PRINT0("Trajectories with odd j-values are assigned a spin weight of %.3e\n", params->odd_j_spin_weight);
     }
 
     if (params->even_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
 
-        PRINT0("  Trajectories with even j-values are assigned a spin weight of %.3e\n", params->even_j_spin_weight); 
+        PRINT0("Trajectories with even j-values are assigned a spin weight of %.3e\n", params->even_j_spin_weight); 
     }
 
+    _print0_margin = 0;
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n");
 
