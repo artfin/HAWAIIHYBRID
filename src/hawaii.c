@@ -2885,31 +2885,25 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
+    Arena a = {0};
 
-        Arena a = {0};
-
-        if (ms->m1.torque_cache) {
-        free(ms->m1.torque_cache);
-        }
-
-        if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-           ms->m1.torque_cache = (double*)arena_alloc(&a, ms->m1.torque_cache_len * sizeof(double));
-		if (ms->m1.torque_cache) {
-		       memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
-	       }
-
+    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         assert(ms->m1.torque_cache_len > 0);
         assert(ms->m1.torque_limit > 0);
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
+
+        // @artfin: we should probably allocate this in init_ not here
+        ms->m1.torque_cache = (double*)arena_alloc(&a, ms->m1.torque_cache_len * sizeof(double));
+        memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
 		
-	size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
-	double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
-	const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
+        size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
+        double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
+        const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
 
 		if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
-			            ms->m1.fp_nswitch_histogram = stdout;
+            ms->m1.fp_nswitch_histogram = stdout;
 		} else {
 			ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
 		}
@@ -3013,6 +3007,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
+    // TODO: need to think how to check energy conservation so that it would not spam the output file 
+    traj.check_energy_conservation = false; 
 
     // TODO: this histogram is filled but not extended yet at the appropriate moment
     // TODO: we should probably save it to a file at the end of the iteration if 
@@ -3036,9 +3032,34 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("    maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
+
+    if (ms->m1.DJ > 0) {
+        assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
+        PRINT0("ERROR: using an effective rotational constant for the 1st monomer that accounts for centrifugal distortion is not implemented\n");
+        exit(1);
+    }
+    
+    if (ms->m2.DJ > 0) {
+        assert((ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
+        PRINT0("ERROR: using an effective rotational constant for the 2nd monomer that accounts for centrifugal distortion is not implemented\n");
+        exit(1);
+    }
+
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("\n\n");
-    
+   
+    if (ms->m1.initial_j >= 0) {
+        // TODO: does it really make sense to implement this?
+        PRINT0("ERROR: setting fixed J for initial conditions for 1st monomer for calculating correlation function is not implemented\n");
+        exit(1); 
+    }
+
+    if (ms->m2.initial_j >= 0) { 
+        // TODO: does it really make sense to implement this?
+        PRINT0("ERROR: setting fixed J for initial conditions for 2nd monomer for calculating correlation function is not implemented\n");
+        exit(1);
+    }
+
     if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
         PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
         exit(1);
@@ -3492,11 +3513,13 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
         PRINT0("    An effective rotational constant (which accounts for centrifugal distortion) will be used. "
                "The following value D for the 1st monomer is provided: %.5e cm-1\n", ms->m1.DJ);
     }
-
+    
     if (ms->m2.DJ > 0) {
-        assert(false);
+        assert((ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
+        PRINT0("ERROR: using an effective rotational constant for the 2nd monomer that accounts for centrifugal distortion is not implemented\n");
+        exit(1);
     }
-        
+
     if (params->odd_j_spin_weight > 0) {
         assert((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
         
