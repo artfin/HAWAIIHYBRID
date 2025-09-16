@@ -422,7 +422,9 @@ static const char *AVAILABLE_FUNCS[] = {
     "WRITE_FLOAT",
     "PRINT",
     "CF_TO_SF", // docs (+), tests (+)
-    "ADD_SPECTRA", // tests (+), docs (+)
+    // ADD for SPECTRA should work as ADD_SPECTRA 
+    "ADD", 
+    "ADD_SPECTRA", // tests (+), docs (+) 
     "FIT_BASELINE", // tests (+), docs (+), is name descriptive enough?
     "SMOOTH", // tests (+), docs (+)
     "COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE", // docs (+), tests (+)
@@ -2600,7 +2602,7 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
             double M0 = 2.0 * result;
             double M0err = 2.0 * error;
 
-            INFO("Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
+            INFO("Using adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
             INFO("Integrand evaluated %zu times\n", nevals);
             INFO("M0 = %.5e +/- %.5e\n", M0, M0err);
 
@@ -2620,7 +2622,7 @@ bool execute_compute_mn_classical_detailed_balance(Funcall *func, Processing_Sta
             double M2 = 2.0 * result;
             double M2err = 2.0 * error;
 
-            INFO("Using douply-adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
+            INFO("Using adaptive routine CQUAD (GSL) that utilizes Clenshaw-Curties quadrature rules of increasing degree\n"); 
             INFO("Integrand evaluated %zu times\n", nevals);
             INFO("M2 = %.5e +/- %.5e\n", M2, M2err);
             
@@ -3131,6 +3133,29 @@ bool execute_write_sf(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
+bool execute_add(Funcall *func, Processing_Stack *stack)
+{
+    if (stack->count < 2) {
+        ERROR("%s:%d:%d: cannot execute ADD - not enough elements on stack (expected 2 but found %zu)\n",
+                func->loc.input_path, func->loc.line_number, func->loc.line_offset,
+                stack->count);
+        return false;
+    }
+
+    Tagged_Stack_Item first = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &first, STACK_ITEM_FLOAT);
+    
+    Tagged_Stack_Item second = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &second, STACK_ITEM_FLOAT);
+
+    double result = first.item.double_number + second.item.double_number;
+    
+    INFO("%.5e + %.5e = %.5e\n", first.item.double_number, second.item.double_number, result);
+
+    stack_push_with_type(stack, (void*) &result, STACK_ITEM_FLOAT, &func->loc);
+    return true;
+}
+
 bool execute_write_float(Funcall *func, Processing_Stack *stack)
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -3460,6 +3485,9 @@ int run_processing(Processing_Params *processing_params)
 
         } else if (strcasecmp(funcname, "PUSH_FLOAT") == 0) {
             if (!execute_push_float(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "ADD") == 0) {
+            if (!execute_add(func, &stack)) return_defer(1);
 
         } else {
             PRINT0("\n\n");
