@@ -2131,6 +2131,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     double dip2_0[3], dip2_t[3];
     extract_q_and_write_into_ms(ms);
 
+
     if (dipole_1 != dipole_2) {
         (*dipole_1)(ms->intermediate_q, dip1_0);
         (*dipole_2)(ms->intermediate_q, dip2_0);
@@ -2155,7 +2156,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     double t = 0.0;
     double tout = params->sampling_time;
-   
+    ms->m1.req_switch_counter = 0;
+	
     Tracker tr = {
       .before2 = qp.data[IR],
       .before  = qp.data[IR],
@@ -2188,6 +2190,42 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             }
             printf("\n");
             return 1;         
+        }
+
+	            // Handle requantization if needed
+        if (ms->m1.torque_cache != NULL) {
+            double torq = torque_monomer(ms->m1);
+            ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+            bool all_less_than_limit = true;
+            bool all_more_than_limit = true;
+            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+		    double torq = ms->m1.torque_cache[i];
+                if (torq > ms->m1.torque_limit) {
+                    all_less_than_limit = false;
+                }
+                if (torq < ms->m1.torque_limit) {
+                    all_more_than_limit = false;
+                }
+                if (!all_less_than_limit && !all_more_than_limit) {
+                   break;
+               }
+            }
+
+            if (all_less_than_limit) {
+                if (!ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'true': switch counter = %zu\n", ms->m1.req_switch_counter);
+                    ms->m1.apply_requantization = true;
+                    ms->m1.req_switch_counter++;
+                }
+            }
+            else if (all_more_than_limit) {
+                if (ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'false': switch counter = %zu\n", ms->m1.req_switch_counter);
+                    ms->m1.apply_requantization = false;
+                    ms->m1.req_switch_counter++;
+                }
+            }
         }
 
         if (dipole_1 != dipole_2) {
@@ -2277,6 +2315,42 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+
+	            // Handle requantization if needed
+        if (ms->m1.torque_cache != NULL) {
+            double torq = torque_monomer(ms->m1);
+            ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+            bool all_less_than_limit = true;
+            bool all_more_than_limit = true;
+            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+		    double torq = ms->m1.torque_cache[i];
+                if (torq > ms->m1.torque_limit) {
+                    all_less_than_limit = false;
+                }
+                if (torq < ms->m1.torque_limit) {
+                    all_more_than_limit = false;
+                }
+                if (!all_less_than_limit && !all_more_than_limit) {
+                   break;
+               }
+            }
+
+            if (all_less_than_limit) {
+                if (!ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'true': switch counter = %zu\n", ms->m1.req_switch_counter);
+                    ms->m1.apply_requantization = true;
+                    ms->m1.req_switch_counter++;
+                }
+            }
+            else if (all_more_than_limit) {
+                if (ms->m1.apply_requantization) {
+                    printf("Setting requantization to 'false': switch counter = %zu\n", ms->m1.req_switch_counter);
+                    ms->m1.apply_requantization = false;
+                    ms->m1.req_switch_counter++;
+                }
+            }
+        }
     
         if (dipole_1 != dipole_2) {        
             (*dipole_2)(ms->intermediate_q, dip2_t);
@@ -2331,6 +2405,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         if (ms->intermolecular_qp[IR] > params->Rcut) break;
     }
 
+	
     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
         crln[i] = 0.5 * (correlation_forw[i] + correlation_back[i]) * ALU*ALU*ALU;
        // printf("(TEST) CRLN_VALUE: %e\n",crln[i]);
@@ -2810,13 +2885,38 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     assert(params->niterations >= 1);
     assert(params->cf_filename != NULL);
 
-	if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+
+        Arena a = {0};
+
+        if (ms->m1.torque_cache) {
+        free(ms->m1.torque_cache);
+        }
+
+        if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+           ms->m1.torque_cache = (double*)arena_alloc(&a, ms->m1.torque_cache_len * sizeof(double));
+		if (ms->m1.torque_cache) {
+		       memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+	       }
+
         assert(ms->m1.torque_cache_len > 0);
         assert(ms->m1.torque_limit > 0);
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
-    }
+		
+	size_t nswitch_histogram_bins = (ms->m1.nswitch_histogram_bins > 0) ? ms->m1.nswitch_histogram_bins : DEFAULT_NSWITCH_HISTOGRAM_BINS;
+	double nswitch_histogram_max = (ms->m1.nswitch_histogram_max > 0) ? ms->m1.nswitch_histogram_max : DEFAULT_NSWITCH_HISTOGRAM_MAX;
+	const char *nswitch_histogram_filename = (ms->m1.nswitch_histogram_filename != NULL) ? ms->m1.nswitch_histogram_filename : DEFAULT_NSWITCH_HISTOGRAM_FILENAME1;
+
+		if (strcmp(nswitch_histogram_filename, "stdout") == 0) {
+			            ms->m1.fp_nswitch_histogram = stdout;
+		} else {
+			ms->m1.fp_nswitch_histogram = fopen(nswitch_histogram_filename, "w");
+		}
+
+		ms->m1.nswitch_histogram = gsl_histogram_alloc(nswitch_histogram_bins);
+		gsl_histogram_set_ranges_uniform(ms->m1.nswitch_histogram, 0.0, nswitch_histogram_max);
+	}
 
     FILE *fp = NULL; 
     if (_wrank == 0) {
@@ -2991,18 +3091,27 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
-
+		ms->m1.req_switch_counter = 0;
+			    
                 int status;
                 if (params->use_zimmermann_trick) {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
+		    
+
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
+			if (ms->m1.nswitch_histogram != NULL) {
+			if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
+				ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
+			}
+                gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
+		    }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
                     local_crln[i] += params->partial_partition_function_ratio * crln[i];
@@ -3089,6 +3198,12 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             } 
         }
 
+	if (ms->m1.nswitch_histogram != NULL) {
+		double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
+		printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
+		write_histogram(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
+	}
+		
         if (_wrank == 0) {
             _print0_suppress_info = true;
             int r = write_correlation_function_ext(fp, total_crln);
@@ -3112,6 +3227,18 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         total_crln.data[i] /= total_crln.ntraj;
     }
     total_crln.normalized = true;
+	    if (ms->m1.nswitch_histogram != NULL) {
+	    gsl_histogram_free(ms->m1.nswitch_histogram);
+	    if (ms->m1.fp_nswitch_histogram != stdout) {
+		    fclose(ms->m1.fp_nswitch_histogram);
+	    }
+    }
+	
+if (ms->m1.torque_cache) {
+    ms->m1.torque_cache = NULL;  
+    arena_free(&a);              
+}
+
 
     return total_crln; 
 }
