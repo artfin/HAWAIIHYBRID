@@ -543,8 +543,9 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
-void j_monomer(Monomer m, double j[3]);
-double torque_monomer(Monomer m); 
+void try_applying_requantization_for_monomer(Monomer *m, size_t step_counter);
+void j_monomer(Monomer *m, double j[3]);
+double torque_monomer(Monomer *m); 
 double find_closest_integer(double j);
 double find_closest_half_integer(double j); 
 
@@ -579,9 +580,10 @@ size_t* arena_linspace_size_t(Arena *a, size_t start, size_t end, size_t n);
 // ----------------------------------------------------------
 // Histogram manipulation
 // ----------------------------------------------------------
+void send_histogram_and_reset(gsl_histogram *h);
 void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h);
 gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins);
-int write_histogram(FILE *fp, gsl_histogram *h, int count);
+int write_histogram_ext(FILE *fp, gsl_histogram *h, int count);
 // ----------------------------------------------------------
 
 // ----------------------------------------------------------
@@ -614,6 +616,8 @@ void sb_free(String_Builder *sb);
 CFnc copy_cfnc(CFnc cf);
 SFnc copy_sfnc(SFnc sf);
 Spectrum copy_spectrum(Spectrum sp); 
+
+void normalize_cfnc(CFnc *cf);
 
 void free_cfnc(CFnc cf);
 void free_cfnc_array(CFncArray ca);

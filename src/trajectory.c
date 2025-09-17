@@ -97,7 +97,7 @@ bool trajectory_apply_requantization(Trajectory *traj)
             double j[3];
             Monomer *m = &traj->ms->m1;
 
-            j_monomer(*m, j);
+            j_monomer(m, j);
             double jl   = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
             double jreq = find_closest_integer(jl);
             double scaling_factor = 0.0;
@@ -113,7 +113,7 @@ bool trajectory_apply_requantization(Trajectory *traj)
             double j[3];
             Monomer *m = &traj->ms->m1;
 
-            j_monomer(*m, j);
+            j_monomer(m, j);
             double jl   = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
             double jreq = find_closest_half_integer(jl);
 

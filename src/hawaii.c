@@ -127,6 +127,12 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
             case ROTOR_REQUANTIZED_ROTATION:
             case ROTOR: PRINT0("%.3e %.3e %.3e\n", ms.m1.II[0], ms.m1.II[1], ms.m1.II[2]); break;
         }
+
+        if ((ms.m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms.m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+            assert(ms.m1.torque_cache_len > 0);
+            ms.m1.torque_cache = (double*) malloc(ms.m1.torque_cache_len * sizeof(double));
+            memset(ms.m1.torque_cache, 0, ms.m1.torque_cache_len * sizeof(double));
+        }
     }
 
     {
@@ -199,54 +205,64 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
         exit(1);
     }
 
-    ms.m1.index = 1;
-    ms.m1.t = t1;
+    {
+        ms.m1.index = 1;
+        ms.m1.t = t1;
 
-    switch (t1) {
-        case ATOM: break;
-        case LINEAR_MOLECULE_REQ_HALFINTEGER:
-        case LINEAR_MOLECULE_REQ_INTEGER:
-        case LINEAR_MOLECULE: {
-          assert(II1[0] == II1[1]);
-          memcpy(ms.m1.II, II1, 2*sizeof(double));
-          break;
-        }
-        case ROTOR: {
-          memcpy(ms.m1.II, II1, 3*sizeof(double));
-          break;
+        switch (t1) {
+            case ATOM: break;
+            case LINEAR_MOLECULE_REQ_HALFINTEGER:
+            case LINEAR_MOLECULE_REQ_INTEGER:
+            case LINEAR_MOLECULE: {
+              assert(II1[0] == II1[1]);
+              memcpy(ms.m1.II, II1, 2*sizeof(double));
+              break;
+            }
+            case ROTOR: {
+              memcpy(ms.m1.II, II1, 3*sizeof(double));
+              break;
+            } 
+            case ROTOR_REQUANTIZED_ROTATION: {
+              TODO("init_ms");
+            }
         } 
-        case ROTOR_REQUANTIZED_ROTATION: {
-          TODO("init_ms");
-        }
-    } 
-    
-    ms.m1.qp   = malloc((t1%MODULO_BASE)   * sizeof(double));
-    ms.m1.dVdq = malloc((t1%MODULO_BASE)/2 * sizeof(double));
+        
+        ms.m1.qp   = malloc((t1%MODULO_BASE)   * sizeof(double));
+        ms.m1.dVdq = malloc((t1%MODULO_BASE)/2 * sizeof(double));
 
-    ms.m2.index = 2;
-    ms.m2.t = t2;
-
-    switch (t2) {
-        case ATOM: break;
-        case LINEAR_MOLECULE_REQ_HALFINTEGER:
-        case LINEAR_MOLECULE_REQ_INTEGER:
-        case LINEAR_MOLECULE: {
-          assert(II2[0] == II2[1]);
-          memcpy(ms.m2.II, II2, 2*sizeof(double));
-          break;
-        }
-        case ROTOR: {
-          memcpy(ms.m2.II, II2, 3*sizeof(double));
-          break;
-        } 
-        case ROTOR_REQUANTIZED_ROTATION: {
-          TODO("init_ms");
+        if ((ms.m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms.m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+            assert(ms.m1.torque_cache_len > 0);
+            ms.m1.torque_cache = (double*) malloc(ms.m1.torque_cache_len * sizeof(double));
+            memset(ms.m1.torque_cache, 0, ms.m1.torque_cache_len * sizeof(double));
         }
     }
 
-    ms.m2.qp   = malloc((t2%MODULO_BASE)   * sizeof(double));
-    ms.m2.dVdq = malloc((t2%MODULO_BASE)/2 * sizeof(double));
-    
+    {
+        ms.m2.index = 2;
+        ms.m2.t = t2;
+
+        switch (t2) {
+            case ATOM: break;
+            case LINEAR_MOLECULE_REQ_HALFINTEGER:
+            case LINEAR_MOLECULE_REQ_INTEGER:
+            case LINEAR_MOLECULE: {
+              assert(II2[0] == II2[1]);
+              memcpy(ms.m2.II, II2, 2*sizeof(double));
+              break;
+            }
+            case ROTOR: {
+              memcpy(ms.m2.II, II2, 3*sizeof(double));
+              break;
+            } 
+            case ROTOR_REQUANTIZED_ROTATION: {
+              TODO("init_ms");
+            }
+        }
+
+        ms.m2.qp   = malloc((t2%MODULO_BASE)   * sizeof(double));
+        ms.m2.dVdq = malloc((t2%MODULO_BASE)/2 * sizeof(double));
+    }
+
     ms.QP_SIZE = (t1%MODULO_BASE) + (t2%MODULO_BASE) + 6;
     ms.Q_SIZE  = ms.QP_SIZE / 2;
 
@@ -326,7 +342,8 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     return ms;
 }
 
-void free_ms(MoleculeSystem *ms) {
+void free_ms(MoleculeSystem *ms) 
+{
     free(ms->m1.qp); 
     free(ms->m2.qp);
     free(ms->m1.dVdq);
@@ -342,9 +359,18 @@ void free_ms(MoleculeSystem *ms) {
 
     if (ms->m1.nswitch_histogram_filename != NULL) free(ms->m1.nswitch_histogram_filename);
     if (ms->m2.nswitch_histogram_filename != NULL) free(ms->m2.nswitch_histogram_filename);
-
+	
     if (ms->m1.jini_histogram_filename != NULL) free(ms->m1.jini_histogram_filename);
     if (ms->m2.jini_histogram_filename != NULL) free(ms->m2.jini_histogram_filename);
+
+    if (ms->m1.jfin_histogram_filename != NULL) free(ms->m1.jfin_histogram_filename);
+    if (ms->m2.jfin_histogram_filename != NULL) free(ms->m2.jfin_histogram_filename);
+    
+    if (ms->m1.fp_nswitch_histogram != stdout) fclose(ms->m1.fp_nswitch_histogram);
+    if (ms->m2.fp_nswitch_histogram != stdout) fclose(ms->m2.fp_nswitch_histogram);
+    
+    if (ms->m1.torque_cache != NULL) free(ms->m1.torque_cache);
+    if (ms->m2.torque_cache != NULL) free(ms->m2.torque_cache);
 
     free(ms->intermediate_q);
     free(ms->dVdq);
@@ -408,7 +434,7 @@ double find_closest_half_integer(double j)
     return (fabs(j - lower) < fabs(j - higher)) ? lower : higher;
 }
 
-void j_monomer(Monomer m, double j[3])
+void j_monomer(Monomer *m, double j[3])
 /** 
  * @brief @ref j_monomer computes the magnitude of angular momentum of passed-in monomer. <span style="color:red;">Currently, implemented only for linear molecules.</span>
  *  \f[ 
@@ -420,15 +446,15 @@ void j_monomer(Monomer m, double j[3])
  *  \f] 
  */ 
 {
-    switch (m.t) {
+    switch (m->t) {
         case ATOM: TODO("j_monomer"); 
         case LINEAR_MOLECULE_REQ_INTEGER: 
         case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: {
-            double phi    = m.qp[IPHI]; 
-            double pPhi   = m.qp[IPPHI];
-            double theta  = m.qp[ITHETA];
-            double pTheta = m.qp[IPTHETA];
+            double phi    = m->qp[IPHI]; 
+            double pPhi   = m->qp[IPPHI];
+            double theta  = m->qp[ITHETA];
+            double pTheta = m->qp[IPTHETA];
 
             j[0] = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
             j[1] = pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
@@ -443,7 +469,7 @@ void j_monomer(Monomer m, double j[3])
 }
 
 
-double torque_monomer(Monomer m)
+double torque_monomer(Monomer *m)
 // torque: T = dJ/dt 
 /** 
  * @brief @ref torque_monomer computes the magnitude of torque (time-derivative of angular momentum) of passed-in monomer. 
@@ -458,16 +484,16 @@ double torque_monomer(Monomer m)
  * \f] 
  */ 
 {
-    switch (m.t) {
+    switch (m->t) {
         case ATOM: return 0.0;
         case LINEAR_MOLECULE_REQ_INTEGER: 
         case LINEAR_MOLECULE_REQ_HALFINTEGER: 
         case LINEAR_MOLECULE: {
-            double phi   = m.qp[IPHI];
-            double theta = m.qp[ITHETA];
+            double phi   = m->qp[IPHI];
+            double theta = m->qp[ITHETA];
 
-            double dVdphi   = m.dVdq[IPHI / 2];
-            double dVdtheta = m.dVdq[ITHETA / 2];
+            double dVdphi   = m->dVdq[IPHI / 2];
+            double dVdtheta = m->dVdq[ITHETA / 2];
 
             double torquex = sin(phi) * dVdtheta + cos(phi) / tan(theta) * dVdphi;
             double torquey = -cos(phi) * dVdtheta + sin(phi) / tan(theta) * dVdphi;
@@ -2126,6 +2152,41 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
     return status;
 }
 
+void try_applying_requantization_for_monomer(Monomer *m, size_t step_counter)
+{
+    // Handle requantization if needed
+    if ((m->t == LINEAR_MOLECULE_REQ_INTEGER) || (m->t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+        double torq = torque_monomer(m);
+        m->torque_cache[step_counter % m->torque_cache_len] = torq;
+
+        bool all_less_than_limit = true;
+        bool all_more_than_limit = true;
+        for (size_t i = 0; i < m->torque_cache_len; ++i) {
+            torq = m->torque_cache[i];
+
+            if (torq > m->torque_limit) all_less_than_limit = false;
+            if (torq < m->torque_limit) all_more_than_limit = false;
+
+            if (!all_less_than_limit && !all_more_than_limit) break;
+        }
+
+        if (all_less_than_limit) {
+            if (!m->apply_requantization) {
+                //printf("Setting requantization to 'true': switch counter = %zu\n", m->req_switch_counter);
+                m->apply_requantization = true;
+                m->req_switch_counter++;
+            }
+        }
+        else if (all_more_than_limit) {
+            if (m->apply_requantization) {
+                //printf("Setting requantization to 'false': switch counter = %zu\n", m->req_switch_counter);
+                m->apply_requantization = false;
+                m->req_switch_counter++;
+            }
+        }
+    }
+}
+
 int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 /** 
  * @brief @ref correlation_eval
@@ -2205,41 +2266,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             return 1;         
         }
 
-	            // Handle requantization if needed
-        if (ms->m1.torque_cache != NULL) {
-            double torq = torque_monomer(ms->m1);
-            ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
-
-            bool all_less_than_limit = true;
-            bool all_more_than_limit = true;
-            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
-		    double torq = ms->m1.torque_cache[i];
-                if (torq > ms->m1.torque_limit) {
-                    all_less_than_limit = false;
-                }
-                if (torq < ms->m1.torque_limit) {
-                    all_more_than_limit = false;
-                }
-                if (!all_less_than_limit && !all_more_than_limit) {
-                   break;
-               }
-            }
-
-            if (all_less_than_limit) {
-                if (!ms->m1.apply_requantization) {
-                    printf("Setting requantization to 'true': switch counter = %zu\n", ms->m1.req_switch_counter);
-                    ms->m1.apply_requantization = true;
-                    ms->m1.req_switch_counter++;
-                }
-            }
-            else if (all_more_than_limit) {
-                if (ms->m1.apply_requantization) {
-                    printf("Setting requantization to 'false': switch counter = %zu\n", ms->m1.req_switch_counter);
-                    ms->m1.apply_requantization = false;
-                    ms->m1.req_switch_counter++;
-                }
-            }
-        }
+        try_applying_requantization_for_monomer(&ms->m1, step_counter); 
 
         if (dipole_1 != dipole_2) {
             (*dipole_2)(ms->intermediate_q, dip2_t);
@@ -2328,43 +2355,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             printf("\n");
             return 1;         
         }
+        
+        try_applying_requantization_for_monomer(&ms->m1, step_counter); 
 
-	            // Handle requantization if needed
-        if (ms->m1.torque_cache != NULL) {
-            double torq = torque_monomer(ms->m1);
-            ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
-
-            bool all_less_than_limit = true;
-            bool all_more_than_limit = true;
-            for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
-		    double torq = ms->m1.torque_cache[i];
-                if (torq > ms->m1.torque_limit) {
-                    all_less_than_limit = false;
-                }
-                if (torq < ms->m1.torque_limit) {
-                    all_more_than_limit = false;
-                }
-                if (!all_less_than_limit && !all_more_than_limit) {
-                   break;
-               }
-            }
-
-            if (all_less_than_limit) {
-                if (!ms->m1.apply_requantization) {
-                    printf("Setting requantization to 'true': switch counter = %zu\n", ms->m1.req_switch_counter);
-                    ms->m1.apply_requantization = true;
-                    ms->m1.req_switch_counter++;
-                }
-            }
-            else if (all_more_than_limit) {
-                if (ms->m1.apply_requantization) {
-                    printf("Setting requantization to 'false': switch counter = %zu\n", ms->m1.req_switch_counter);
-                    ms->m1.apply_requantization = false;
-                    ms->m1.req_switch_counter++;
-                }
-            }
-        }
-    
         if (dipole_1 != dipole_2) {        
             (*dipole_2)(ms->intermediate_q, dip2_t);
 
@@ -2995,6 +2988,24 @@ void setup_jfin_histogram_for_monomer(Monomer *m)
     gsl_histogram_set_ranges_uniform(m->jfin_histogram, 0, m->jfin_histogram_max);
 }
 
+void send_histogram_and_reset(gsl_histogram *h)
+{
+    MPI_Send(&h->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    MPI_Send(h->bin, h->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    gsl_histogram_reset(h);
+}
+
+void normalize_cfnc(CFnc *cf)
+{
+    if (!cf->normalized) {
+        for (size_t i = 0; i < cf->len; ++i) {
+            cf->data[i] /= cf->ntraj;
+        }
+
+        cf->normalized = true;
+    }
+}
+
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 /** 
  * @brief @ref calculate_correlation_and_save
@@ -3021,10 +3032,6 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
         // by default we turn on the requantization
         ms->m1.apply_requantization = true;
-
-        // @artfin: we should probably allocate this in init_ not here
-        ms->m1.torque_cache = (double*)arena_alloc(&a, ms->m1.torque_cache_len * sizeof(double));
-        memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
 	}
 
     FILE *fp = NULL; 
@@ -3093,33 +3100,23 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
     //       the case when total_trajectories is not divisible by niterations. 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
-    
-    // temporary buffer for MPI communication
-    double *buf = (double*) malloc(params->MaxTrajectoryLength * sizeof(double));
    
+    // crln - correlation function for individual trajectory
+    // local_crln - sum of correlation functions for an iteration (count = local_trajectories) 
     double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
     double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
     memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
     memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
 
+    // this is a total correlation function that is kept track of in the master process
     CFnc total_crln = {
         .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
         .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
         .len         = params->MaxTrajectoryLength,
         .ntraj       = 0,
         .Temperature = Temperature,
-        .normalized  = false,
     }; 
     memset(total_crln.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
-    
-    CFnc total_crln_iter = {
-        .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
-        .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
-        .len         = params->MaxTrajectoryLength,
-        .ntraj       = 0,
-        .Temperature = Temperature,
-    }; 
-    memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
     
     Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
     // TODO: need to think how to check energy conservation so that it would not spam the output file 
@@ -3232,7 +3229,11 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         size_t counter = 0;
         size_t desired_dist = 0;
         size_t integral_counter = 0;
-        size_t tps = 0; 
+        size_t tps = 0;
+
+if (_wrank > 0) {
+        /* SLAVE CODE */
+        memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
 
         while (integral_counter < local_ntrajectories) 
         {
@@ -3252,7 +3253,9 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                 if (params->ps == PAIR_STATE_BOUND) {
                     if (energy > 0.0) continue;
                 }
+
                 ms->m1.req_switch_counter = 0;
+                ms->m2.req_switch_counter = 0;
 			    
                 int status;
                 if (params->use_zimmermann_trick) {
@@ -3261,18 +3264,19 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
 		    
-
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
-			if (ms->m1.nswitch_histogram != NULL) {
-			if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
-				ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
-			}
-                gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
-		    }
+
+                if (ms->m1.nswitch_histogram != NULL) {
+                    if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
+                        ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
+                    }
+
+                    gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
+                }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
                     local_crln[i] += params->partial_partition_function_ratio * crln[i];
@@ -3282,36 +3286,35 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             }
         }
 
-        // MPI_Allreduce(local_crln, total_crln_iter.data, params->MaxTrajectoryLength, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        if (_wrank == 0) {
-            MPI_Status status;
+        MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 
-            for (size_t i = 1; i < (size_t) _wsize; ++i) {
-                memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
-                MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
-
-                for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
-                    total_crln_iter.data[j] += buf[j];
-                }
-            }
-
-            for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
-                total_crln_iter.data[j] += local_crln[j];
-            }
-        } else { 
-            MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-        } 
-
-        if (_wrank == 0) {
-            for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-                total_crln.data[i] += total_crln_iter.data[i];
-            }
-
-            total_crln.ntraj += local_ntrajectories * _wsize;
+        if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+            send_histogram_and_reset(ms->m1.nswitch_histogram);
         }
+        /* END OF SLAVE CODE */
+} else {
+        /* MASTER CODE */
+        MPI_Status status;
 
-        memset(local_crln,           0, params->MaxTrajectoryLength * sizeof(double));
-        memset(total_crln_iter.data, 0, params->MaxTrajectoryLength * sizeof(double));
+        for (size_t i = 1; i < (size_t) _wsize; ++i) 
+        {
+           Arena_Mark recv_mark = arena_snapshot(&a);
+            
+           double *buf = (double*) arena_alloc(&a, params->MaxTrajectoryLength * sizeof(double));
+           memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
+           MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+
+           for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
+               total_crln.data[j] += buf[j];
+           }
+           total_crln.ntraj += local_ntrajectories;
+
+           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram);
+           }
+
+           arena_rewind(&a, recv_mark);
+        }
 
         PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, (size_t)total_crln.ntraj, params->cf_filename);
 
@@ -3337,7 +3340,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
 
         double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
         PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
-
+        
         {
             if (total_crln.len >= 5) {
                 size_t saved_len = total_crln.len;
@@ -3359,47 +3362,39 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
             } 
         }
 
-	if (ms->m1.nswitch_histogram != NULL) {
-		double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
-		printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
-		write_histogram(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
-	}
-		
-        if (_wrank == 0) {
+        _print0_suppress_info = true;
+        int r = write_correlation_function_ext(fp, total_crln);
+        _print0_suppress_info = false;
+
+        INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
+        
+        /* END OF MASTER CODE */
+}
+
+	    if (ms->m1.nswitch_histogram != NULL) {
+	    	double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
+	    	INFO("Writing normalized histogram of number of angular momentum switches for monomer %d (%s)\n",
+                  ms->m1.index, display_monomer_type(ms->m1.t));
+
             _print0_suppress_info = true;
-            int r = write_correlation_function_ext(fp, total_crln);
+	    	int nchars = write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
             _print0_suppress_info = false;
 
-            INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
-        }
+            INFO("wrote %d characters to %s (histogram count = %d)\n\n", 
+                 nchars, ms->m1.nswitch_histogram_filename, (int) count);
+	    }
     }
  
     if (tps_hist != NULL) {
         gsl_histogram_free(tps_hist);
     }
-    
+   
+    normalize_cfnc(&total_crln);
+
     free(crln);
     free(local_crln);
-    free_cfnc(total_crln_iter);
-    free(buf);
     sb_free(&sb_datetime); 
-
-    for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-        total_crln.data[i] /= total_crln.ntraj;
-    }
-    total_crln.normalized = true;
-	    if (ms->m1.nswitch_histogram != NULL) {
-	    gsl_histogram_free(ms->m1.nswitch_histogram);
-	    if (ms->m1.fp_nswitch_histogram != stdout) {
-		    fclose(ms->m1.fp_nswitch_histogram);
-	    }
-    }
-	
-if (ms->m1.torque_cache) {
-    ms->m1.torque_cache = NULL;  
     arena_free(&a);              
-}
-
 
     return total_crln; 
 }
@@ -3710,7 +3705,7 @@ if (_wrank > 0) {
                 assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
 
                 double j[3];
-                j_monomer(ms->m1, j);
+                j_monomer(&ms->m1, j);
                 double jl = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
                 double scale = (jl > 1e-15) ? ms->m1.initial_j / jl : 0.0;
 
@@ -3751,7 +3746,7 @@ if (_wrank > 0) {
                 Monomer *m = &ms->m1;
 
                 double jini[3];
-                j_monomer(*m, jini);
+                j_monomer(m, jini);
                 double jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
 
                 if (m->DJ > 0) {
@@ -3772,7 +3767,7 @@ if (_wrank > 0) {
                     trajectory_reinit(&traj);
                 }
                 
-                j_monomer(*m, jini);
+                j_monomer(m, jini);
                 jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
 
                 if (ms->m1.jini_histogram != NULL) {
@@ -3829,7 +3824,7 @@ if (_wrank > 0) {
                         Monomer *m = &ms->m1;
 
                         double j[3];
-                        j_monomer(*m, j);
+                        j_monomer(m, j);
                         double jlen = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
     
                         double Bini_cm = Planck/(8.0*M_PI*M_PI*IIini_m1[0]*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
@@ -3842,7 +3837,7 @@ if (_wrank > 0) {
                         m->II[1] = IIeff;
                     }
                     
-                    double torq = torque_monomer(ms->m1);
+                    double torq = torque_monomer(&ms->m1);
                     ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
                     //printf("%10.1lf \t %12.10lf \t %12.5e \t %12.5e\n", t, ms->intermolecular_qp[IR], j, torq);
                     
@@ -3925,7 +3920,7 @@ if (_wrank > 0) {
                 trajectory_apply_requantization(&traj);
 
                 double jfin[3];
-                j_monomer(ms->m1, jfin);
+                j_monomer(&ms->m1, jfin);
                 double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
 
                 if (ms->m1.jfin_histogram != NULL) {
@@ -4099,27 +4094,27 @@ if (_wrank > 0) {
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
               double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
               printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
-              write_histogram(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
+              write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
           }
 
           if ((ms->m1.t == LINEAR_MOLECULE) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER)) { 
               double count = gsl_histogram_sum(ms->m1.jini_histogram);
               printf("INFO: Writing normalized histogram of initial angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
-              write_histogram(ms->m1.fp_jini_histogram, ms->m1.jini_histogram, count);
+              write_histogram_ext(ms->m1.fp_jini_histogram, ms->m1.jini_histogram, count);
               
               count = gsl_histogram_sum(ms->m1.jfin_histogram);
               printf("INFO: Writing normalized histogram of final angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
-              write_histogram(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
+              write_histogram_ext(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
           }
           
           if ((ms->m2.t == LINEAR_MOLECULE) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER)) { 
               double count = gsl_histogram_sum(ms->m2.jini_histogram);
               printf("INFO: Writing normalized histogram of initial angular momenta values for 2nd monomer: (# elements of %d)\n", (int) count);
-              write_histogram(ms->m2.fp_jini_histogram, ms->m2.jini_histogram, count);
+              write_histogram_ext(ms->m2.fp_jini_histogram, ms->m2.jini_histogram, count);
               
               count = gsl_histogram_sum(ms->m2.jfin_histogram);
               printf("INFO: Writing normalized histogram of final angular momenta values for 2nd monomer: (# elements of %d)\n", (int) count);
-              write_histogram(ms->m2.fp_jfin_histogram, ms->m2.jfin_histogram, count);
+              write_histogram_ext(ms->m2.fp_jfin_histogram, ms->m2.jfin_histogram, count);
           }
 
 
@@ -4491,24 +4486,28 @@ int write_spectral_function_ext(FILE *fp, SFnc sf)
         return -1; 
     }
 
-    INFO("INFO: wrote %zu characters\n", nchars);
+    INFO("wrote %zu characters\n", nchars);
 
     return nchars;
 }
 
-int write_histogram(FILE *fp, gsl_histogram *h, int count)
+int write_histogram_ext(FILE *fp, gsl_histogram *h, int count)
 {
     int fd = fileno(fp);
 
+    size_t nchars = 0;
+
     if (fd == 1) {
         for (size_t i = 0; i < h->n; ++i) {
-            fprintf(stdout, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
+            nchars += fprintf(stdout, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
         }
-        printf("=======================================\n");
-        printf("\n\n");
+        nchars += fprintf(stdout, "=======================================\n");
+        nchars += fprintf(stdout, "\n\n");
+        
+        INFO("wrote %zu characters\n", nchars);
     } else {
         if (ftruncate(fd, 0) < 0) {
-            printf("ERROR: could not truncate file: %s\n", strerror(errno));
+            ERROR("could not truncate file: %s\n", strerror(errno));
             return -1; 
         }
 
@@ -4519,29 +4518,32 @@ int write_histogram(FILE *fp, gsl_histogram *h, int count)
         struct tm *timeinfo;
         time(&rawtime);
         timeinfo = localtime(&rawtime);
-    
-        fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
-                timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
-                timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-        fprintf(fp, "# count = %d\n", count);
+
+        nchars += fprintf(fp, "# Saved on %04d-%02d-%02d %02d:%02d:%02d\n", 
+                          timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday,
+                          timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+        nchars += fprintf(fp, "# count = %d\n", count);
 
         for (size_t i = 0; i < h->n; ++i) {
-            fprintf(fp, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
+            nchars += fprintf(fp, "  %.3e %.5e\n", h->range[i], gsl_histogram_get(h, i)/count);
         }
 
         // apparently 'fflush' flushes the user-space buffer to the kernel's buffer
         // and kernel may delay the committing its buffer to the filesystem for some reason 
         if (fflush(fp) != 0) {
-            printf("ERROR: could not flush the buffer to stream: %s\n", strerror(errno));
+            ERROR("could not flush the buffer to stream: %s\n", strerror(errno));
             return -1;
         }
    
         // so to force the kernel to commit the buffered data to the filesystem we have to 
         // use 'syncfs' or 'sync' 
         if (syncfs(fd) < 0) {
-            printf("ERROR: could not commit filesystem cache to disk\n");
+            ERROR("could not commit filesystem cache to disk\n");
             return -1; 
         }
+
+        INFO("wrote %zu characters\n", nchars);
+        return nchars;
     }
 
     return 0;
