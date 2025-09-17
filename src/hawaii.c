@@ -2205,7 +2205,6 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     double dip2_0[3], dip2_t[3];
     extract_q_and_write_into_ms(ms);
 
-
     if (dipole_1 != dipole_2) {
         (*dipole_1)(ms->intermediate_q, dip1_0);
         (*dipole_2)(ms->intermediate_q, dip2_0);
@@ -2230,7 +2229,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
     
     double t = 0.0;
     double tout = params->sampling_time;
+
     ms->m1.req_switch_counter = 0;
+    ms->m2.req_switch_counter = 0;
 	
     Tracker tr = {
       .before2 = qp.data[IR],
@@ -3254,9 +3255,6 @@ if (_wrank > 0) {
                     if (energy > 0.0) continue;
                 }
 
-                ms->m1.req_switch_counter = 0;
-                ms->m2.req_switch_counter = 0;
-			    
                 int status;
                 if (params->use_zimmermann_trick) {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
@@ -3362,27 +3360,28 @@ if (_wrank > 0) {
             } 
         }
 
-        _print0_suppress_info = true;
-        int r = write_correlation_function_ext(fp, total_crln);
-        _print0_suppress_info = false;
+        {
+            _print0_suppress_info = true;
+            int r = write_correlation_function_ext(fp, total_crln);
+            _print0_suppress_info = false;
 
-        INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
-        
-        /* END OF MASTER CODE */
-}
+            INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
+	    }
 
-	    if (ms->m1.nswitch_histogram != NULL) {
+        if (ms->m1.nswitch_histogram != NULL) {
 	    	double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
 	    	INFO("Writing normalized histogram of number of angular momentum switches for monomer %d (%s)\n",
                   ms->m1.index, display_monomer_type(ms->m1.t));
 
             _print0_suppress_info = true;
-	    	int nchars = write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
+	    	int nchars = write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, (int) count);
             _print0_suppress_info = false;
 
             INFO("wrote %d characters to %s (histogram count = %d)\n\n", 
                  nchars, ms->m1.nswitch_histogram_filename, (int) count);
 	    }
+        /* END OF MASTER CODE */
+}
     }
  
     if (tps_hist != NULL) {
@@ -4493,6 +4492,7 @@ int write_spectral_function_ext(FILE *fp, SFnc sf)
 
 int write_histogram_ext(FILE *fp, gsl_histogram *h, int count)
 {
+    assert(count > 0);
     int fd = fileno(fp);
 
     size_t nchars = 0;
