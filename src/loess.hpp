@@ -1,7 +1,8 @@
 #ifndef LOESS_H_
 #define LOESS_H_
 
-/*
+/** \addtogroup loess_introduction Overview of LOESS algorithm 
+ *
  * LOESS: locally weighted polynomial regression
  *
  * LOESS blends the simplicity of linear least squares regression
@@ -43,15 +44,13 @@
  * of estimation, after scaling the distance so that the maximum absolute distance 
  * over all of the points in the subset of data is exactly one.
  *
- * Blog post with python implementation:
- * https://towardsdatascience.com/loess-373d43b03564
- * The method is proposed by William S. Cleveland in 1979. 
- * https://www.tandfonline.com/doi/abs/10.1080/01621459.1979.10481038  
- *
  * Apparently, LOESS is equivalent to Savitzky-Golay filtering.
  *
- * NIST example of LOESS Computation:  
- * https://www.itl.nist.gov/div898/handbook/pmd/section1/dep/dep144.htm 
+ * References:
+ * - [Blog post with python implementation](https://towardsdatascience.com/loess-373d43b03564)
+ * - The LOESS algorithm is proposed by [William S. Cleveland](https://www.tandfonline.com/doi/abs/10.1080/01621459.1979.10481038) in 1979. 
+ * - [NIST example](https://www.itl.nist.gov/div898/handbook/pmd/section1/dep/dep144.htm) of LOESS Computation:  
+ *
  */
 
 typedef struct {

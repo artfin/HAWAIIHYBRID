@@ -3204,7 +3204,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
         exit(1);
     } 
-
+    
     if (params->initialM0_npoints > 0) { 
         PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
         PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 

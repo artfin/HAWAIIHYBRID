@@ -213,4 +213,6 @@
  * 
  * @section processing_section Processing the results
  *
+ * @section Smoothing
+ * Here is the link to description of [LOESS module](@ref loess_introduction) 
  */

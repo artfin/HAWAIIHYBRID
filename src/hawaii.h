@@ -208,6 +208,7 @@ extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
  * - 17.01.2025: renamed `I[3]` to `II[3]` to avoid collision when including the header file `complex.h` 
  */
 typedef struct { 
+    int index;                 ///< Index of monomer within the molecule system (1 or 2) 
     MonomerType t;             ///< Type identifier for the monomer.
     double II[3];              ///< Values of inertia tensor.
     double DJ;                 ///< Centrifugal distortion constant.
@@ -224,7 +225,7 @@ typedef struct {
     
     size_t nswitch_histogram_bins; 
     double nswitch_histogram_max;
-    const char *nswitch_histogram_filename;
+    char *nswitch_histogram_filename;
     gsl_histogram *nswitch_histogram;
     FILE *fp_nswitch_histogram;
 
@@ -233,13 +234,13 @@ typedef struct {
     /* histograms */
     size_t jini_histogram_bins;
     double jini_histogram_max;
-    const char *jini_histogram_filename; 
+    char *jini_histogram_filename; 
     gsl_histogram *jini_histogram;
     FILE *fp_jini_histogram; 
    
     size_t jfin_histogram_bins;
     double jfin_histogram_max;
-    const char *jfin_histogram_filename;
+    char *jfin_histogram_filename;
     gsl_histogram *jfin_histogram;
     FILE *fp_jfin_histogram;
 } Monomer; 

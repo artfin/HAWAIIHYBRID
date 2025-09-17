@@ -44,5 +44,10 @@
  *  \tau(\nu) = L^{-1} \ln (I_0 / I),
  * \f]
  * and \f$\rho_1\f$ and \f$\rho_2\f$ are gas densities in mixture. We will express the binary absorption coefficient as per convention in \f$\textrm{cm}^{-1}\cdot\textrm{Amagat}^{-2}\f$. 
+ *
+ * @section main_functionality Main Functionality
  * 
+ * @subsection calc_corr_func Calculating correlation functions
+ * 
+ * @subsection calc_spec_func Calculating spectral functions 
  */
