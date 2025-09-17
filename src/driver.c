@@ -211,6 +211,7 @@ static int64_t DEFAULT_CF_EXTRAPOLATION_BEGIN_INDEX = 16384;
 static size_t DEFAULT_WINDOW_SIZE_MIN = 21;
 static double DEFAULT_WINDOW_SIZE_STEP = 0.1;
 static size_t DEFAULT_WINDOW_SIZE_DELAY = 10;
+static size_t DEFAULT_WINDOW_SIZE_CAP = 0;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
@@ -2189,8 +2190,10 @@ bool execute_fit_baseline(Funcall *func, Processing_Stack *stack)
         cf_extrapolation_begin_index = arg.int_number;
     } 
 
-    INFO("Using points starting from %"PRIu64" for CF extrapolation\n", cf_extrapolation_begin_index); 
-    CFnc *cf = &tagged_item.item.cf; 
+    CFnc *cf = &tagged_item.item.cf;
+
+    INFO("Using points starting from %"PRIu64" (out of %zu points) for CF extrapolation\n", 
+         cf_extrapolation_begin_index, cf->len); 
 
     // I don't want to create an additional Stack_Item for these parameters, so
     // just saving them into Processing_Stack to make them available in the 
@@ -3288,6 +3291,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
  *                         window expands with frequency. 
  * @param window_size_delay Optional: Delay before window size begins growing (in points). 
  *                          Maintains consistent window size at lower frequencies.
+ * @param windows_size_cap Optional: Cap on window size (in points) [though this option was not found useful in most cases] 
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -3300,6 +3304,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     size_t ws_min = DEFAULT_WINDOW_SIZE_MIN;
     double ws_step = DEFAULT_WINDOW_SIZE_STEP;
     size_t ws_delay = DEFAULT_WINDOW_SIZE_DELAY;
+    size_t ws_cap = DEFAULT_WINDOW_SIZE_CAP;
 
     while (func->args.count > 0) {
         Funcall_Argument arg = shift_funcall_argument(func);
@@ -3325,11 +3330,15 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
             ws_step = arg.double_number;
         } else if (strcasecmp(arg.name, "window_size_delay") == 0) {
             expect_integer_for_funcall_named_argument(func, &arg);
-            ws_delay = arg.int_number; 
+            ws_delay = arg.int_number;
+        } else if (strcasecmp(arg.name, "window_size_cap") == 0) { 
+            expect_integer_for_funcall_named_argument(func, &arg);
+            ws_cap = arg.int_number;
         } else {
             PRINT0("ERROR: %s:%d:%d: function call %s got unexpected named argument %s\n",
                     arg.name_loc.input_path, arg.name_loc.line_number, arg.name_loc.line_offset,
                     func->name, arg.name);
+            return false;
         } 
     }
 
@@ -3346,11 +3355,11 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     }
 
     Smoothing_Config config = {
-        .degree = 3, 
-        .ws_min = ws_min, 
-        .ws_step = ws_step, 
-        .ws_delay = ws_delay, 
-        .ws_cap = 0,
+        .degree   = 3,
+        .ws_min   = ws_min,
+        .ws_step  = ws_step,
+        .ws_delay = ws_delay,
+        .ws_cap   = ws_cap,
     }; 
 
     INFO("grid_npoints = %zu\n", grid_npoints);
@@ -3358,6 +3367,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     INFO("window_size_min = %zu\n", ws_min);
     INFO("window_size_step = %.5e\n", ws_step);
     INFO("window_size_delay = %zu\n", ws_delay);
+    INFO("window_size_cap = %zu\n", ws_cap);
 
     loess_init(sf->nu, sf->data, sf->len);
     loess_weight = WEIGHT_TRICUBE; 
