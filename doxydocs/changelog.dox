@@ -67,5 +67,11 @@
   * <li><b>13.07.2025</b> fixed parsing error in negative floating-point numbers in `driver`</li>
   * <li><b>13.07.2025</b> fixed printing accumulated results in `mpi_calculate_M0`</li>
   * <li><b>13.07.2025</b> mixed spectral moments for CO-Ar at 300 K are \f$ \textrm{M}_0(\textrm{mixed}) = 5.44\cdot 10^{-5} \f$, \f$ \textrm{M}_2 (\textrm{mixed}) = 1.46 \cdot 10^{-1} \f$.</li>
+  * <li><b>13.09.2025</b> introduced storing floating-point numbers on Processing_Stack and writing them to file: COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE and COMPUTE_Mn_QUANTUM_DETAILED_BALANCE now push result on the stack</li>
+  * <li><b>14.09.2025</b> implemented calculating spectral moment from the spectral profile (for COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE) by fitting clamped spline and integrating using adaptive CQUAD method from GSL </li>
+  * <li><b>16.09.2025</b> adding floating-point numbers on the stack</li>
+  * <li><b>17.09.2025</b> refactored setting up histograms (nswitch, jini, jfin) into separate functions to be reused in different calculation scenarios </li>
+  * <li><b>17.09.2025</b> added sending nswitch histogram from slave processes to the master process in @ref calculate_correlation_and_save; refactored the main loop so that master process does not do any trajectory propagation</li>
+  * <li><b>17.09.2025</b> added window_size_cap argument for the SMOOTH command in the configuration file (smoothing CH4-CO2 spectra for free states for 100-140K)</li>
   * </ul>
   */
