@@ -73,12 +73,13 @@ Report EXPECTED_TESTS_STATUS[] = {
     { .name = "drop2.conf",                                    .run_status = Fail },
     { .name = "smooth.conf",                                   .run_status = Success },
     { .name = "inv-d3.conf",                                   .run_status = Success },
+    { .name = "inv-d2.conf",                                   .run_status = Success },
     { .name = "swap.conf",                                     .run_status = Success },
     { .name = "rot.conf",                                      .run_status = Success },
 };
 
 #define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0]) 
-static_assert(TEST_COUNT == 34, "");
+static_assert(TEST_COUNT == 35, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));

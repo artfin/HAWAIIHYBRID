@@ -191,6 +191,19 @@ typedef enum {
 
 extern MonomerType MONOMER_TYPES[MONOMER_COUNT];
 
+// note: gsl_histogram does have fields for nbins and max but I don't want
+// to access them when deciding on what the values should be, so we will have "duplicates"
+// The values of 'nbins' and 'max' are the initial values, and can be updated when 
+// the histogram is extended. 
+typedef struct {
+    gsl_histogram *h;
+    size_t nbins;  
+    double max;
+    char *filename;
+    FILE *fp;
+    bool is_allocated;
+} StoredHistogram;
+
 /**
  * @struct Monomer
  * @brief @ref Monomer represents a monomer in a pair with associated dynamic variables.
@@ -222,16 +235,12 @@ typedef struct {
     size_t torque_cache_len;   ///< Length of the torque cache array.
     double torque_limit;       ///< Torque limiting values to decide when requantization should be switched on/off.
     double *torque_cache;      ///< Cached torque values.
-    
-    size_t nswitch_histogram_bins; 
-    double nswitch_histogram_max;
-    char *nswitch_histogram_filename;
-    gsl_histogram *nswitch_histogram;
-    FILE *fp_nswitch_histogram;
 
     double initial_j;
     
     /* histograms */
+    StoredHistogram nswitch_histogram;
+
     size_t jini_histogram_bins;
     double jini_histogram_max;
     char *jini_histogram_filename; 
@@ -655,7 +664,8 @@ SFnc idct_cf_to_sf(CFnc cf);
 Spectrum compute_alpha(SFnc sf);
 
 SFnc desymmetrize_d1(SFnc sf); 
-SFnc desymmetrize_d2(SFnc sf); 
+SFnc desymmetrize_d2_sf(SFnc sf); 
+Spectrum desymmetrize_d2_sp(Spectrum sp); 
 SFnc desymmetrize_schofield_sf(SFnc sf); 
 Spectrum desymmetrize_schofield_sp(Spectrum sp); 
 SFnc desymmetrize_egelstaff(SFnc sf);
@@ -664,6 +674,7 @@ SFnc desymmetrize_frommhold(SFnc sf);
 SFnc desymmetrize_frommhold_from_cf(CFnc cf);
 CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization); 
 Spectrum inv_desymmetrize_schofield(Spectrum sp);
+Spectrum inv_desymmetrize_d2(Spectrum sp);
 
 double* pad_to_power_of_two(double* v, size_t len, size_t* padded_len); 
 

@@ -112,7 +112,7 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
         ms.m1.qp   = malloc((ms.m1.t%MODULO_BASE)   * sizeof(double));
         ms.m1.dVdq = malloc((ms.m1.t%MODULO_BASE)/2 * sizeof(double));
 
-        if (m1->nswitch_histogram_filename != NULL) ms.m1.nswitch_histogram_filename = strdup(m1->nswitch_histogram_filename); 
+        if (m1->nswitch_histogram.filename != NULL) ms.m1.nswitch_histogram.filename = strdup(m1->nswitch_histogram.filename); 
         if (m1->jini_histogram_filename != NULL) ms.m1.jini_histogram_filename = strdup(m1->jini_histogram_filename); 
         if (m1->jfin_histogram_filename != NULL) ms.m1.jfin_histogram_filename = strdup(m1->jfin_histogram_filename); 
 
@@ -139,7 +139,7 @@ MoleculeSystem init_ms_from_monomers(double mu, Monomer *m1, Monomer *m2, size_t
         ms.m2.qp   = malloc((ms.m2.t%MODULO_BASE)   * sizeof(double));
         ms.m2.dVdq = malloc((ms.m2.t%MODULO_BASE)/2 * sizeof(double));
 
-        if (m2->nswitch_histogram_filename != NULL) ms.m2.nswitch_histogram_filename = strdup(m2->nswitch_histogram_filename); 
+        if (m2->nswitch_histogram.filename != NULL) ms.m2.nswitch_histogram.filename = strdup(m2->nswitch_histogram.filename); 
         if (m2->jini_histogram_filename != NULL) ms.m2.jini_histogram_filename = strdup(m2->jini_histogram_filename); 
         if (m2->jfin_histogram_filename != NULL) ms.m2.jfin_histogram_filename = strdup(m2->jfin_histogram_filename); 
     
@@ -342,6 +342,12 @@ MoleculeSystem init_ms(double mu, MonomerType t1, MonomerType t2, double *II1, d
     return ms;
 }
 
+void free_stored_histogram(StoredHistogram *sh) 
+{
+    if (sh->filename != NULL) free(sh->filename);
+    if ((sh->fp != stdout) && (sh->fp != NULL)) fclose(sh->fp);
+}
+
 void free_ms(MoleculeSystem *ms) 
 {
     free(ms->m1.qp); 
@@ -349,25 +355,21 @@ void free_ms(MoleculeSystem *ms)
     free(ms->m1.dVdq);
     free(ms->m2.dVdq);
 
+    free_stored_histogram(&ms->m1.nswitch_histogram); 
+    free_stored_histogram(&ms->m2.nswitch_histogram); 
+
     if (ms->m1.jini_histogram != NULL)    gsl_histogram_free(ms->m1.jini_histogram);
     if (ms->m1.jfin_histogram != NULL)    gsl_histogram_free(ms->m1.jfin_histogram);
-    if (ms->m1.nswitch_histogram != NULL) gsl_histogram_free(ms->m1.nswitch_histogram);
 
     if (ms->m2.jini_histogram != NULL)    gsl_histogram_free(ms->m2.jini_histogram);
     if (ms->m2.jfin_histogram != NULL)    gsl_histogram_free(ms->m2.jfin_histogram);
-    if (ms->m2.nswitch_histogram != NULL) gsl_histogram_free(ms->m2.nswitch_histogram);
 
-    if (ms->m1.nswitch_histogram_filename != NULL) free(ms->m1.nswitch_histogram_filename);
-    if (ms->m2.nswitch_histogram_filename != NULL) free(ms->m2.nswitch_histogram_filename);
 	
     if (ms->m1.jini_histogram_filename != NULL) free(ms->m1.jini_histogram_filename);
     if (ms->m2.jini_histogram_filename != NULL) free(ms->m2.jini_histogram_filename);
 
     if (ms->m1.jfin_histogram_filename != NULL) free(ms->m1.jfin_histogram_filename);
     if (ms->m2.jfin_histogram_filename != NULL) free(ms->m2.jfin_histogram_filename);
-    
-    if (ms->m1.fp_nswitch_histogram != stdout) fclose(ms->m1.fp_nswitch_histogram);
-    if (ms->m2.fp_nswitch_histogram != stdout) fclose(ms->m2.fp_nswitch_histogram);
     
     if (ms->m1.torque_cache != NULL) free(ms->m1.torque_cache);
     if (ms->m2.torque_cache != NULL) free(ms->m2.torque_cache);
@@ -2881,35 +2883,37 @@ void setup_nswitch_histogram_for_monomer(Monomer *m)
         return;
     }
 
-    if (m->nswitch_histogram_bins <= 0) m->nswitch_histogram_bins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
-    if (m->nswitch_histogram_max  <= 0) m->nswitch_histogram_max  = DEFAULT_NSWITCH_HISTOGRAM_MAX;
+    if (m->nswitch_histogram.nbins <= 0) m->nswitch_histogram.nbins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
+    if (m->nswitch_histogram.max  <= 0) m->nswitch_histogram.max  = DEFAULT_NSWITCH_HISTOGRAM_MAX;
 
-    if (m->nswitch_histogram_filename == NULL) {
+    if (m->nswitch_histogram.filename == NULL) {
         // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
         switch (m->index) {
         case 1: {
-            m->nswitch_histogram_filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME1);
+            m->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME1);
         } break;
         case 2: {
-            m->nswitch_histogram_filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME2);
+            m->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME2);
         } break;
         default: UNREACHABLE("setup_nswitch_histogram_for_monomer"); 
         }
     }
         
     PRINT0("Initializing histogram to store number of requantization switches for monomer %d (%s) on individual trajectories within the range"
-            " [%.1e -- %.1e] using %zu bins\n", m->index, display_monomer_type(m->t), 0.0, m->nswitch_histogram_max, m->nswitch_histogram_bins);
+            " [%.1e -- %.1e] using %zu bins\n", m->index, display_monomer_type(m->t), 0.0, m->nswitch_histogram.max, m->nswitch_histogram.nbins);
 
-    if (strcmp(m->nswitch_histogram_filename, "stdout") == 0) {
+    if (strcmp(m->nswitch_histogram.filename, "stdout") == 0) {
         PRINT0("Outputting the histogram to standard output\n\n");
-        m->fp_nswitch_histogram = stdout;
+        m->nswitch_histogram.fp = stdout;
     } else {
-        PRINT0("Writing the histogram to %s\n\n", m->nswitch_histogram_filename);
-        m->fp_nswitch_histogram = fopen(m->nswitch_histogram_filename, "w");
+        PRINT0("Writing the histogram to %s\n\n", m->nswitch_histogram.filename);
+        m->nswitch_histogram.fp = fopen(m->nswitch_histogram.filename, "w");
     }
 
-     m->nswitch_histogram = gsl_histogram_alloc(m->nswitch_histogram_bins);
-     gsl_histogram_set_ranges_uniform(m->nswitch_histogram, 0.0, m->nswitch_histogram_max);
+     m->nswitch_histogram.h = gsl_histogram_alloc(m->nswitch_histogram.nbins);
+     gsl_histogram_set_ranges_uniform(m->nswitch_histogram.h, 0.0, m->nswitch_histogram.max);
+
+     m->nswitch_histogram.is_allocated = true;
 }
 
 void setup_jini_histogram_for_monomer(Monomer *m)
@@ -3268,12 +3272,13 @@ if (_wrank > 0) {
                     gsl_histogram_increment(tps_hist, tps);
                 }
 
-                if (ms->m1.nswitch_histogram != NULL) {
-                    if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
-                        ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
+                if (ms->m1.nswitch_histogram.is_allocated) {
+                    if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
+                        ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h, 
+                                                                                ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
                     }
 
-                    gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
+                    gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
                 }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
@@ -3287,7 +3292,7 @@ if (_wrank > 0) {
         MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
 
         if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-            send_histogram_and_reset(ms->m1.nswitch_histogram);
+            send_histogram_and_reset(ms->m1.nswitch_histogram.h);
         }
         /* END OF SLAVE CODE */
 } else {
@@ -3308,7 +3313,7 @@ if (_wrank > 0) {
            total_crln.ntraj += local_ntrajectories;
 
            if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram);
+               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram.h);
            }
 
            arena_rewind(&a, recv_mark);
@@ -3365,20 +3370,19 @@ if (_wrank > 0) {
             int r = write_correlation_function_ext(fp, total_crln);
             _print0_suppress_info = false;
 
-            INFO("Wrote %d characters to '%s'\n\n", r, params->cf_filename);
+            INFO("wrote %d characters to '%s'\n\n", r, params->cf_filename);
 	    }
 
-        if (ms->m1.nswitch_histogram != NULL) {
-	    	double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
-	    	INFO("Writing normalized histogram of number of angular momentum switches for monomer %d (%s)\n",
+        if (ms->m1.nswitch_histogram.is_allocated) {
+	    	double count = gsl_histogram_sum(ms->m1.nswitch_histogram.h);
+	    	INFO("wrote normalized histogram of number of angular momentum switches for monomer %d (%s)\n",
                   ms->m1.index, display_monomer_type(ms->m1.t));
 
             _print0_suppress_info = true;
-	    	int nchars = write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, (int) count);
+	    	int nchars = write_histogram_ext(ms->m1.nswitch_histogram.fp, ms->m1.nswitch_histogram.h, (int) count);
             _print0_suppress_info = false;
 
-            INFO("wrote %d characters to %s (histogram count = %d)\n\n", 
-                 nchars, ms->m1.nswitch_histogram_filename, (int) count);
+            INFO("wrote %d characters to %s (histogram count = %d)\n\n", nchars, ms->m1.nswitch_histogram.filename, (int) count);
 	    }
         /* END OF MASTER CODE */
 }
@@ -3495,9 +3499,6 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
     PRINT0("approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
     
-    ms->m1.nswitch_histogram = NULL;
-    ms->m2.nswitch_histogram = NULL;
-
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
         PRINT0("\n");
 
@@ -3934,12 +3935,13 @@ if (_wrank > 0) {
                 }
             }
                             
-            if (ms->m1.nswitch_histogram != NULL) {
-                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n]) {
-                    ms->m1.nswitch_histogram = gsl_histogram_extend_right(ms->m1.nswitch_histogram, ms->m1.req_switch_counter - ms->m1.nswitch_histogram->range[ms->m1.nswitch_histogram->n] + 1);
+            if (ms->m1.nswitch_histogram.is_allocated) {
+                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
+                    ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h, 
+                                                                            ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
                 }
                 
-                gsl_histogram_increment(ms->m1.nswitch_histogram, ms->m1.req_switch_counter);
+                gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
             }
             
             if (poisson_tmax > 0.0) {
@@ -4039,10 +4041,7 @@ if (_wrank > 0) {
   
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
               // printf("[%d] sending %lf switch values\n", _wrank, gsl_histogram_sum(nswitch_histogram));
-
-              MPI_Send(&ms->m1.nswitch_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-              MPI_Send(ms->m1.nswitch_histogram->bin, ms->m1.nswitch_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-              gsl_histogram_reset(ms->m1.nswitch_histogram);
+              send_histogram_and_reset(ms->m1.nswitch_histogram.h);
           } 
               
           MPI_Send(&ms->m1.jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -4077,7 +4076,7 @@ if (_wrank > 0) {
               Arena_Mark recv_mark = arena_snapshot(&a);
                   
               if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-                  recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram);
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram.h);
               }
                   
               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jini_histogram);
@@ -4091,9 +4090,14 @@ if (_wrank > 0) {
           }
 
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-              double count = gsl_histogram_sum(ms->m1.nswitch_histogram);
-              printf("INFO: Writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
-              write_histogram_ext(ms->m1.fp_nswitch_histogram, ms->m1.nswitch_histogram, count);
+              double count = gsl_histogram_sum(ms->m1.nswitch_histogram.h);
+              INFO("writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
+
+              _print0_suppress_info = true;
+              int nchars = write_histogram_ext(ms->m1.nswitch_histogram.fp, ms->m1.nswitch_histogram.h, count);
+              _print0_suppress_info = false;
+            
+              INFO("wrote %d characters to %s (histogram count = %d)\n\n", nchars, ms->m1.nswitch_histogram.filename, (int) count);
           }
 
           if ((ms->m1.t == LINEAR_MOLECULE) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER)) { 
@@ -5974,29 +5978,7 @@ Spectrum inv_desymmetrize_schofield(Spectrum sp)
     return invsp;
 }
 
-SFnc desymmetrize_d1(SFnc sf) 
-{
-    SFnc sfd = {
-        .nu          = (double*) malloc(sf.len * sizeof(double)),
-        .data        = (double*) malloc(sf.len * sizeof(double)),
-        .len         = sf.len,
-        .ntraj       = sf.ntraj,
-        .Temperature = sf.Temperature,
-        .normalized  = sf.normalized,
-    };
-    
-    memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
-    
-    for (size_t i = 0; i < sf.len; ++i) {
-        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
-        sfd.data[i] = sf.data[i] * 2.0 / (1.0 + exp(-hnukt));
-    }
-
-    return sfd;
-
-}
-
-SFnc desymmetrize_d2(SFnc sf) 
+SFnc desymmetrize_d2_sf(SFnc sf) 
 {
     SFnc sfd = {
         .nu          = (double*) malloc(sf.len * sizeof(double)),
@@ -6023,7 +6005,85 @@ SFnc desymmetrize_d2(SFnc sf)
 
     return sfd;
 }
+
+Spectrum desymmetrize_d2_sp(Spectrum sp)
+{
+    Spectrum spd = {
+        .nu          = (double*) malloc(sp.len * sizeof(double)),
+        .data        = (double*) malloc(sp.len * sizeof(double)),
+        .len         = sp.len,
+        .ntraj       = sp.ntraj,
+        .Temperature = sp.Temperature,
+        .normalized  = sp.normalized,
+    };
     
+    memcpy(spd.nu, sp.nu, sp.len * sizeof(double));
+    
+    for (size_t i = 0; i < sp.len; ++i) {
+        // separately handling the case of nu = 0.0 cm-1, because the 
+        // denominator is zero in this case 
+        if (sp.nu[i] < 1e-10) { 
+            spd.data[i] = 0.0;
+            continue;
+        }
+
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * sp.Temperature);
+        spd.data[i] = sp.data[i] * hnukt / (1.0 - exp(-hnukt));
+    }
+
+    return spd;
+}
+
+Spectrum inv_desymmetrize_d2(Spectrum sp)
+{
+    Spectrum invsp = {
+        .nu          = (double*) malloc(sp.len * sizeof(double)),
+        .data        = (double*) malloc(sp.len * sizeof(double)),
+        .len         = sp.len,
+        .capacity    = sp.len,
+        .ntraj       = sp.ntraj,
+        .Temperature = sp.Temperature,
+        .normalized  = sp.normalized,
+    };
+    
+    memcpy(invsp.nu, sp.nu, sp.len * sizeof(double));
+    
+    for (size_t i = 0; i < sp.len; ++i) {
+        // separately handling the case of nu = 0.0 cm-1, because the 
+        // denominator is zero in this case 
+        if (sp.nu[i] < 1e-10) { 
+            invsp.data[i] = 0.0;
+            continue;
+        }
+
+        double hnukt = Planck * LightSpeed_cm * sp.nu[i] / (Boltzmann * sp.Temperature);
+        invsp.data[i] = sp.data[i] * (1.0 - exp(-hnukt)) / hnukt;
+    }
+
+    return invsp;
+}
+
+SFnc desymmetrize_d1(SFnc sf) 
+{
+    SFnc sfd = {
+        .nu          = (double*) malloc(sf.len * sizeof(double)),
+        .data        = (double*) malloc(sf.len * sizeof(double)),
+        .len         = sf.len,
+        .ntraj       = sf.ntraj,
+        .Temperature = sf.Temperature,
+        .normalized  = sf.normalized,
+    };
+    
+    memcpy(sfd.nu, sf.nu, sf.len * sizeof(double));
+    
+    for (size_t i = 0; i < sf.len; ++i) {
+        double hnukt = Planck * LightSpeed_cm * sf.nu[i] / (Boltzmann * sf.Temperature);
+        sfd.data[i] = sf.data[i] * 2.0 / (1.0 + exp(-hnukt));
+    }
+
+    return sfd;
+
+}
 
 CFnc egelstaff_time_transform(CFnc cf, bool frommhold_renormalization) 
 {

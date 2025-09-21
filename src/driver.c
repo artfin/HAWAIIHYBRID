@@ -433,10 +433,11 @@ static const char *AVAILABLE_FUNCS[] = {
     "AVERAGE_CFS", // docs (+)
     "D1", // docs (+), tests (+)
     "D2", // docs (+), tests (+)
+    "INV_D2",
     "D3", // docs (+), tests (+)
+    "INV_D3", // tests (+) 
     "D4",  // docs (+), tests (+)
     "D4a",  // docs (+), tests (+)
-    "INV_D3", // tests (+) 
     "ALPHA", // docs (+), tests (+)
     "DUP", // docs (+), tests (+)
     "DUP2", // docs (+), tests (+) 
@@ -1327,9 +1328,9 @@ void parse_monomer_block(Lexer *l, Monomer *m)
             case KEYWORD_INITIAL_J:                  m->initial_j = l->double_number; break;
             case KEYWORD_TORQUE_CACHE_LEN:           m->torque_cache_len = l->int_number; break;
             case KEYWORD_TORQUE_LIMIT:               m->torque_limit = l->double_number; break;
-            case KEYWORD_NSWITCH_HISTOGRAM_BINS:     m->nswitch_histogram_bins = l->int_number; break; 
-            case KEYWORD_NSWITCH_HISTOGRAM_MAX:      m->nswitch_histogram_max = l->double_number; break; 
-            case KEYWORD_NSWITCH_HISTOGRAM_FILENAME: m->nswitch_histogram_filename = strdup(l->string_storage.items); break;
+            case KEYWORD_NSWITCH_HISTOGRAM_BINS:     m->nswitch_histogram.nbins = l->int_number; break; 
+            case KEYWORD_NSWITCH_HISTOGRAM_MAX:      m->nswitch_histogram.max = l->double_number; break; 
+            case KEYWORD_NSWITCH_HISTOGRAM_FILENAME: m->nswitch_histogram.filename = strdup(l->string_storage.items); break;
             case KEYWORD_JINI_HISTOGRAM_BINS:        m->jini_histogram_bins = l->int_number; break;
             case KEYWORD_JINI_HISTOGRAM_MAX:         m->jini_histogram_max = l->double_number; break;
             case KEYWORD_JINI_HISTOGRAM_FILENAME:    m->jini_histogram_filename = strdup(l->string_storage.items); break;
@@ -1867,7 +1868,11 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
  * The processing_stack's (Processing_Stack) `return_code` is set to the result of CMP.
  */
 {
-    double reltol = 1e-3;
+    double Temperature_abstol = 1e-2; // K 
+    double ntraj_abstol = 1e-3; 
+    double time_abstol = 1e-3; // atomic time units
+    double freq_abstol = 1e-6; // cm-1
+    double value_reltol = 1e-4;
 
     if (func->args.count > 0) {
         Funcall_Argument arg = shift_funcall_argument(func);
@@ -1881,7 +1886,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
         }
         
         expect_float_funcall_argument(func, &arg);
-        reltol = arg.double_number;
+        value_reltol = arg.double_number;
     }
 
     if (stack->count < 2) {
@@ -1906,29 +1911,39 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
     bool result = true;
     String_Builder reason = {0};
   
-    double Temperature_abstol = 1e-2; // K 
-    double ntraj_abstol = 1e-3; 
-    double time_abstol = 1e-3; // atomic time units
-    double freq_abstol = 1e-6; // cm-1
-    double value_reltol = 1e-4;
-
     switch (typ1) {
     case STACK_ITEM_FLOAT: {
+        INFO("comparing two floats with the following tolerances:\n");
+
+        _print0_margin += 6;
+        PRINT0("value relative tolerance: %.10e\n", value_reltol);
+        _print0_margin -= 6;
+
         double double_number1 = tagged_item1.item.double_number;
         double double_number2 = tagged_item2.item.double_number;
         double r = fabs(double_number1 - double_number2)/fabs(double_number1);
 
-        if (r > reltol) { 
+        if (r > value_reltol) { 
             INFO("CMP: comparison between floats failed: %.5e and %.5e differ by %.3f%%, exceeding tolerance %.3f%%\n",
-                 double_number1, double_number2, r*100.0, reltol*100.0);
+                 double_number1, double_number2, r*100.0, value_reltol*100.0);
             return_defer(false);
         }
 
         INFO("CMP: floats considered equal: %.5e and %.5e differ by %.3f%% < tolerance %.3f%%\n",
-             double_number1, double_number2, r*100.0, reltol*100.0);
+             double_number1, double_number2, r*100.0, value_reltol*100.0);
         return_defer(true);
     } break;
+
     case STACK_ITEM_CF: {
+        INFO("comparing two correlation functions with the following tolerances:\n");
+
+        _print0_margin += 6;
+        PRINT0("temperature absolute tolerance: %.10e\n", Temperature_abstol);
+        PRINT0("ntraj absolute tolerance:       %.10e\n", ntraj_abstol);
+        PRINT0("time absolute tolerance:        %.10e\n", time_abstol);
+        PRINT0("value relative tolerance:       %.10e\n", value_reltol);
+        _print0_margin -= 6;
+
         CFnc *cf1 = &tagged_item1.item.cf;
         CFnc *cf2 = &tagged_item2.item.cf;
        
@@ -1961,7 +1976,8 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
             }
 
             if (fabs(cf2->data[i]) != 0.0) {
-               if ( (fabs(cf1->data[i]/cf2->data[i]) - 1.0) > value_reltol) {
+                double r = fabs(cf1->data[i] - cf2->data[i])/fabs(cf2->data[i]);
+                if (r > value_reltol) {
                    result = false;
                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
                            i, cf1->data[i], cf2->data[i]);
@@ -1984,7 +2000,17 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return_defer(result);
     } break;
+
     case STACK_ITEM_SF: {
+        INFO("comparing two spectral functions with the following tolerances:\n");
+
+        _print0_margin += 6;
+        PRINT0("temperature absolute tolerance: %.10e\n", Temperature_abstol);
+        PRINT0("ntraj absolute tolerance:       %.10e\n", ntraj_abstol);
+        PRINT0("frequency absolute tolerance:   %.10e\n", freq_abstol);
+        PRINT0("value relative tolerance:       %.10e\n", value_reltol);
+        _print0_margin -= 6;
+
         SFnc *sf1 = &tagged_item1.item.sf;
         SFnc *sf2 = &tagged_item2.item.sf;
 
@@ -2016,7 +2042,8 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
             }
 
             if (fabs(sf2->data[i]) != 0.0) {
-               if ( (fabs(sf1->data[i]/sf2->data[i]) - 1.0) > value_reltol) {
+                double r = fabs(sf1->data[i] - sf2->data[i])/fabs(sf2->data[i]);
+               if (r > value_reltol) {
                    result = false;
                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
                            i, sf1->data[i], sf2->data[i]);
@@ -2039,7 +2066,17 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
         INFO("CMP: comparison returned 'true' (objects are identical)\n");
         return_defer(true);
     } break;
+
     case STACK_ITEM_SPECTRUM: {
+        INFO("comparing two spectra with the following tolerances:\n");
+
+        _print0_margin += 6;
+        PRINT0("temperature absolute tolerance: %.10e\n", Temperature_abstol);
+        PRINT0("ntraj absolute tolerance:       %.10e\n", ntraj_abstol);
+        PRINT0("frequency absolute tolerance:   %.10e\n", freq_abstol);
+        PRINT0("value relative tolerance:       %.10e\n", value_reltol);
+        _print0_margin -= 6;
+
         Spectrum *sp1 = &tagged_item1.item.sp;
         Spectrum *sp2 = &tagged_item2.item.sp;
 
@@ -2071,7 +2108,9 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
             }
 
             if (fabs(sp2->data[i]) != 0.0) {
-               if ( (fabs(sp1->data[i]/sp2->data[i]) - 1.0) > value_reltol) {
+                double r = fabs(sp1->data[i] - sp2->data[i])/fabs(sp2->data[i]);
+
+                if (r > value_reltol) {
                    result = false;
                    sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
                            i, sp1->data[i], sp2->data[i]);
@@ -2082,6 +2121,7 @@ bool execute_cmp(Funcall *func, Processing_Stack *stack)
                     result = false;
                     sb_append_format(&reason, "values at index %zu differ (%.3e and %.3e)",
                             i, sp1->data[i], sp2->data[i]);
+                    break;
                 } 
             } 
         }
@@ -2961,18 +3001,32 @@ bool execute_D1(Funcall *func, Processing_Stack *stack)
 
 bool execute_D2(Funcall *func, Processing_Stack *stack)
 /**
- * @brief Applies D2 desymmetrization to the spectral function (SFnc) on the 
- * top of the stack.
+ * @brief Applies D2 desymmetrization to the spectral function (SFnc) or spectrum (Spectrum)
+ * on the top of the stack.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
+    expect_one_of_items_on_stack(&func->loc, &tagged_item, 2, STACK_ITEM_SF, STACK_ITEM_SPECTRUM);
 
-    SFnc *sf = &tagged_item.item.sf;
-    SFnc sfd2 = desymmetrize_d2(*sf);
-    free_sfnc(*sf);
+    switch (tagged_item.typ) {
+    case STACK_ITEM_SF: {
+        SFnc sf = tagged_item.item.sf;
+        SFnc sfd2 = desymmetrize_d2_sf(sf);
+        free_sfnc(sf);
 
-    stack_push_with_type(stack, (void*) &sfd2, STACK_ITEM_SF, &func->loc); 
+        stack_push_with_type(stack, (void*) &sfd2, STACK_ITEM_SF, &func->loc); 
+    } break;
+    case STACK_ITEM_SPECTRUM: {
+        Spectrum sp = tagged_item.item.sp;
+        Spectrum spd2 = desymmetrize_d2_sp(sp);
+        free_spectrum(sp);
+
+        stack_push_with_type(stack, (void*) &spd2, STACK_ITEM_SPECTRUM, &func->loc); 
+    } break;
+
+    default: UNREACHABLE("execute_D2");
+    }
+
     return true;
 }
 
@@ -3003,30 +3057,53 @@ bool execute_D3(Funcall *func, Processing_Stack *stack)
     } break;
 
     default: UNREACHABLE("execute_D3");
-    } 
+    }
+
+    return true; 
+}
+
+bool execute_inv_D2(Funcall *func, Processing_Stack *stack)
+/**
+ * @brief Applies inverse of D2 desymmetrization to the spectrum (Spectrum) on the top of the stack.
+ */
+{
+    Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM);
+
+    Spectrum sp = tagged_item.item.sp;
+
+    if (sp.Temperature < 0.0) {
+        ERROR("%s:%d:%d: cannot perform inverse D2 at T = %.3e\n", 
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset, sp.Temperature);
+        exit(1); 
+    }
+
+    Spectrum invsp = inv_desymmetrize_d2(sp);
+    free_spectrum(sp);
+
+    stack_push_with_type(stack, (void*) &invsp, STACK_ITEM_SPECTRUM, &func->loc);
     return true; 
 }
 
 bool execute_inv_D3(Funcall *func, Processing_Stack *stack)
 /**
- * @brief Applies inverse of D3 desymmetrization to the spectrum (Spectrum) on the 
- * top of the stack.
+ * @brief Applies inverse of D3 desymmetrization to the spectrum (Spectrum) on the top of the stack.
  */ 
 // TODO: allow expecting SF or Spectrum
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
     expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM);
 
-    Spectrum *sp = &tagged_item.item.sp;
+    Spectrum sp = tagged_item.item.sp;
 
-    if (sp->Temperature <= 0.0) {
+    if (sp.Temperature <= 0.0) {
         ERROR("%s:%d:%d: cannot perform inverse D3 at T = %.3e\n", 
-              func->loc.input_path, func->loc.line_number, func->loc.line_offset, sp->Temperature);
+              func->loc.input_path, func->loc.line_number, func->loc.line_offset, sp.Temperature);
         exit(1); 
     }
 
-    Spectrum invsp = inv_desymmetrize_schofield(*sp);
-    free_spectrum(*sp);
+    Spectrum invsp = inv_desymmetrize_schofield(sp);
+    free_spectrum(sp);
 
     stack_push_with_type(stack, (void*) &invsp, STACK_ITEM_SPECTRUM, &func->loc);
     return true;
@@ -3465,9 +3542,15 @@ int run_processing(Processing_Params *processing_params)
 
         } else if (strcasecmp(funcname, "D2") == 0) {
             if (!execute_D2(func, &stack)) return_defer(1);
+        
+        } else if (strcasecmp(funcname, "INV_D2") == 0) {
+            if (!execute_inv_D2(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "D3") == 0) {
             if (!execute_D3(func, &stack)) return_defer(1);
+
+        } else if (strcasecmp(funcname, "INV_D3") == 0) {
+            if (!execute_inv_D3(func, &stack)) return_defer(1);
         
         } else if (strcasecmp(funcname, "D4") == 0) {
             if (!execute_D4(func, &stack)) return_defer(1);
@@ -3475,9 +3558,6 @@ int run_processing(Processing_Params *processing_params)
         } else if (strcasecmp(funcname, "D4a") == 0) {
             if (!execute_D4a(func, &stack)) return_defer(1);
 
-        } else if (strcasecmp(funcname, "INV_D3") == 0) {
-            if (!execute_inv_D3(func, &stack)) return_defer(1);
-        
         } else if (strcasecmp(funcname, "SMOOTH") == 0) {
             if (!execute_smooth(func, &stack)) return_defer(1);
 
