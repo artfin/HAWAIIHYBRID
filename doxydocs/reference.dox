@@ -307,10 +307,15 @@
  * @copybrief execute_D4a
  * @copydetails execute_D4a
  *
+ * @subsection subsec_inv_d2 `INV_D2` 
+ * (See @ref execute_inv_D2)
+ * @copybrief execute_inv_D2
+ * @copydetails execute_inv_D2
+ *
  * @subsection subsec_inv_d3 `INV_D3` 
- * (See @ref execute_inv_d3)
- * @copybrief execute_inv_d3
- * @copydetails execute_inv_d3
+ * (See @ref execute_inv_D3)
+ * @copybrief execute_inv_D3
+ * @copydetails execute_inv_D3
  *
  * @subsection subsec_write_cf `WRITE_CF` 
  * @copybrief execute_write_cf
