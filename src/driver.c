@@ -3072,7 +3072,7 @@ bool execute_inv_D2(Funcall *func, Processing_Stack *stack)
 
     Spectrum sp = tagged_item.item.sp;
 
-    if (sp.Temperature < 0.0) {
+    if (sp.Temperature <= 0.0) {
         ERROR("%s:%d:%d: cannot perform inverse D2 at T = %.3e\n", 
               func->loc.input_path, func->loc.line_number, func->loc.line_offset, sp.Temperature);
         exit(1); 
