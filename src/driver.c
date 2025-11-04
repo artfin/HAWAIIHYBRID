@@ -123,8 +123,9 @@ const char *BLOCK_NAMES[] = {
     [1] = "&MONOMER",
     [2] = "&PROCESSING",
     [3] = "&END",
+    [4] = "&MANUAL"
 };
-static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 4, "");
+static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 5, "");
 
 const char *BOOLEAN_AS_STR[] = {
     [0] = "FALSE",
@@ -1123,6 +1124,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_PHASE_SPACE_M2;
                 } else if (strcasecmp(l->string_storage.items, "PROCESSING") == 0) {
                     params->calculation_type = CALCULATION_PROCESSING;
+                } else if (strcasecmp(l->string_storage.items, "MANUAL") == 0) {
+                    params->calculation_type = CALCULATION_MANUAL;
                 } else {
                     PRINT0("ERROR: %s:%d:%d: unknown calculation type '%s'\n", 
                             l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
@@ -3997,6 +4000,33 @@ int main(int argc, char* argv[])
 
             break;
         }
+
+        case CALCULATION_MANUAL: {
+
+            PRINT0("*****************************************************\n");
+            PRINT0("ENTERING MANUAL CALCULATION BLOCK\n");
+            PRINT0("*****************************************************\n");
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
+            if (input_block.so_dipole_2 != NULL) {
+                setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
+            } else {
+                dipole_2 = dipole_1;
+            }
+
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+            calculate_correlation_and_save_tests(&ms, &calc_params, input_block.Temperature);
+           
+            if (_wrank == 0) { 
+                if (run_processing(&processing_params)) {
+                    PRINT0("ERROR: an error occured when running PROCESSING block\n");
+                    exit(1); 
+                }
+            }
+
+            break;
+        } 
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
