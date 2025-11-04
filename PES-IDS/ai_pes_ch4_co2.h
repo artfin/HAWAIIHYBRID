@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <gsl/gsl_sf_legendre.h>
 
-#include "../constants.h"
+#include "../src/constants.h"
 
 #ifdef __cplusplus
 extern "C" {
