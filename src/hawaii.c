@@ -2125,6 +2125,7 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
 
         if (ms->intermolecular_qp[IR] > params->Rcut)
         {
+          //break;
           //NOTE: Here the actual injection occurs
           q_generator(ms, params);
           ms->intermolecular_qp[IR] = params->Rcut;
@@ -2221,20 +2222,33 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
    //     if (ms->intermolecular_qp[IR] > params->Rcut) break;
    // }
 
-    
     for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
         int cur_shif_used_pts = 0;//NOTE: avoiding bias
         for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
             
-            if (check_same_traj(indicator[curpt],indicator[curpt+shif]) == 1) {
+            if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
                 cur_shif_used_pts += 1;
-                crln[shif] += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
+                crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
             } 
         }
         //crln[shif] /= (params->MaxTrajectoryLength);
         if (cur_shif_used_pts != 0)
           crln[shif] /= cur_shif_used_pts;
     }
+    
+  //  for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
+  //      int cur_shif_used_pts = 0;//NOTE: avoiding bias
+  //      for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
+  //          
+  //          if (check_same_traj(indicator[curpt],indicator[curpt+shif]) == 1) {
+  //              cur_shif_used_pts += 1;
+  //              crln[shif] += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
+  //          } 
+  //      }
+  //      //crln[shif] /= (params->MaxTrajectoryLength);
+  //      if (cur_shif_used_pts != 0)
+  //        crln[shif] /= cur_shif_used_pts;
+  //  }
 
     *tps = tr.turning_points;
 
@@ -3400,6 +3414,8 @@ CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params
         c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
         params->partial_partition_function_ratio = hep_ppf / pf_analytic;
+       //WARNING:
+        params->partial_partition_function_ratio = 1.0;
         PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
     }       
 
