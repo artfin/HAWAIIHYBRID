@@ -21,6 +21,8 @@
 #define CSPLINE_IMPLEMENTATION
 #include "cspline.h"
 
+// TODO: AVERAGE_CFS needs to check that provided CFs are not the same to avoid averaging duplicate
+
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
 // TODO: do we need OVER operation on the stack elements? 
@@ -3132,7 +3134,9 @@ bool execute_D4(Funcall *func, Processing_Stack *stack)
 bool execute_D4a(Funcall *func, Processing_Stack *stack)
 /**
  * @brief Applies D4a desymmetrization to the correlation function (CFnc) on the 
- * top of the stack producing spectral function (SFnc).
+ * top of the stack producing spectral function (SFnc). If the FIT_BASELINE function was called 
+ * prior to applying D4a desymmetrization for the current CFnc, the parameters of the fitted baseline 
+ * are used to add the Lorentizatian lineshape to the resulting spectral function.
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
@@ -3141,6 +3145,31 @@ bool execute_D4a(Funcall *func, Processing_Stack *stack)
     CFnc *cf = &tagged_item.item.cf;
     SFnc sfd4a = desymmetrize_frommhold_from_cf(*cf);
     free_cfnc(*cf);
+    
+    if ((stack->wing_params.A != 0) || (stack->wing_params.B != 0) || (stack->wing_params.C != 0)) {
+        INFO("Adding Fourier-transformed analytic model to the numerical IDCT result\n");
+
+        double Xscale = 1.0/LightSpeed_cm / ATU / 2.0 / M_PI;
+        double Yscale = ATU*ADIPMOMU*ADIPMOMU / (4.0*M_PI*EPSILON0);
+
+        stack->wing_params.A = stack->wing_params.A * Yscale * Xscale; 
+        stack->wing_params.B = stack->wing_params.B * Xscale; 
+        stack->wing_params.C = stack->wing_params.C * Yscale * Xscale;
+
+        INFO("Adding Lorentzian that forms Q-branch to numerical data\n");
+        PRINT0("    (nu, cm-1)    (SF value, raw)   (SF value, model)  (SF value, after addition)\n");
+        for (size_t i = 0; i < sfd4a.len; ++i) { 
+            double wingmodel_image_val = (stack->wing_params.C+stack->wing_params.A)/stack->wing_params.A*wingmodel_image(&stack->wing_params, sfd4a.nu[i]);
+            double new_sf_value = sfd4a.data[i] + wingmodel_image_val;
+
+            if (i < 10) {
+                PRINT0("%2zu  %12.6e %14.6e %18.6e %17.6e\n", 
+                       i, sfd4a.nu[i], sfd4a.data[i], wingmodel_image_val, new_sf_value);
+            }
+
+            sfd4a.data[i] = new_sf_value;
+        }
+    }
 
     stack_push_with_type(stack, (void*) &sfd4a, STACK_ITEM_SF, &func->loc); 
     return true;
@@ -3771,6 +3800,9 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
+    time_t init_rawtime;
+    time(&init_rawtime);
+
     PRINT0("*****************************************************\n");
     PRINT0("*********** HAWAII HYBRID v0.1 **********************\n");
     PRINT0("*****************************************************\n");
@@ -4030,18 +4062,21 @@ int main(int argc, char* argv[])
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
+        
+    time_t deinit_rawtime;
+    time(&deinit_rawtime);
+    struct tm *deinit_timeinfo = localtime(&deinit_rawtime);
+    double elapsed_since_init = difftime(deinit_rawtime, init_rawtime); 
 
-    /*
-    double *q = malloc(ms.Q_SIZE*sizeof(double));
-    q[2] = 6.0;
-    q[0] = 0.1;
-    q[1] = 0.2;
-    q[3] = 0.3;
-    q[4] = 0.4;
-    double dip[3];
-    dipole(q, dip);  
-    printf("DIPOLE VALUE: %.5e %.5e %.5e\n", dip[0], dip[1], dip[2]);
-    */
+    String_Builder sb_datetime = {0};
+    sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_init);
+    PRINT0("\n");
+    PRINT0("EXECUTION OF HAWAIIHYBRID PROGRAM TOOK %s\n", sb_datetime.items);
+    sb_free(&sb_datetime);
+    
+    PRINT0("TERMINATED AT %04d-%02d-%02d %02d:%02d:%02d\n",  
+           deinit_timeinfo->tm_year + 1900, deinit_timeinfo->tm_mon + 1, deinit_timeinfo->tm_mday,
+           deinit_timeinfo->tm_hour,        deinit_timeinfo->tm_min,     deinit_timeinfo->tm_sec);
 
     sb_free(&file_contents);    
 
