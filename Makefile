@@ -87,7 +87,7 @@ build/angles_handler.o: src/angles_handler.cpp | build
 	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD -fPIC $< -o $@
 
 build/loess.o: src/loess.cpp | build
-	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ -fopenmp  
+	$(CXX) $(FLAGS_EIGEN) $(INC) -c -MD $< -o $@ 
 
 
 ###########################################################
@@ -307,7 +307,7 @@ examples/prmu_calculation_co2_ar.exe: examples/prmu_calculation_co2_ar.cpp build
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) 
 
 examples/fftrump.exe: examples/fftrump.cpp build/loess.o $(OBJ) 
-	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) -fopenmp
+	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm -lstdc++ $(LIB_SUNDIALS) $(LIB_GSL) 
 
 examples/correlation_co_ar.exe: examples/correlation_co_ar.cpp build/trajectory.o $(MPI_OBJ) $(CO_AR) 
 	$(MPICXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++ -lgfortran 
@@ -337,13 +337,13 @@ examples/test_sb.exe: examples/test_sb.c build/hawaii.o build/mtwist.o build/arr
 	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS)
 
 examples/test_loess.exe: examples/test_loess.cpp build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
-	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
+	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
 examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/array.o build/trajectory.o build/loess.o
-	$(CC) $(FLAGS) $(INC) -fopenmp -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
+	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
 driver.exe: src/driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl -fopenmp # -lasan 
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl # -lasan 
 
 hawaii_test.exe: src/hawaii_test.c driver.exe
 	$(CC) $(FLAGS) -isystem ./thirdparty/ $< -o $@

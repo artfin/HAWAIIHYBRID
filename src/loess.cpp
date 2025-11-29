@@ -8,9 +8,9 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
+#define EIGEN_DONT_PARALLELIZE
 #include <Eigen/Dense>
 
-#include <omp.h>
 #include <float.h>
 
 static double *xp = NULL;
@@ -28,14 +28,13 @@ static double GRID_XMAX = FLT_MIN;
 static size_t GRID_NPOINTS = 0;
 static double GRID_XSTEP = 0;
 
-bool loess_debug = false;
+bool loess_debug         = false;
 WEIGHT_FUNC loess_weight = WEIGHT_TRICUBE;
-LS_METHOD ls_method = LS_COMPLETE_ORTHOGONAL_DECOMPOSITION;
+LS_METHOD ls_method      = LS_COMPLETE_ORTHOGONAL_DECOMPOSITION;
 
 #undef da_append
 #undef da_insert
 
-// @TODO: check if 'thread_local' is needed anywhere
 // @TODO: document individual functions and copy the docstrings to pdf
 // @TODO: test different weight functions 
 //
@@ -69,12 +68,7 @@ LS_METHOD ls_method = LS_COMPLETE_ORTHOGONAL_DECOMPOSITION;
     } while(0)
 
 
-#ifndef _OPENMP
-int omp_get_num_threads() { return 1; }
-int omp_get_thread_num() { return 1; }
-#endif // _OPENMP
-
-static Arena a = {};
+static thread_local Arena a = {};
 
 void loess_init(double *x, double *y, size_t ilen)
 /*
@@ -84,6 +78,10 @@ void loess_init(double *x, double *y, size_t ilen)
  * Copies the values of 'x' and 'y' into internal buffers. 
  */
 {
+    // we set this condition as well as EIGEN_DONT_PARALLELIZE macro to avoid any 
+    // multithreading within Eigen when multiplying dense matrices or solving system of linear equations 
+    Eigen::setNbThreads(1);
+
     xp = (double*) malloc(ilen * sizeof(double));
     yp = (double*) malloc(ilen * sizeof(double));
     len = ilen;
@@ -106,8 +104,6 @@ void loess_init(double *x, double *y, size_t ilen)
     }
     
     XRAW_STEP = x[1] - x[0];
-
-    memset(&a, 0, sizeof(Arena));
 } 
 
 void loess_free()
@@ -240,7 +236,9 @@ double loess_estimate(double x, size_t window_size, size_t degree)
     for (size_t i = 0; i < window.count; ++i) {
         if (distances[window.items[i]] > max_distance) max_distance = distances[window.items[i]]; 
     }
-    
+   
+    //printf("x = %.5f => max_distance = %.5e\n", x, max_distance);
+
     /* calculate weights */    
     Eigen::MatrixXd weights = Eigen::MatrixXd::Zero(window.count, window.count); 
     
@@ -290,7 +288,9 @@ double loess_estimate(double x, size_t window_size, size_t degree)
             printf("\n");
         }
     }
-    
+  
+    //printf("XtW.max() = %.5f\n", XtW.max());
+
     Eigen::VectorXd Y = Eigen::VectorXd::Zero(window.count, 1);
     for (size_t i = 0; i < window.count; ++i) {
         Y(i) = yp[window.items[i]];
@@ -391,6 +391,79 @@ double *loess_create_grid(double grid_xmin, double grid_xmax, size_t grid_npoint
     return linspace(GRID_XMIN, GRID_XMAX, GRID_NPOINTS);
 }
 
+typedef struct {
+    bool should_exit;
+    size_t next_iteration;
+    double *smoothed;
+} Shared_State;
+
+typedef struct {
+    int thread_id;
+    Shared_State *shared_state;
+    pthread_mutex_t *mutex;
+    Smoothing_Config *config;
+    size_t chunk_points;
+} Thread_Data;
+
+void* worker_thread(void *arg)
+{
+    Thread_Data *data = (Thread_Data*) arg;
+    Shared_State *shared = data->shared_state;
+
+    memset(&a, 0, sizeof(Arena));
+
+    while (true) {
+        pthread_mutex_lock(data->mutex);
+          if (shared->should_exit) {
+              pthread_mutex_unlock(data->mutex);
+              break;
+          } 
+
+          size_t start = shared->next_iteration;
+          size_t end = start + data->chunk_points;
+          if (end > GRID_NPOINTS) end = GRID_NPOINTS;
+
+          shared->next_iteration = end;
+        pthread_mutex_unlock(data->mutex);
+
+        if (start >= GRID_NPOINTS) break;
+        
+        //printf("INFO (%d): smoothing points from %zu to %zu\n", data->thread_id, start, end);
+
+        Smoothing_Config *config = data->config;
+        
+        for (size_t i = start; i < end; ++i) {
+            if (shared->should_exit) break;
+
+            double x = GRID_XMIN + GRID_XSTEP * i;
+
+            size_t window_size = config->ws_min; 
+            if (i > config->ws_delay) window_size = (size_t)(config->ws_min + config->ws_step*i);
+
+            if (config->ws_cap > 0) {
+                if (window_size > config->ws_cap) window_size = config->ws_cap; 
+            }
+
+            if (window_size < 1) {
+                pthread_mutex_lock(data->mutex);
+                shared->should_exit = true;
+                pthread_mutex_unlock(data->mutex);
+
+                printf("ERROR (%d): at iteration %zu the window size does not contain any points. Exiting...\n", data->thread_id, i);
+            } 
+
+            shared->smoothed[i] = loess_estimate(x, window_size, config->degree);
+
+            if (i % 100 == 0) {
+                printf("(%d) INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
+                        data->thread_id, i, x, shared->smoothed[i], window_size, window_size * XRAW_STEP); 
+            }
+        }
+    }
+
+    return NULL;
+}
+
 double *loess_apply_smoothing(Smoothing_Config *config) 
 /* 
  * This function performs LOESS smoothing on the input data  by fitting local polynomials to subsets of the data
@@ -404,47 +477,48 @@ double *loess_apply_smoothing(Smoothing_Config *config)
         return NULL;
     }
 
-    Arena_Mark arena_mark = arena_snapshot(&a);
-
     double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
     memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
 
-    bool should_exit = false;
+    int num_threads = 4; // sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t *threads       = (pthread_t*) malloc(num_threads * sizeof(pthread_t));
+    Thread_Data *thread_data = (Thread_Data*) malloc(num_threads * sizeof(Thread_Data));
 
-    #pragma omp parallel
-    {
-        printf("INFO: loess_apply_smoothing is run using %d threads\n", omp_get_num_threads());
+    Shared_State shared_state = {
+        .should_exit    = false,
+        .next_iteration = 0,
+        .smoothed       = smoothed,
+    };
+
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    printf("INFO: loess_apply_smoothing is run using %d threads\n", num_threads);
+
+    for (int i = 0; i < num_threads; ++i) {
+        thread_data[i]    = (Thread_Data) {
+            .thread_id    = i,
+            .shared_state = &shared_state,
+            .mutex        = &mutex,
+            .config       = config,
+            .chunk_points = 200,
+        };
+
+        pthread_create(&threads[i], NULL, worker_thread, &thread_data[i]);
     }
 
-    #pragma omp parallel for schedule(dynamic, 50)
-    for (size_t i = 0; i < GRID_NPOINTS; ++i) {
-        if (should_exit) continue;
-        double x = GRID_XMIN + GRID_XSTEP * i;
-      
-        size_t window_size = config->ws_min; 
-        if (i > config->ws_delay) window_size = (size_t)(config->ws_min + config->ws_step*i);
+    // wait for all threads to complete
+    for (int i = 0; i < num_threads; ++i) {
+        pthread_join(threads[i], NULL);
+    }
 
-        if (config->ws_cap > 0) {
-            if (window_size > config->ws_cap) window_size = config->ws_cap; 
-        }
+    pthread_mutex_destroy(&mutex);
 
-        if (window_size < 1) {
-            printf("ERROR: at iteration %zu the window size does not contain any points. Exiting...\n", i);
-            should_exit = true; 
-        } 
-
-        smoothed[i] = loess_estimate(x, window_size, config->degree);
-
-        if (i % 100 == 0) {
-            printf("(%d) INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
-                    omp_get_thread_num(), i, x, smoothed[i], window_size, window_size * XRAW_STEP); 
-        }
-    } 
-
-    arena_rewind(&a, arena_mark);
+    free(threads);
+    free(thread_data);
 
     return smoothed;
 }
+
 
 #ifdef __cplusplus
 }
