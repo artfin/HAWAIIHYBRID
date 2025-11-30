@@ -464,6 +464,26 @@ void* worker_thread(void *arg)
     return NULL;
 }
 
+int get_number_of_available_cpus()
+{
+    long processors_online = sysconf(_SC_NPROCESSORS_ONLN);
+   
+    int slurm_cpus_per_task = -1; 
+    char *slurm_cpus_per_task_str = getenv("SLURM_CPUS_PER_TASK");
+
+    if (slurm_cpus_per_task_str != NULL) {
+        slurm_cpus_per_task = atoi(slurm_cpus_per_task_str);
+    }
+
+    // <0 means that environment variable is not set or an error happened with conversion to integer,
+    // so the best estimate of the available resources is obtained using sysconf
+    if (slurm_cpus_per_task < 0) return processors_online;
+
+    // just in case compare the environment variable to the cpus online. It any case it does not make sense to 
+    // start more busy threads than we have online cpus
+    return (slurm_cpus_per_task < processors_online) ? slurm_cpus_per_task : processors_online;
+}
+
 double *loess_apply_smoothing(Smoothing_Config *config) 
 /* 
  * This function performs LOESS smoothing on the input data  by fitting local polynomials to subsets of the data
@@ -481,15 +501,15 @@ double *loess_apply_smoothing(Smoothing_Config *config)
 
     double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
     memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
-
-    long processors_online = sysconf(_SC_NPROCESSORS_ONLN);
-    long threads_max = GRID_NPOINTS / CHUNK_POINTS; 
-    int num_threads = (processors_online < threads_max) ? processors_online : threads_max;
+    
+    int available_cpus = get_number_of_available_cpus();
+    int threads_max = GRID_NPOINTS / CHUNK_POINTS; 
+    int num_threads = (available_cpus < threads_max) ? available_cpus : threads_max;
     pthread_t *threads = (pthread_t*) malloc(num_threads * sizeof(pthread_t));
     Thread_Data *thread_data = (Thread_Data*) malloc(num_threads * sizeof(Thread_Data));
 
     printf("INFO: running loess_apply_smoothing\n");
-    printf("max # of cores: %lu\n", processors_online);
+    printf("max # of cores: %d\n", available_cpus);
     printf("running using %d threads\n", num_threads);
     
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
