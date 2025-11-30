@@ -477,22 +477,28 @@ double *loess_apply_smoothing(Smoothing_Config *config)
         return NULL;
     }
 
+    size_t CHUNK_POINTS = 200;
+
     double *smoothed = (double*) malloc(GRID_NPOINTS * sizeof(double));
     memset(smoothed, 0.0, GRID_NPOINTS * sizeof(double));
 
-    int num_threads = 4; // sysconf(_SC_NPROCESSORS_ONLN);
-    pthread_t *threads       = (pthread_t*) malloc(num_threads * sizeof(pthread_t));
+    long processors_online = sysconf(_SC_NPROCESSORS_ONLN);
+    long threads_max = GRID_NPOINTS / CHUNK_POINTS; 
+    int num_threads = (processors_online < threads_max) ? processors_online : threads_max;
+    pthread_t *threads = (pthread_t*) malloc(num_threads * sizeof(pthread_t));
     Thread_Data *thread_data = (Thread_Data*) malloc(num_threads * sizeof(Thread_Data));
 
+    printf("INFO: running loess_apply_smoothing\n");
+    printf("max # of cores: %lu\n", processors_online);
+    printf("running using %d threads\n", num_threads);
+    
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    
     Shared_State shared_state = {
         .should_exit    = false,
         .next_iteration = 0,
         .smoothed       = smoothed,
     };
-
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-    printf("INFO: loess_apply_smoothing is run using %d threads\n", num_threads);
 
     for (int i = 0; i < num_threads; ++i) {
         thread_data[i]    = (Thread_Data) {
@@ -500,7 +506,7 @@ double *loess_apply_smoothing(Smoothing_Config *config)
             .shared_state = &shared_state,
             .mutex        = &mutex,
             .config       = config,
-            .chunk_points = 200,
+            .chunk_points = CHUNK_POINTS,
         };
 
         pthread_create(&threads[i], NULL, worker_thread, &thread_data[i]);
