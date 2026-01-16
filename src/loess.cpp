@@ -449,13 +449,13 @@ void* worker_thread(void *arg)
                 shared->should_exit = true;
                 pthread_mutex_unlock(data->mutex);
 
-                printf("ERROR (%d): at iteration %zu the window size does not contain any points. Exiting...\n", data->thread_id, i);
+                ERROR("(thread %d) at iteration %zu the window size does not contain any points. Exiting...\n", data->thread_id, i);
             } 
 
             shared->smoothed[i] = loess_estimate(x, window_size, config->degree);
 
             if (i % 100 == 0) {
-                printf("(%d) INFO: i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
+                INFO("(thread %d) i = %zu, frequency = %.3e, smoothed value = %.3e, window_size (in points) = %zu, window_size (in frequency units) = %.3e\n",
                         data->thread_id, i, x, shared->smoothed[i], window_size, window_size * XRAW_STEP); 
             }
         }
@@ -508,9 +508,8 @@ double *loess_apply_smoothing(Smoothing_Config *config)
     pthread_t *threads = (pthread_t*) malloc(num_threads * sizeof(pthread_t));
     Thread_Data *thread_data = (Thread_Data*) malloc(num_threads * sizeof(Thread_Data));
 
-    printf("INFO: running loess_apply_smoothing\n");
-    printf("max # of cores: %d\n", available_cpus);
-    printf("running using %d threads\n", num_threads);
+    INFO("max # of cores: %d\n", available_cpus);
+    INFO("running using %d threads\n", num_threads);
     
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     

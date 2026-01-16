@@ -8,7 +8,20 @@
  * - [Spectral moment calculation](@ref spectral_moment_examples)
  * - [Miscellaneous examples](@ref misc_examples)
  *
- * @section section_co_ar_mixed CO-Ar mixed (induced dipole-permanent dipole) correlation function 
+ * Below we provide several examples for CO-Ar system:
+ * 
+ * @section section_co_ar_mixed CO-Ar mixed (induced dipole-permanent dipole) correlation function
+ * This file shows the calculation of the induced dipole-permanent dipole correlation function at 300 K while applying
+ * requantization procedure to the rotational motion of the CO molecule.
+ * @include CF-F-CO-Ar-mixed.conf 
+ *
+ * @section section_co_ar_prmu CO-Ar spectral function (permanent dipole) in pr/mu representation applying requantization
+ * This file is used to calculate the line spectrum of CO in Ar bath. Note that only the permanent dipole can be used
+ * in this calculation so that the contributions from different parts of the correlation function (permanent, mixed and induced)
+ * can be scaled appropriately according the number density.  
+ * @include prmu_co_ar_req+poisson.conf
+ *  
+ * @section section_co_ar_mixed_moment CO-Ar mixed (induced dipole-permanent dipole) spectral moment 
  * @include mixed-moment-CO-Ar.conf
  *
  */ 
