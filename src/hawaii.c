@@ -2232,7 +2232,7 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
    //     if (ms->intermolecular_qp[IR] > params->Rcut) break;
    // }
 
-    printf("Conducting averaging trick\n"); 
+    //printf("Conducting averaging trick\n"); 
 
     if (dipole_1 != dipole_2) {
         for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
