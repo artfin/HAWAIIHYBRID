@@ -142,7 +142,7 @@ double integrand_pf(hep::mc_point<double> const& x)
         if (energy > 0.0) return 0.0; 
     }
     
-    return jac * std::exp(-energy * HkT / gT);
+    return jac * std::exp(-energy * kBinv_Hartree / gT);
 }
 
 double integrand_M0(hep::mc_point<double> const& x) 
@@ -197,7 +197,7 @@ double integrand_M0(hep::mc_point<double> const& x)
 
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
 
-    return jac * dipsq * std::exp(-energy * HkT / gT);
+    return jac * dipsq * std::exp(-energy * kBinv_Hartree / gT);
 }
 
 
@@ -326,7 +326,7 @@ double integrand_M2(hep::mc_point<double> const& x)
     //std::cout << "R: " << R << " => jac = " << jac << ", energy = " << energy << "\n";
     
 
-    return jac * dipsq * std::exp(-energy * HkT / gT);
+    return jac * dipsq * std::exp(-energy * kBinv_Hartree / gT);
 }
 
 void mpi_perform_integration(MoleculeSystem *ms, Integrand integrand, CalcParams *params, double Temperature, size_t niterations, size_t npoints, double *m, double *q)

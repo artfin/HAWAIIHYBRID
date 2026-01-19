@@ -26,6 +26,11 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
+// TODO: write the configuration of the nodes on program nodes
+
+// TODO: add -check option for driver to check that the dynamic libraries are present and
+//       openable
+
 // TODO: if NITERATIONS = 10 and TOTAL_TRAJECTORIES = 10 - the code crashes with the error
 // 'cannot normalize ...'
 
@@ -1335,7 +1340,7 @@ void q_generator(MoleculeSystem *ms, CalcParams *params)
 
 static void p_generator_linear_molecule(Monomer *m, double Temperature)
 {
-    double sqrt_IIKT = sqrt(m->II[0] / HkT * Temperature);
+    double sqrt_IIKT = sqrt(m->II[0] / kBinv_Hartree * Temperature);
     double sin_theta = sin(m->qp[ITHETA]); 
 
     double x0 = generate_normal(1.0);
@@ -1351,9 +1356,9 @@ static void p_generator_rotor(Monomer *m, double Temperature)
     double theta = m->qp[ITHETA]; 
     double psi = m->qp[IPSI]; 
     
-    double sqrt_IIx = sqrt(m->II[0] / HkT * Temperature);
-    double sqrt_IIy = sqrt(m->II[1] / HkT * Temperature);
-    double sqrt_IIz = sqrt(m->II[2] / HkT * Temperature);
+    double sqrt_IIx = sqrt(m->II[0] / kBinv_Hartree * Temperature);
+    double sqrt_IIy = sqrt(m->II[1] / kBinv_Hartree * Temperature);
+    double sqrt_IIz = sqrt(m->II[2] / kBinv_Hartree * Temperature);
 
     double sin_theta, cos_theta;
     double sin_psi, cos_psi;
@@ -1376,7 +1381,7 @@ void p_generator_flux(MoleculeSystem *ms, double Temperature)
  * @brief Function @ref p_generator samples momenta \f$ p \f$ from distribution \f$ \rho \sim e^{-K/kT} \f$ at given temperature. 
  */ 
 {
-    double sqrt_MUKT = sqrt(ms->mu / HkT * Temperature);
+    double sqrt_MUKT = sqrt(ms->mu / kBinv_Hartree * Temperature);
     double sinTheta = sin(ms->intermolecular_qp[ITHETA]);
 
     // NOTE: only 3 x-values are generated; the x-values for monomers are generated in the corresponding p_generator_... functions 
@@ -1387,14 +1392,11 @@ void p_generator_flux(MoleculeSystem *ms, double Temperature)
     ms->intermolecular_qp[IPPHI]   = sqrt_MUKT * ms->intermolecular_qp[IR] * sinTheta * ms->intermediate_q[0];
     ms->intermolecular_qp[IPTHETA] = sqrt_MUKT * ms->intermolecular_qp[IR]            * ms->intermediate_q[1];
 
-    double a = 1.0 / (2 * ms->mu * HkT* Temperature);  // exponent coefficient
+    double a = 1.0 / (2 * ms->mu / kBinv_Hartree* Temperature);  // exponent coefficient
     double u = mt_drand();
     double q = sqrt(-log(1 - u) / a);
     ms->intermolecular_qp[IPR]     = -fabs(q);
-  //return q
 
-
-    
     switch (ms->m1.t) {
         case ATOM: break;
         case LINEAR_MOLECULE_REQ_INTEGER:
@@ -1436,7 +1438,7 @@ void p_generator(MoleculeSystem *ms, double Temperature)
  * @brief Function @ref p_generator samples momenta \f$ p \f$ from distribution \f$ \rho \sim e^{-K/kT} \f$ at given temperature. 
  */ 
 {
-    double sqrt_MUKT = sqrt(ms->mu / HkT * Temperature);
+    double sqrt_MUKT = sqrt(ms->mu / kBinv_Hartree * Temperature);
     double sinTheta = sin(ms->intermolecular_qp[ITHETA]);
 
     // NOTE: only 3 x-values are generated; the x-values for monomers are generated in the corresponding p_generator_... functions 
@@ -1495,7 +1497,7 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
 
     double u = mt_drand(); 
 
-    double Mval = exp(-pesmin * HkT / Temperature); 
+    double Mval = exp(-pesmin * kBinv_Hartree / Temperature); 
     double M = PRECAUTION_FACTOR * Mval;
 
     double kin_part = kinetic_energy(ms); 
@@ -1517,8 +1519,8 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin)
         sb_free(&sb_for_q);
     } 
 
-    double proposal = exp(-kin_part * HkT / Temperature); 
-    double desired  = exp(-(kin_part + pot_part) * HkT / Temperature);
+    double proposal = exp(-kin_part * kBinv_Hartree / Temperature); 
+    double desired  = exp(-(kin_part + pot_part) * kBinv_Hartree / Temperature);
 
     double weight = desired / proposal / M;
     return weight < u;
@@ -2071,9 +2073,14 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
     for (size_t step_counter = 1; step_counter < 2*params->MaxTrajectoryLength-1; ++step_counter, tout += params->sampling_time)
     {
         status = make_step(traj, tout, &t);
+
         if (status) {
-            printf("CVODE ERROR: status = %d\n", status);
-            break;
+           printf("CVODE ERROR: status = %d\n", status);
+           goto restart;
+        }
+
+        if (ms->intermolecular_qp[IR] > params->Rcut) {
+            goto restart;
         }
 
         extract_q_and_write_into_ms(ms);
@@ -2128,23 +2135,20 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
        // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
 
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
+        continue;
 
-        if (ms->intermolecular_qp[IR] > params->Rcut)
-        {
-          //break;
-          //NOTE: Here the actual injection occurs
-          q_generator(ms, params);
-          ms->intermolecular_qp[IR] = params->Rcut;
-          p_generator_flux(ms, Temperature);
-          //NOTE: pR is set to negative value!
-          t = 0.0;
-          tout = params->sampling_time;
+    restart:
+        q_generator(ms, params);
+        ms->intermolecular_qp[IR] = params->Rcut;
+        p_generator_flux(ms, Temperature);
+       
+        t = 0.0;
+        tout = params->sampling_time;
 
-          get_qp_from_ms(ms, &qp);
-          set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
+        get_qp_from_ms(ms, &qp);
+        set_initial_condition(traj, qp);
 
-          current_trajectory_index += 1;
-        }
+        current_trajectory_index += 1;
     }
     
    // put_qp_into_ms(ms, qp);
@@ -2227,6 +2231,8 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
 
    //     if (ms->intermolecular_qp[IR] > params->Rcut) break;
    // }
+
+    printf("Conducting averaging trick\n"); 
 
     if (dipole_1 != dipole_2) {
         for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
@@ -3101,7 +3107,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                         }
                         case PAIR_STATE_BOUND: {
                           if (satellite_temperature < base_temperature) {
-                              WTT = exp(-params->pesmin*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature));
+                              WTT = exp(-params->pesmin*kBinv_Hartree/base_temperature/satellite_temperature*(base_temperature - satellite_temperature));
                           } else {
                               WTT = 1.0;
                           }
@@ -3112,7 +3118,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                         case PAIR_STATE_COUNT: UNREACHABLE("calculate_correlation_array_and_save");
                     }
 
-                    weight = exp(-energy*HkT/base_temperature/satellite_temperature*(base_temperature - satellite_temperature)) / WTT;
+                    weight = exp(-energy*kBinv_Hartree/base_temperature/satellite_temperature*(base_temperature - satellite_temperature)) / WTT;
                     
                     if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                         if (satellite_temperature > base_temperature) {
@@ -6060,15 +6066,15 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
    // printf("MONOMER TYPES TEST %d %d",ms->m2.t, LINEAR_MOLECULE);
 
     if ((ms->m1.t == ATOM) && (ms->m2.t == ATOM)) {
-        pf_analytic = pow(2.0*M_PI*ms->mu*Temperature/HkT, 1.5);
+        pf_analytic = pow(2.0*M_PI*ms->mu*Temperature/kBinv_Hartree, 1.5);
     } else if ((ms->m1.t == LINEAR_MOLECULE) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) && (ms->m2.t == ATOM)) {
-        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/HkT, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+        pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
-        pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/HkT, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];
+        pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];
     } else {
         TODO("analytic_full_partition_function_by_V");  
     }

@@ -21,8 +21,8 @@
 #define HBar          1.054571817e-34                             // SI: J * s^(-1)
 #define NL            2.686780111e25                              // SI: m^(-3)
 
-#define HkT        (Hartree/Boltzmann)                         // to use as:  -V[a.u.]*`HkT`/T
-#define VkT        (HkT / HTOCM)                               // to use as:  -V[cm-1]*`VkT`/T
+#define kBinv_Hartree  (Hartree/Boltzmann)                         // to use as:  -V[a.u.]*`kBinv_Hartree`/T
+#define VkT            (HkT / HTOCM)                               // to use as:  -V[cm-1]*`VkT`/T
     
 #define BohrToAng 0.529177210903
 
