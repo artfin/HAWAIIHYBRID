@@ -171,13 +171,13 @@ build/potv_d.o: ./PES-IDS/potv_d.f03 | build
 	$(F) -c -fPIC $< -o $@
 
 build/potv.so: ./PES-IDS/potv.cpp build/potv.o build/potv_d.o build/angles_handler.o
-	$(CXX) $(INC_EIGEN) -shared -fPIC -I ./ -o $@ $^
+	$(CXX) $(INC_EIGEN) -shared -fPIC -I ./ -I./src/ -o $@ $^
 
 build/ind_dipole_coar.so: ./PES-IDS/dipole_coar.cpp build/angles_handler.o 
-	$(CXX) $(FLAGS) -shared -DDIPOLE_COAR_IMPLEMENTATION -I ./ -fPIC $(INC_EIGEN) -o $@ $^ -lm
+	$(CXX) $(FLAGS) -shared -DDIPOLE_COAR_IMPLEMENTATION -I ./ -I ./src/ -fPIC $(INC_EIGEN) -o $@ $^ -lm
 
 build/perm_dipole_coar.so: ./PES-IDS/perm_dipole_coar.c | build
-	$(CC) $(FLAGS) -shared -I./ -o $@ $^ -lm
+	$(CC) $(FLAGS) -shared -I./ -I./src/ -o $@ $^ -lm
 
 ###########################################################
 ###################### N2-Ar ##############################
@@ -343,7 +343,7 @@ examples/test_fft.exe: examples/test_fft.c build/hawaii.o build/mtwist.o build/a
 	$(CC) $(FLAGS) $(INC) -I./ $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++
 
 driver.exe: src/driver.c build/mpi_hawaii.o build/mtwist.o build/trajectory.o build/array.o build/angles_handler.o build/hep_hawaii.o build/loess.o
-	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl # -lasan 
+	$(MPICC) -Wall -Wextra -ggdb $(INC) $^ -o $@ -lm $(LIB_GSL) $(LIB_SUNDIALS) -lstdc++ -ldl -lpthread # -lasan 
 
 hawaii_test.exe: src/hawaii_test.c driver.exe
 	$(CC) $(FLAGS) -isystem ./thirdparty/ $< -o $@
