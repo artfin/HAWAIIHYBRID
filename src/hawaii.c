@@ -26,6 +26,9 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
+// TODO: if NITERATIONS = 10 and TOTAL_TRAJECTORIES = 10 - the code crashes with the error
+// 'cannot normalize ...'
+
 // TODO: remove and go through all the places that call 'dipole'
 // dipolePtr dipole = NULL;
 
@@ -2000,42 +2003,45 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
  */ 
 // TODO: Use temporary arena instead of malloc
 {
-    //exit(1);
-    // TODO: this function *for now* only works for autocorrelation 
-    assert(dipole_1 == dipole_2);
-
     //NOTE:for convenience: dip_: 0, 1, ... MaxTrajectoryLength-1, ... 2*MaxTrajectoryLength-2  :::: total 2*MaxTrajectoryLength-1 points
-    double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipy = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipz = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    double * dipx1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    double * dipy1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    double * dipz1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+    memset(dipx1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    memset(dipy1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    memset(dipz1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
 
-
+    double *dipx2, *dipy2, *dipz2;
+    if (dipole_1 != dipole_2) {
+        dipx2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+        dipy2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+        dipz2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
+        memset(dipx2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+        memset(dipy2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+        memset(dipz2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    }
 
     int * indicator = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
+    memset(indicator, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
     int current_trajectory_index = 1;
 
-    // int * idxarr = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
-    // memset(idxarr, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
-  
-    memset(dipx, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipy, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipz, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-
-    memset(indicator, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
-    
     memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
-    double dip0[3], dipt[3];
+    double dip1_0[3], dip1_t[3];
     extract_q_and_write_into_ms(ms);
-    (*dipole_1)(ms->intermediate_q, dip0);
-    dipx[params->MaxTrajectoryLength-1] = dip0[0];
-    dipy[params->MaxTrajectoryLength-1] = dip0[1];
-    dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
-    //idxarr[params->MaxTrajectoryLength-1] = 1;
-   // dipx[0] = dip0[0];
-   // dipy[0] = dip0[1];
-   // dipz[0] = dip0[2]; 
-    
+    (*dipole_1)(ms->intermediate_q, dip1_0);
+    dipx1[0] = dip1_0[0];
+    dipy1[0] = dip1_0[1];
+    dipz1[0] = dip1_0[2]; 
+   
+    double dip2_0[3], dip2_t[3];
+    if (dipole_1 != dipole_2) { 
+        (*dipole_2)(ms->intermediate_q, dip2_0);
+        dipx2[0] = dip2_0[0];
+        dipy2[0] = dip2_0[1];
+        dipz2[0] = dip2_0[2]; 
+    }
+
     Array qp = create_array(ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
@@ -2047,6 +2053,9 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
     
     double t = 0.0;
     double tout = params->sampling_time;
+    
+    ms->m1.req_switch_counter = 0;
+    ms->m2.req_switch_counter = 0;
    
     Tracker tr = {
       .before2 = qp.data[IR],
@@ -2054,8 +2063,6 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
       .current = qp.data[IR],
       .ready   = false,
     };
-
-    double prev_value, curr_value;
 
     /*
      * We start step_counter from 1 so that correlation value after the first integration step
@@ -2070,10 +2077,10 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
         }
 
         extract_q_and_write_into_ms(ms);
-        (*dipole_1)(ms->intermediate_q, dipt);
         
-        if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
-            printf("ERROR: one of the components of the dipole is corrupted!\n");
+        (*dipole_1)(ms->intermediate_q, dip1_t);
+        if (isnan(dip1_t[0]) || isnan(dip1_t[1]) || isnan(dip1_t[2])) {
+            printf("ERROR: one of the components of the dipole_1 is corrupted!\n");
             printf("The initial phase-point for broken trajectory in the forward direction is:\n");
             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
                 printf("%.10e ", qp.data[i]);
@@ -2081,44 +2088,43 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
             printf("\n");
             return 1;         
         }
+       
+        // TODO: we should somehow check that there are no significant jumps in dipole value (1)
+        // between trajectory steps
+
+        check_if_requantization_should_be_applied_to_monomer(&ms->m1, step_counter); 
         
-        prev_value = curr_value;
-        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
+        dipx1[step_counter] = dip1_t[0];
+        dipy1[step_counter] = dip1_t[1];
+        dipz1[step_counter] = dip1_t[2]; 
+       
+        if (dipole_1 != dipole_2) {
+            (*dipole_2)(ms->intermediate_q, dip2_t);
 
-        if (fabs(curr_value) > 1e100) {
-            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
-            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
-            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-                printf("%.10e ", qp.data[i]);
-            }
-            printf("\n");
-            return 1;         
-        }
-
-        if (step_counter > 1) {
-            double ratio = fabs(curr_value / prev_value);
-            // if (ratio > 10000) {
-            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
-            // }
-            if (ratio > 1e10) {
-                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
+            if (isnan(dip2_t[0]) || isnan(dip2_t[2]) || isnan(dip2_t[2])) {
+                printf("ERROR: one of the components of the dipole_2 is corrupted!\n");
                 printf("The initial phase-point for broken trajectory in the forward direction is:\n");
                 for (size_t i = 0; i < ms->QP_SIZE; ++i) {
                     printf("%.10e ", qp.data[i]);
                 }
                 printf("\n");
                 return 1;         
-            } 
-        }
-
-        dipx[step_counter] = dipt[0];
-        dipy[step_counter] = dipt[1];
-        dipz[step_counter] = dipt[2]; 
+            }
+        
+            dipx2[step_counter] = dip2_t[0];
+            dipy2[step_counter] = dip2_t[1];
+            dipz2[step_counter] = dip2_t[2]; 
+        } 
+        
         indicator[step_counter] = current_trajectory_index;
+        
+        // TODO: we should somehow check that there are no significant jumps in dipole value (2)
+        // between trajectory steps
+
+        // TODO: apply to 2nd monomer 
+        // check_if_requantization_should_be_applied_to_monomer(&ms->m2, step_counter); 
+        
         //idxarr[params->MaxTrajectoryLength-1+step_counter] = 1;
-       // dipx[step_counter] = dipt[0];
-       // dipy[step_counter] = dipt[1];
-       // dipz[step_counter] = dipt[2]; 
        // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
 
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
@@ -2222,18 +2228,33 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
    //     if (ms->intermolecular_qp[IR] > params->Rcut) break;
    // }
 
-    for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
-        int cur_shif_used_pts = 0;//NOTE: avoiding bias
-        for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
-            
-            if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
-                cur_shif_used_pts += 1;
-                crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
-            } 
+    if (dipole_1 != dipole_2) {
+        for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
+            for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
+                crln[shif] += (dipx1[curpt]*dipx2[shif+curpt] + dipy1[curpt]*dipy2[shif+curpt] + dipz1[curpt]*dipz2[shif+curpt])*ALU*ALU*ALU;
+                crln[shif] += (dipx2[curpt]*dipx1[shif+curpt] + dipy2[curpt]*dipy1[shif+curpt] + dipz2[curpt]*dipz1[shif+curpt])*ALU*ALU*ALU;
+
+                //if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
+                //    cur_shif_used_pts += 1;
+                //    crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
+                //} 
+            }
+            crln[shif] /= (params->MaxTrajectoryLength);
+            //if (cur_shif_used_pts != 0) crln[shif] /= cur_shif_used_pts;
         }
-        //crln[shif] /= (params->MaxTrajectoryLength);
-        if (cur_shif_used_pts != 0)
-          crln[shif] /= cur_shif_used_pts;
+    } else {
+        for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
+            for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
+                crln[shif] += (dipx1[curpt]*dipx1[shif+curpt] + dipy1[curpt]*dipy1[shif+curpt] + dipz1[curpt]*dipz1[shif+curpt])*ALU*ALU*ALU;
+
+                //if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
+                //    cur_shif_used_pts += 1;
+                //    crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
+                //} 
+            }
+            crln[shif] /= (params->MaxTrajectoryLength);
+            //if (cur_shif_used_pts != 0) crln[shif] /= cur_shif_used_pts;
+        }
     }
     
   //  for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
@@ -2261,17 +2282,18 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
 
     free_array(&qp);
    
-    free(dipx);
-    free(dipy);
-    free(dipz);
+    free(dipx1);
+    free(dipy1);
+    free(dipz1);
+    free(dipx2);
+    free(dipy2);
+    free(dipz2);
     free(indicator);
     //free(idxarr);
   //free(correlation_back); 
 
     return status;
 }
-
-
 
 int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 /** 
@@ -2501,7 +2523,7 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
     return status;
 }
 
-void try_applying_requantization_for_monomer(Monomer *m, size_t step_counter)
+void check_if_requantization_should_be_applied_to_monomer(Monomer *m, size_t step_counter)
 {
     // Handle requantization if needed
     if ((m->t == LINEAR_MOLECULE_REQ_INTEGER) || (m->t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
@@ -2558,8 +2580,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         (*dipole_1)(ms->intermediate_q, dip1_0);
         (*dipole_2)(ms->intermediate_q, dip2_0);
 
-        correlation_forw[0] = dip1_0[0]*dip2_0[0] + dip1_0[1]*dip2_0[1] + dip1_0[2]*dip2_0[2];
-        correlation_back[0] = dip1_0[0]*dip2_0[0] + dip1_0[1]*dip2_0[1] + dip1_0[2]*dip2_0[2];
+        correlation_forw[0] = 2*(dip1_0[0]*dip2_0[0] + dip1_0[1]*dip2_0[1] + dip1_0[2]*dip2_0[2]);
+        correlation_back[0] = 2*(dip1_0[0]*dip2_0[0] + dip1_0[1]*dip2_0[1] + dip1_0[2]*dip2_0[2]);
     } else {
         (*dipole_1)(ms->intermediate_q, dip1_0);
         
@@ -2616,7 +2638,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             return 1;         
         }
 
-        try_applying_requantization_for_monomer(&ms->m1, step_counter); 
+        check_if_requantization_should_be_applied_to_monomer(&ms->m1, step_counter); 
 
         if (dipole_1 != dipole_2) {
             (*dipole_2)(ms->intermediate_q, dip2_t);
@@ -2632,7 +2654,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             }
 
             prev_value = curr_value;
-            curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2];
+            curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2] + \
+                         dip1_t[0]*dip2_0[0] + dip1_t[1]*dip2_0[1] + dip1_t[2]*dip2_0[2];
         } else {
             prev_value = curr_value;
             curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[2]*dip1_t[2];
@@ -2706,7 +2729,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             return 1;         
         }
         
-        try_applying_requantization_for_monomer(&ms->m1, step_counter); 
+        check_if_requantization_should_be_applied_to_monomer(&ms->m1, step_counter); 
 
         if (dipole_1 != dipole_2) {        
             (*dipole_2)(ms->intermediate_q, dip2_t);
@@ -2722,7 +2745,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
             }
 
             prev_value = curr_value;
-            curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2];
+            curr_value = dip1_0[0]*dip2_t[0] + dip1_0[1]*dip2_t[1] + dip1_0[2]*dip2_t[2] + \
+                         dip1_t[0]*dip2_0[0] + dip1_t[1]*dip2_0[1] + dip1_t[2]*dip2_0[2];
         } else {
             prev_value = curr_value;
             curr_value = dip1_0[0]*dip1_t[0] + dip1_0[1]*dip1_t[1] + dip1_0[2]*dip1_t[2];
@@ -3414,8 +3438,6 @@ CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params
         c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
     
         params->partial_partition_function_ratio = hep_ppf / pf_analytic;
-       //WARNING:
-        params->partial_partition_function_ratio = 1.0;
         PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
     }       
 

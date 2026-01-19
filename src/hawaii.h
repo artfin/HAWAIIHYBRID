@@ -554,7 +554,7 @@ void q_generator(MoleculeSystem *ms, CalcParams *params);
 void p_generator(MoleculeSystem *ms, double Temperature);
 bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
-void try_applying_requantization_for_monomer(Monomer *m, size_t step_counter);
+void check_if_requantization_should_be_applied_to_monomer(Monomer *m, size_t step_counter);
 void j_monomer(Monomer *m, double j[3]);
 double torque_monomer(Monomer *m); 
 double find_closest_integer(double j);

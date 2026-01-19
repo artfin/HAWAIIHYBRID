@@ -92,6 +92,8 @@ void free_trajectory(Trajectory *traj)
 
 bool trajectory_apply_requantization(Trajectory *traj)
 {
+    assert(!traj->ms->m2.apply_requantization);
+
     if (traj->ms->m1.apply_requantization) {
         if (traj->ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
             double j[3];
