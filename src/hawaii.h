@@ -360,7 +360,7 @@ typedef struct {
     /* correlation function and correlation function array calculations ONLY */
     const char* cf_filename;
     double Rcut; // distance at which the trajectory is forcefully stopped, a.u. 
-    bool use_zimmermann_trick;
+    bool accelerate_averaging;
 
     /* pr/mu spectral function calculation ONLY */   
     const char *sf_filename;

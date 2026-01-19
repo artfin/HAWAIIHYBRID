@@ -2998,10 +2998,10 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
     PRINT0("    CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
     PRINT0("    minimum intermolecular distance for sampler (sampler_Rmin):          %.3e\n", params->sampler_Rmin);
     PRINT0("    maximum intermolecular distance for sampler (sampler_Rmax):          %.3e\n", params->sampler_Rmax);
-    PRINT0("    use Zimmermann's trick:                                              %d\n", params->use_zimmermann_trick);
+    PRINT0("    use averaging acceleration:                                          %d\n", params->accelerate_averaging);
 
-    if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
-        PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
+    if (params->accelerate_averaging && (params->ps != PAIR_STATE_BOUND)) {
+        PRINT0("ERROR: averaging acceleration can be used only for bound states!\n");
         exit(1);
     } 
     
@@ -3081,7 +3081,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                 }
 
                 int status;
-                if (params->use_zimmermann_trick) {
+                if (params->accelerate_averaging) {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, base_crln, &tps);
                 } else {
                     status = correlation_eval(ms, &traj, params, base_crln, &tps);
@@ -3528,7 +3528,7 @@ CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params
     PRINT0("sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
     PRINT0("maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
-    PRINT0("use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
+    PRINT0("use averaging acceleration:                                          %d\n\n", params->accelerate_averaging);
     
 
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
@@ -3580,11 +3580,6 @@ CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params
         exit(1);
     }
 
-   // if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
-   //     PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
-   //     exit(1);
-   // } 
-    
     if (params->initialM0_npoints > 0) { 
         PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
         PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
@@ -3638,9 +3633,9 @@ if (_wrank > 0) {
                 }
 
                 int status;
-                if ((params->use_zimmermann_trick) && (params->ps == PAIR_STATE_BOUND) )  {
+                if ((params->accelerate_averaging) && (params->ps == PAIR_STATE_BOUND) )  {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
-                } else if ((params->use_zimmermann_trick) && (params->ps == PAIR_STATE_FREE_AND_METASTABLE )) {
+                } else if ((params->accelerate_averaging) && (params->ps == PAIR_STATE_FREE_AND_METASTABLE )) {
                     status = correlation_eval_zimmerman_trick_free_metastable(ms, &traj, params, crln, &tps,Temperature); 
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
@@ -3922,7 +3917,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
     PRINT0("sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
     PRINT0("maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
     PRINT0("CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
-    PRINT0("use Zimmermann's trick:                                              %d\n\n", params->use_zimmermann_trick);
+    PRINT0("accelerate convergence:                                              %d\n\n", params->accelerate_averaging);
     
 
     if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
@@ -3974,7 +3969,7 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         exit(1);
     }
 
-    if (params->use_zimmermann_trick && (params->ps != PAIR_STATE_BOUND)) {
+    if (params->accelerate_averaging && (params->ps != PAIR_STATE_BOUND)) {
         PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
         exit(1);
     } 
@@ -4032,7 +4027,7 @@ if (_wrank > 0) {
                 }
 
                 int status;
-                if (params->use_zimmermann_trick) {
+                if (params->accelerate_averaging) {
                     status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 

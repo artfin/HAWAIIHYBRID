@@ -178,7 +178,7 @@ typedef enum {
     KEYWORD_APPROXIMATEFREQUENCYMAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
-    KEYWORD_USE_ZIMMERMANN_TRICK,
+    KEYWORD_ACCELERATE_AVERAGING,
     KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS,
 
     /* MONOMER BLOCK */
@@ -253,7 +253,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = "APPROXIMATEFREQUENCYMAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
-    [KEYWORD_USE_ZIMMERMANN_TRICK]            = "USE_ZIMMERMANN_TRICK",
+    [KEYWORD_ACCELERATE_AVERAGING]            = "ACCELERATE_AVERAGING",
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = "AVERAGE_TIME_BETWEEN_COLLISIONS",
     /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]                    = "MONOMER_TYPE",
@@ -313,7 +313,7 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
-    [KEYWORD_USE_ZIMMERMANN_TRICK]            = TOKEN_BOOLEAN,
+    [KEYWORD_ACCELERATE_AVERAGING]            = TOKEN_BOOLEAN,
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = TOKEN_FLOAT,
     /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]                    = TOKEN_STRING,
@@ -841,7 +841,7 @@ void print_params(CalcParams *params) {
     printf("  --- correlation function and correlation function array calculation ONLY --- \n"); 
     printf("  cf_filename = %s\n", params->cf_filename);
     printf("  Rcut = %.5e\n", params->Rcut);
-    printf("  use_zimmermann_trick = %d\n", params->use_zimmermann_trick);
+    printf("  accelerate_averaging = %d\n", params->accelerate_averaging);
     printf("  --- pr/mu spectral function calculation ONLY --- \n"); 
     printf("  sf_filename = %s\n", params->sf_filename);
     printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
@@ -1253,7 +1253,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
-            case KEYWORD_USE_ZIMMERMANN_TRICK:    params->use_zimmermann_trick = l->boolean_value; break;
+            case KEYWORD_ACCELERATE_AVERAGING:    params->accelerate_averaging = l->boolean_value; break;
             case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS: params->average_time_between_collisions = l->double_number; break;
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &INPUT block\n",
