@@ -127,9 +127,8 @@ const char *BLOCK_NAMES[] = {
     [1] = "&MONOMER",
     [2] = "&PROCESSING",
     [3] = "&END",
-    [4] = "&MANUAL"
 };
-static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 5, "");
+static_assert(sizeof(BLOCK_NAMES)/sizeof(BLOCK_NAMES[0]) == 4, "");
 
 const char *BOOLEAN_AS_STR[] = {
     [0] = "FALSE",
@@ -4200,31 +4199,10 @@ int main(int argc, char* argv[])
         }
 
         case CALCULATION_MANUAL: {
+            PRINT0("No code for manual mode is present for now\n");
+            break; 
+        }
 
-            PRINT0("*****************************************************\n");
-            PRINT0("ENTERING MANUAL CALCULATION BLOCK\n");
-            PRINT0("*****************************************************\n");
-            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
-            if (input_block.so_dipole_2 != NULL) {
-                setup_dipole(input_block.so_dipole_2, &dipole_2, &free_dipole_2);
-            } else {
-                dipole_2 = dipole_1;
-            }
-
-            setup_pes(&input_block);
-
-            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
-            calculate_correlation_and_save_tests(&ms, &calc_params, input_block.Temperature);
-           
-            if (_wrank == 0) { 
-                if (run_processing(&processing_params)) {
-                    PRINT0("ERROR: an error occured when running PROCESSING block\n");
-                    exit(1); 
-                }
-            }
-
-            break;
-        } 
         case CALCULATION_NONE: UNREACHABLE(""); 
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
@@ -4245,7 +4223,6 @@ int main(int argc, char* argv[])
            deinit_timeinfo->tm_hour,        deinit_timeinfo->tm_min,     deinit_timeinfo->tm_sec);
 
     sb_free(&file_contents);    
-
     MPI_Finalize();
 
     return 0; 

@@ -26,16 +26,12 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
-// TODO: write the configuration of the nodes on program nodes
-
 // TODO: add -check option for driver to check that the dynamic libraries are present and
 //       openable
 
 // TODO: if NITERATIONS = 10 and TOTAL_TRAJECTORIES = 10 - the code crashes with the error
 // 'cannot normalize ...'
 
-// TODO: remove and go through all the places that call 'dipole'
-// dipolePtr dipole = NULL;
 
 dipolePtr dipole_1       = NULL;
 dipoleFree free_dipole_1 = NULL;
@@ -584,7 +580,8 @@ void rhsMonomer(Monomer *m, double *deriv)
     } 
 }
 
-void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) {
+void extract_dVdq_and_write_into_monomers(MoleculeSystem *ms) 
+{
     memcpy(ms->m1.dVdq, ms->dVdq + 3,                            (ms->m1.t%MODULO_BASE)/2 * sizeof(double));
     memcpy(ms->m2.dVdq, ms->dVdq + 3 + (ms->m1.t%MODULO_BASE)/2, (ms->m2.t%MODULO_BASE)/2 * sizeof(double));
     
@@ -1988,44 +1985,30 @@ void track_turning_points(Tracker *tr, double R)
     if (tr->called > 1) tr->ready = true; 
 } 
 
-
-int check_same_traj(int i1, int i2)
-{
-  if (i1 == i2)
-    return 1;
-  else 
-    return 0;
-}
-
-int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps, double Temperature)
+int correlation_eval_zimmerman_trick_free_metastable(Arena *a, MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps, double Temperature)
 /** 
  * @brief @ref correlation_eval_zimmerman_trick
  */ 
-// TODO: Use temporary arena instead of malloc
 {
+    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
+
     //NOTE:for convenience: dip_: 0, 1, ... MaxTrajectoryLength-1, ... 2*MaxTrajectoryLength-2  :::: total 2*MaxTrajectoryLength-1 points
-    double * dipx1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipy1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipz1 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    memset(dipx1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipy1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipz1, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+    double *dipx1 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    double *dipy1 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    double *dipz1 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    memset(dipx1, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    memset(dipy1, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    memset(dipz1, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
 
     double *dipx2, *dipy2, *dipz2;
     if (dipole_1 != dipole_2) {
-        dipx2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-        dipy2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-        dipz2 = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-        memset(dipx2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-        memset(dipy2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-        memset(dipz2, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
+        dipx2 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+        dipy2 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+        dipz2 = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+        memset(dipx2, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+        memset(dipy2, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+        memset(dipz2, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
     }
-
-    int * indicator = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
-    memset(indicator, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
-    int current_trajectory_index = 1;
-
-    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
     double dip1_0[3], dip1_t[3];
     extract_q_and_write_into_ms(ms);
@@ -2042,7 +2025,7 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
         dipz2[0] = dip2_0[2]; 
     }
 
-    Array qp = create_array(ms->QP_SIZE);
+    Array qp = arena_create_array(a, ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
    
@@ -2121,17 +2104,12 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
             dipz2[step_counter] = dip2_t[2]; 
         } 
         
-        indicator[step_counter] = current_trajectory_index;
-        
         // TODO: we should somehow check that there are no significant jumps in dipole value (2)
         // between trajectory steps
 
         // TODO: apply to 2nd monomer 
         // check_if_requantization_should_be_applied_to_monomer(&ms->m2, step_counter); 
         
-        //idxarr[params->MaxTrajectoryLength-1+step_counter] = 1;
-       // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
-
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
         continue;
 
@@ -2145,195 +2123,61 @@ int correlation_eval_zimmerman_trick_free_metastable(MoleculeSystem *ms, Traject
 
         get_qp_from_ms(ms, &qp);
         set_initial_condition(traj, qp);
-
-        current_trajectory_index += 1;
     }
     
-   // put_qp_into_ms(ms, qp);
-   // invert_momenta(ms);
-   // get_qp_from_ms(ms, &qp);
-   // set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
-   //
-
-   // q_generator(ms, params);
-   // ms->intermolecular_qp[IR] = params->Rcut;
-   // p_generator_flux(ms, Temperature);
-   // 
-   // t = 0.0;
-   // tout = params->sampling_time;
-   //
-   // tr.before2 = qp.data[IR];
-   // tr.before  = qp.data[IR];
-   // tr.current = qp.data[IR];
-   // tr.called  = 0;
-   // tr.ready   = false;
-
-   // for (size_t step_counter = 1; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time)
-   // {
-   //     status = make_step(traj, tout, &t);
-   //     if (status) {
-   //         printf("CVODE ERROR: status = %d\n", status);
-   //         break;
-   //     }
-
-   //     extract_q_and_write_into_ms(ms);
-   //     (*dipole_1)(ms->intermediate_q, dipt);
-   //     
-   //     if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
-   //         printf("ERROR: one of the components of the dipole is corrupted!\n");
-   //         printf("The initial phase-point for broken trajectory in the backward direction is:\n");
-   //         for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-   //             printf("%.10e ", qp.data[i]);
-   //         }
-   //         printf("\n");
-   //         return 1;         
-   //     }
-   //     
-   //     prev_value = curr_value;
-   //     curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
-   //     
-   //     if (fabs(curr_value) > 1e100) {
-   //         printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
-   //         printf("The initial phase-point for broken trajectory in the backward direction is:\n");
-   //         for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-   //             printf("%.10e ", qp.data[i]);
-   //         }
-   //         printf("\n");
-   //         return 1;         
-   //     }
-
-   //     if (step_counter > 1) {
-   //         double ratio = fabs(curr_value / prev_value); 
-   //         // if (ratio > 10000) {
-   //         //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
-   //         // }
-   //         if (ratio > 1e10) {
-   //             printf("ERROR: unexpectedly large jump in dipole value!\n"); 
-   //             printf("The initial phase-point for broken trajectory in the backward direction is:\n");
-   //             for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-   //                 printf("%.10e ", qp.data[i]);
-   //             }
-   //             printf("\n");
-   //             return 1;         
-   //         } 
-   //     }
-  
-   //     dipx[params->MaxTrajectoryLength-1-step_counter] = dipt[0];
-   //     dipy[params->MaxTrajectoryLength-1-step_counter] = dipt[1];
-   //     dipz[params->MaxTrajectoryLength-1-step_counter] = dipt[2]; 
-   //     //idxarr[params->MaxTrajectoryLength-1-step_counter] = 1;
-   //     //local_correlation[params->MaxTrajectoryLength-1-step_counter] = curr_value; 
-   //    // printf("current index: %d\n",params->MaxTrajectoryLength-1-step_counter);
-   //     
-   //     track_turning_points(&tr, ms->intermolecular_qp[IR]);
-
-   //     if (ms->intermolecular_qp[IR] > params->Rcut) break;
-   // }
-
-    //printf("Conducting averaging trick\n"); 
 
     if (dipole_1 != dipole_2) {
         for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
             for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
                 crln[shif] += (dipx1[curpt]*dipx2[shif+curpt] + dipy1[curpt]*dipy2[shif+curpt] + dipz1[curpt]*dipz2[shif+curpt])*ALU*ALU*ALU;
                 crln[shif] += (dipx2[curpt]*dipx1[shif+curpt] + dipy2[curpt]*dipy1[shif+curpt] + dipz2[curpt]*dipz1[shif+curpt])*ALU*ALU*ALU;
-
-                //if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
-                //    cur_shif_used_pts += 1;
-                //    crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
-                //} 
             }
+
             crln[shif] /= (params->MaxTrajectoryLength);
-            //if (cur_shif_used_pts != 0) crln[shif] /= cur_shif_used_pts;
         }
     } else {
         for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
             for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
                 crln[shif] += (dipx1[curpt]*dipx1[shif+curpt] + dipy1[curpt]*dipy1[shif+curpt] + dipz1[curpt]*dipz1[shif+curpt])*ALU*ALU*ALU;
-
-                //if (check_same_traj(indicator[shif+curpt],indicator[shif+curpt]) == 1) {
-                //    cur_shif_used_pts += 1;
-                //    crln[shif] += (dipx[shif+curpt]*dipx[shif+curpt] + dipy[shif+curpt]*dipy[shif+curpt] + dipz[shif+curpt]*dipz[shif+curpt])*ALU*ALU*ALU;
-                //} 
             }
+
             crln[shif] /= (params->MaxTrajectoryLength);
-            //if (cur_shif_used_pts != 0) crln[shif] /= cur_shif_used_pts;
         }
     }
     
-  //  for (size_t shif = 0; shif < params->MaxTrajectoryLength; ++shif) {
-  //      int cur_shif_used_pts = 0;//NOTE: avoiding bias
-  //      for (size_t curpt = 0; curpt < params->MaxTrajectoryLength; ++curpt) {
-  //          
-  //          if (check_same_traj(indicator[curpt],indicator[curpt+shif]) == 1) {
-  //              cur_shif_used_pts += 1;
-  //              crln[shif] += (dipx[curpt]*dipx[curpt+shif] + dipy[curpt]*dipy[curpt+shif] + dipz[curpt]*dipz[curpt+shif])*ALU*ALU*ALU;
-  //          } 
-  //      }
-  //      //crln[shif] /= (params->MaxTrajectoryLength);
-  //      if (cur_shif_used_pts != 0)
-  //        crln[shif] /= cur_shif_used_pts;
-  //  }
-
     *tps = tr.turning_points;
-
-  //  int test = 1;
-  //  for (size_t i = 0;i < 2*params->MaxTrajectoryLength-1;++i) {
-  //     test *= idxarr[i];
-  //  }
-  //  PRINT0("TEST: %d\n", test);
-    
-
-    free_array(&qp);
-   
-    free(dipx1);
-    free(dipy1);
-    free(dipz1);
-    free(dipx2);
-    free(dipy2);
-    free(dipz2);
-    free(indicator);
-    //free(idxarr);
-  //free(correlation_back); 
 
     return status;
 }
 
-int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+int correlation_eval_zimmerman_trick(Arena *a, MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 /** 
  * @brief @ref correlation_eval_zimmerman_trick
  */ 
-// TODO: Use temporary arena instead of malloc
 {
     // TODO: this function *for now* only works for autocorrelation 
     assert(dipole_1 == dipole_2);
-
-    //NOTE:for convenience: dip_: -MaxTrajectoryLength+1,-MaxTrajectoryLength+2... 0, 1, ... MaxTrajectoryLength-1
-    double * dipx = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipy = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-    double * dipz = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(double) );
-
-    // int * idxarr = malloc( (params->MaxTrajectoryLength*2-1)*sizeof(int) );
-    // memset(idxarr, 0, (params->MaxTrajectoryLength*2-1)*sizeof(int));
-  
-    memset(dipx, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipy, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
-    memset(dipz, 0.0, (params->MaxTrajectoryLength*2-1)*sizeof(double));
     
     memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
-            
+
+    // NOTE: for convenience: dip_: -MaxTrajectoryLength+1,-MaxTrajectoryLength+2... 0, 1, ... MaxTrajectoryLength-1
+    double *dipx = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    double *dipy = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    double *dipz = arena_alloc(a, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+
+    memset(dipx, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    memset(dipy, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    memset(dipz, 0.0, (params->MaxTrajectoryLength*2 - 1) * sizeof(double));
+    
+    // put the dipole at t = 0 at the center of the array
     double dip0[3], dipt[3];
     extract_q_and_write_into_ms(ms);
     (*dipole_1)(ms->intermediate_q, dip0);
-    dipx[params->MaxTrajectoryLength-1] = dip0[0];
-    dipy[params->MaxTrajectoryLength-1] = dip0[1];
-    dipz[params->MaxTrajectoryLength-1] = dip0[2]; 
-    //idxarr[params->MaxTrajectoryLength-1] = 1;
-   // dipx[0] = dip0[0];
-   // dipy[0] = dip0[1];
-   // dipz[0] = dip0[2]; 
+    dipx[params->MaxTrajectoryLength - 1] = dip0[0]; 
+    dipy[params->MaxTrajectoryLength - 1] = dip0[1];
+    dipz[params->MaxTrajectoryLength - 1] = dip0[2]; 
     
-    Array qp = create_array(ms->QP_SIZE);
+    Array qp = arena_create_array(a, ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
    
@@ -2351,8 +2195,6 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
       .current = qp.data[IR],
       .ready   = false,
     };
-
-    double prev_value, curr_value;
 
     /*
      * We start step_counter from 1 so that correlation value after the first integration step
@@ -2379,43 +2221,9 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
             return 1;         
         }
         
-        prev_value = curr_value;
-        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
-
-        if (fabs(curr_value) > 1e100) {
-            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
-            printf("The initial phase-point for broken trajectory in the forward direction is:\n");
-            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-                printf("%.10e ", qp.data[i]);
-            }
-            printf("\n");
-            return 1;         
-        }
-
-        if (step_counter > 1) {
-            double ratio = fabs(curr_value / prev_value);
-            // if (ratio > 10000) {
-            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
-            // }
-            if (ratio > 1e10) {
-                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
-                printf("The initial phase-point for broken trajectory in the forward direction is:\n");
-                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-                    printf("%.10e ", qp.data[i]);
-                }
-                printf("\n");
-                return 1;         
-            } 
-        }
-
-        dipx[params->MaxTrajectoryLength-1+step_counter] = dipt[0];
-        dipy[params->MaxTrajectoryLength-1+step_counter] = dipt[1];
-        dipz[params->MaxTrajectoryLength-1+step_counter] = dipt[2]; 
-        //idxarr[params->MaxTrajectoryLength-1+step_counter] = 1;
-       // dipx[step_counter] = dipt[0];
-       // dipy[step_counter] = dipt[1];
-       // dipz[step_counter] = dipt[2]; 
-       // printf("current index: %d\n",params->MaxTrajectoryLength-1+step_counter);
+        dipx[params->MaxTrajectoryLength - 1 + step_counter] = dipt[0];
+        dipy[params->MaxTrajectoryLength - 1 + step_counter] = dipt[1];
+        dipz[params->MaxTrajectoryLength - 1 + step_counter] = dipt[2]; 
 
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
 
@@ -2426,7 +2234,6 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
     invert_momenta(ms);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp); // re-initialization of the CVode happens here 
-   
     
     t = 0.0;
     tout = params->sampling_time;
@@ -2458,41 +2265,9 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
             return 1;         
         }
         
-        prev_value = curr_value;
-        curr_value = dip0[0]*dipt[0] + dip0[1]*dipt[1] + dip0[2]*dipt[2];
-        
-        if (fabs(curr_value) > 1e100) {
-            printf("ERROR: corrupted value (%.5e) of correlation function at index = %zu\n", curr_value, step_counter);
-            printf("The initial phase-point for broken trajectory in the backward direction is:\n");
-            for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-                printf("%.10e ", qp.data[i]);
-            }
-            printf("\n");
-            return 1;         
-        }
-
-        if (step_counter > 1) {
-            double ratio = fabs(curr_value / prev_value); 
-            // if (ratio > 10000) {
-            //     printf("ratio = %.10f, prev = %.10e, curr = %.10e\n", ratio, prev_value, curr_value); 
-            // }
-            if (ratio > 1e10) {
-                printf("ERROR: unexpectedly large jump in dipole value!\n"); 
-                printf("The initial phase-point for broken trajectory in the backward direction is:\n");
-                for (size_t i = 0; i < ms->QP_SIZE; ++i) {
-                    printf("%.10e ", qp.data[i]);
-                }
-                printf("\n");
-                return 1;         
-            } 
-        }
-  
-        dipx[params->MaxTrajectoryLength-1-step_counter] = dipt[0];
-        dipy[params->MaxTrajectoryLength-1-step_counter] = dipt[1];
-        dipz[params->MaxTrajectoryLength-1-step_counter] = dipt[2]; 
-        //idxarr[params->MaxTrajectoryLength-1-step_counter] = 1;
-        //local_correlation[params->MaxTrajectoryLength-1-step_counter] = curr_value; 
-       // printf("current index: %d\n",params->MaxTrajectoryLength-1-step_counter);
+        dipx[params->MaxTrajectoryLength - 1 - step_counter] = dipt[0];
+        dipy[params->MaxTrajectoryLength - 1 - step_counter] = dipt[1];
+        dipz[params->MaxTrajectoryLength - 1 - step_counter] = dipt[2]; 
         
         track_turning_points(&tr, ms->intermolecular_qp[IR]);
 
@@ -2508,21 +2283,6 @@ int correlation_eval_zimmerman_trick(MoleculeSystem *ms, Trajectory *traj, CalcP
     }
 
     *tps = tr.turning_points;
-
-  //  int test = 1;
-  //  for (size_t i = 0;i < 2*params->MaxTrajectoryLength-1;++i) {
-  //     test *= idxarr[i];
-  //  }
-  //  PRINT0("TEST: %d\n", test);
-    
-
-    free_array(&qp);
-   
-    free(dipx);
-    free(dipy);
-    free(dipz);
-    //free(idxarr);
-  //free(correlation_back); 
 
     return status;
 }
@@ -3080,7 +2840,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
 
                 int status;
                 if (params->accelerate_averaging) {
-                    status = correlation_eval_zimmerman_trick(ms, &traj, params, base_crln, &tps);
+                    status = correlation_eval_zimmerman_trick(&a, ms, &traj, params, base_crln, &tps);
                 } else {
                     status = correlation_eval(ms, &traj, params, base_crln, &tps);
                 }  
@@ -3386,8 +3146,7 @@ void normalize_cfnc(CFnc *cf)
     }
 }
 
-
-CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params, double Temperature)
+CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 /** 
  * @brief @ref calculate_correlation_and_save
  *
@@ -3577,400 +3336,6 @@ CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params
         PRINT0("ERROR: setting fixed J for initial conditions for 2nd monomer for calculating correlation function is not implemented\n");
         exit(1);
     }
-
-    if (params->initialM0_npoints > 0) { 
-        PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
-        PRINT0("The estimate for M0 will be based on %zu points\n", params->initialM0_npoints); 
-
-        double prelim_M0, prelim_M0std;
-        mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
-        PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0-prelim_M0std, prelim_M0+prelim_M0std);
-        PRINT0("Error: %.3f%%\n", prelim_M0std/prelim_M0 * 100.0);
-    }
-
-    if (params->initialM2_npoints > 0) { 
-        PRINT0("Running preliminary calculations of M2 using rejection sampler to generate phase-points from Boltzmann distribution\n");
-        PRINT0("The estimate for M2 will be based on %zu points\n\n", params->initialM2_npoints); 
-
-        double prelim_M2, prelim_M2std;
-        mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std); 
-        PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2-prelim_M2std, prelim_M2+prelim_M2std);
-        PRINT0("Error: %.3f%%\n", prelim_M2std/prelim_M2 * 100.0);
-    } 
-
-    String_Builder sb_datetime = {0};
-
-    for (size_t iter = 0; iter < params->niterations; ++iter) 
-    {
-        size_t counter = 0;
-        size_t desired_dist = 0;
-        size_t integral_counter = 0;
-        size_t tps = 0;
-
-if (_wrank > 0) {
-        /* SLAVE CODE */
-        memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
-
-        while (integral_counter < local_ntrajectories) 
-        {
-            q_generator(ms, params);
-            p_generator(ms, Temperature);
-
-            double energy = Hamiltonian(ms);
-            ++counter;
-
-            if (!reject(ms, Temperature, params->pesmin)) {
-                ++desired_dist;
-
-                if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
-                    if (energy < 0.0) continue; 
-                }
-
-                if (params->ps == PAIR_STATE_BOUND) {
-                    if (energy > 0.0) continue;
-                }
-
-                int status;
-                if ((params->accelerate_averaging) && (params->ps == PAIR_STATE_BOUND) )  {
-                    status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
-                } else if ((params->accelerate_averaging) && (params->ps == PAIR_STATE_FREE_AND_METASTABLE )) {
-                    status = correlation_eval_zimmerman_trick_free_metastable(ms, &traj, params, crln, &tps,Temperature); 
-                } else {
-                    status = correlation_eval(ms, &traj, params, crln, &tps); 
-                }
-		    
-                if (status == -1) continue;
-
-                if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
-                    gsl_histogram_increment(tps_hist, tps);
-                }
-
-                if (ms->m1.nswitch_histogram.is_allocated) {
-                    if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
-                        ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h, 
-                                                                                ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
-                    }
-
-                    gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
-                }
-
-                for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-                    local_crln[i] += params->partial_partition_function_ratio * crln[i];
-                }
-
-                integral_counter++;
-            }
-        }
-
-        MPI_Send(local_crln, params->MaxTrajectoryLength, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-
-        if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-            send_histogram_and_reset(ms->m1.nswitch_histogram.h);
-        }
-        /* END OF SLAVE CODE */
-} else {
-        /* MASTER CODE */
-        MPI_Status status;
-
-        for (size_t i = 1; i < (size_t) _wsize; ++i) 
-        {
-           Arena_Mark recv_mark = arena_snapshot(&a);
-            
-           double *buf = (double*) arena_alloc(&a, params->MaxTrajectoryLength * sizeof(double));
-           memset(buf, 0, params->MaxTrajectoryLength * sizeof(double));
-           MPI_Recv(buf, params->MaxTrajectoryLength, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
-
-           for (size_t j = 0; j < params->MaxTrajectoryLength; ++j) {
-               total_crln.data[j] += buf[j];
-           }
-           total_crln.ntraj += local_ntrajectories;
-
-           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram.h);
-           }
-
-           arena_rewind(&a, recv_mark);
-        }
-
-        PRINT0("ITERATION %zu/%zu: accumulated %zu trajectories. Saving the temporary result to '%s'\n", iter+1, params->niterations, (size_t)total_crln.ntraj, params->cf_filename);
-
-        time_t current_rawtime;
-        time(&current_rawtime);
-        double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime); 
-        
-        sb_reset(&sb_datetime);
-        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
-        
-        if (iter == 0) {
-            PRINT0("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);  
-        } else {
-            PRINT0("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
-           
-            double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
-            sb_reset(&sb_datetime);
-            sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
-            PRINT0("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);  
-        }
-
-        ms->temp_rawtime = current_rawtime;
-
-        double M0_crln_est = total_crln.data[0] / total_crln.ntraj * ZeroCoeff / ALU/ALU/ALU;
-        PRINT0("M0 ESTIMATE FROM CF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n", M0_crln_est, hep_M0, (M0_crln_est - hep_M0)/hep_M0*100.0);
-        
-        {
-            if (total_crln.len >= 5) {
-                size_t saved_len = total_crln.len;
-                total_crln.len = 5;
-
-                double M2_9pt;
-                compute_Mn_from_cf_using_classical_detailed_balance(total_crln, 2, &M2_9pt); 
-                PRINT0("M2 ESTIMATE FROM CF (9-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_9pt, hep_M2, (M2_9pt - hep_M2)/hep_M2*100.0);
-
-                total_crln.len = saved_len;
-            } else {
-                PRINT0("Trajectory is too short to estimate M2\n");
-            }
-
-            if (total_crln.len >= 11) {
-                double M2_21pt;
-                compute_Mn_from_cf_using_classical_detailed_balance(total_crln, 2, &M2_21pt); 
-                PRINT0("M2 ESTIMATE FROM CF (21-point): %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n", M2_21pt, hep_M2, (M2_21pt - hep_M2)/hep_M2*100.0);
-            } 
-        }
-
-        {
-            _print0_suppress_info = true;
-            int r = write_correlation_function_ext(fp, total_crln);
-            _print0_suppress_info = false;
-
-            INFO("wrote %d characters to '%s'\n\n", r, params->cf_filename);
-	    }
-
-        if (ms->m1.nswitch_histogram.is_allocated) {
-	    	double count = gsl_histogram_sum(ms->m1.nswitch_histogram.h);
-	    	INFO("wrote normalized histogram of number of angular momentum switches for monomer %d (%s)\n",
-                  ms->m1.index, display_monomer_type(ms->m1.t));
-
-            _print0_suppress_info = true;
-	    	int nchars = write_histogram_ext(ms->m1.nswitch_histogram.fp, ms->m1.nswitch_histogram.h, (int) count);
-            _print0_suppress_info = false;
-
-            INFO("wrote %d characters to %s (histogram count = %d)\n\n", nchars, ms->m1.nswitch_histogram.filename, (int) count);
-	    }
-        /* END OF MASTER CODE */
-}
-    }
- 
-    if (tps_hist != NULL) {
-        gsl_histogram_free(tps_hist);
-    }
-   
-    normalize_cfnc(&total_crln);
-
-    free(crln);
-    free(local_crln);
-    sb_free(&sb_datetime); 
-    arena_free(&a);              
-
-    return total_crln; 
-}
-
-
-CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
-/** 
- * @brief @ref calculate_correlation_and_save
- *
- * TODO: check 'sampler_Rmin': we want to catch the situation when it's too low for given Temperature
- */ 
-{
-    assert(dipole_1 != NULL);
-    assert(dipole_2 != NULL);
-
-    assert(params->MaxTrajectoryLength > 0);
-    assert(params->Rcut > 0);
-    assert(params->sampling_time > 0);
-    assert(params->total_trajectories > 0);
-    assert(params->cvode_tolerance > 0);
-    assert(params->niterations >= 1);
-    assert(params->cf_filename != NULL);
-
-    Arena a = {0};
-
-    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-        assert(ms->m1.torque_cache_len > 0);
-        assert(ms->m1.torque_limit > 0);
-
-        // by default we turn on the requantization
-        ms->m1.apply_requantization = true;
-	}
-
-    FILE *fp = NULL; 
-    if (_wrank == 0) {
-        fp = fopen(params->cf_filename, "w");
-        if (fp == NULL) { 
-            printf("ERROR: Could not open '%s' for writing! Exiting...\n", params->cf_filename);
-            exit(1);
-        }
-    } 
-   
-    double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
-
-    if (params->partial_partition_function_ratio <= 0) {
-        PRINT0("Ratio of partial partition functions to full (analytic) partial partition function is not provided.\n");
-        PRINT0("Conducting calculations using adaptive Monte Carlo method.\n\n\n");
-        
-        PRINT0("Analytic partition function divided by V: %.5e\n", pf_analytic);
-        
-        size_t hep_ppf_niterations = 12;
-        if (params->hep_ppf_niterations > 0) hep_ppf_niterations = params->hep_ppf_niterations;
-
-        size_t hep_ppf_npoints = 1000000;
-        if (params->hep_ppf_npoints > 0) hep_ppf_npoints = params->hep_ppf_npoints;
-
-        double hep_ppf, hep_ppf_err;    
-        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, hep_ppf_niterations, hep_ppf_npoints, &hep_ppf, &hep_ppf_err);
-    
-        params->partial_partition_function_ratio = hep_ppf / pf_analytic;
-        PRINT0("T = %.2e => PPF ratio: %.5e\n", Temperature, params->partial_partition_function_ratio);
-    }       
-
-    double hep_M0 = 0.0;
-    { 
-        size_t hep_m0_niterations = 12;
-        if (params->hep_m0_niterations > 0) hep_m0_niterations = params->hep_m0_niterations;
-
-        size_t hep_m0_npoints = 1000000;
-        if (params->hep_m0_npoints > 0) hep_m0_npoints = params->hep_m0_npoints;
-
-        double hep_M0_err; 
-        c_mpi_perform_integration(ms, INTEGRAND_M0, params, Temperature, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
-
-        hep_M0     *= ZeroCoeff / pf_analytic;
-        hep_M0_err *= ZeroCoeff / pf_analytic;
-        PRINT0("T = %.2e => M0: %.5e\n", Temperature, hep_M0);
-    }    
-   
-    double hep_M2 = 0.0;
-    {
-        size_t hep_m2_niterations = 12;
-        if (params->hep_m2_niterations > 0) hep_m2_niterations = params->hep_m2_niterations;
-
-        size_t hep_m2_npoints = 1000000;
-        if (params->hep_m2_npoints > 0) hep_m2_npoints = params->hep_m2_npoints;
-
-        double hep_M2_err; 
-        c_mpi_perform_integration(ms, INTEGRAND_M2, params, Temperature, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
-
-        hep_M2     *= SecondCoeff / pf_analytic;
-        hep_M2_err *= SecondCoeff / pf_analytic;
-        PRINT0("T = %.2e => M2: %.5e\n", Temperature, hep_M2);
-    } 
-
-    // TODO: handle the distribution of trajectories between processes so that in total we 
-    //       calculate 'total_trajectories/niterations' each iteration. Basically, handle 
-    //       the case when total_trajectories is not divisible by niterations. 
-    size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
-   
-    // crln - correlation function for individual trajectory
-    // local_crln - sum of correlation functions for an iteration (count = local_trajectories) 
-    double *crln       = malloc(params->MaxTrajectoryLength * sizeof(double));
-    double *local_crln = malloc(params->MaxTrajectoryLength * sizeof(double));
-    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
-    memset(local_crln, 0, params->MaxTrajectoryLength * sizeof(double));
-
-    // this is a total correlation function that is kept track of in the master process
-    CFnc total_crln = {
-        .t           = linspace(0.0, params->sampling_time*(params->MaxTrajectoryLength-1), params->MaxTrajectoryLength),
-        .data        = malloc(params->MaxTrajectoryLength * sizeof(double)),
-        .len         = params->MaxTrajectoryLength,
-        .ntraj       = 0,
-        .Temperature = Temperature,
-    }; 
-    memset(total_crln.data, 0, params->MaxTrajectoryLength * sizeof(double)); 
-    
-    Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
-    // TODO: need to think how to check energy conservation so that it would not spam the output file 
-    traj.check_energy_conservation = false; 
-
-    // TODO: this histogram is filled but not extended yet at the appropriate moment
-    // TODO: we should probably save it to a file at the end of the iteration if 
-    //       some variable is set in the 'params' structure.
-    gsl_histogram *tps_hist = NULL;
-    if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
-        size_t nbins = HISTOGRAM_MAX_TPS;
-        tps_hist = gsl_histogram_alloc(nbins);
-        gsl_histogram_set_ranges_uniform(tps_hist, 0, HISTOGRAM_MAX_TPS);
-    }
-
-    PRINT0("\n\n"); 
-    PRINT0("------------------------------------------------------------------------\n");
-    PRINT0("Calculating single correlation function at T = %.2f using following parameters:\n", Temperature);
-
-    _print0_margin = 4;
-    PRINT0("pair state (pair_state):                                             %s\n",   PAIR_STATES[params->ps]);
-    PRINT0("trajectories to be calculated (total_trajectories):                  %zu\n",  params->total_trajectories);
-    PRINT0("# of iterations that the calculation is divided into (niterations):  %zu\n",  params->niterations);
-    PRINT0("maximum length of trajectory (MaxTrajectoryLength):                  %zu\n",  params->MaxTrajectoryLength);
-    PRINT0("partial partition function (partial_partition_function_ratio):       %.6e\n", params->partial_partition_function_ratio);
-    PRINT0("sampling time of dipole on trajectory (sampling_time):               %.2f\n", params->sampling_time);
-    PRINT0("maximum intermolecular distance on trajectory (Rcut):                %.2f\n", params->Rcut);
-    PRINT0("CVode tolerance:                                                     %.3e\n", params->cvode_tolerance);
-    PRINT0("accelerate convergence:                                              %d\n\n", params->accelerate_averaging);
-    
-
-    if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
-        if (ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) {
-            PRINT0("Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
-        } else if (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER) {
-            PRINT0("Applying requantization to nearest half-integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
-        }
-        PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
-        PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
-
-    } 
-    
-    setup_nswitch_histogram_for_monomer(&ms->m1);
-    setup_nswitch_histogram_for_monomer(&ms->m2);
-    
-    setup_jini_histogram_for_monomer(&ms->m1);
-    setup_jfin_histogram_for_monomer(&ms->m1);
-
-    setup_jini_histogram_for_monomer(&ms->m2);
-    setup_jfin_histogram_for_monomer(&ms->m2);
-
-    if (ms->m1.DJ > 0) {
-        assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
-        PRINT0("ERROR: using an effective rotational constant for the 1st monomer that accounts for centrifugal distortion is not implemented\n");
-        exit(1);
-    }
-    
-    if (ms->m2.DJ > 0) {
-        assert((ms->m2.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m2.t == LINEAR_MOLECULE_REQ_HALFINTEGER));
-        PRINT0("ERROR: using an effective rotational constant for the 2nd monomer that accounts for centrifugal distortion is not implemented\n");
-        exit(1);
-    }
-
-    _print0_margin = 0;
-    PRINT0("------------------------------------------------------------------------\n");
-    PRINT0("\n\n");
-    
-   
-    if (ms->m1.initial_j >= 0) {
-        // TODO: does it really make sense to implement this?
-        PRINT0("ERROR: setting fixed J for initial conditions for 1st monomer for calculating correlation function is not implemented\n");
-        exit(1); 
-    }
-
-    if (ms->m2.initial_j >= 0) { 
-        // TODO: does it really make sense to implement this?
-        PRINT0("ERROR: setting fixed J for initial conditions for 2nd monomer for calculating correlation function is not implemented\n");
-        exit(1);
-    }
-
-    if (params->accelerate_averaging && (params->ps != PAIR_STATE_BOUND)) {
-        PRINT0("ERROR: Zimmermann's trick can be used only for bound states!\n");
-        exit(1);
-    } 
     
     if (params->initialM0_npoints > 0) { 
         PRINT0("Running preliminary calculations of M0 using rejection sampler to generate phase-points from Boltzmann distribution\n");
@@ -4024,13 +3389,18 @@ if (_wrank > 0) {
                     if (energy > 0.0) continue;
                 }
 
+                Arena_Mark recv_mark = arena_snapshot(&a);
                 int status;
-                if (params->accelerate_averaging) {
-                    status = correlation_eval_zimmerman_trick(ms, &traj, params, crln, &tps); 
+
+                if (params->accelerate_averaging && (params->ps == PAIR_STATE_BOUND) )  {
+                    status = correlation_eval_zimmerman_trick(&a, ms, &traj, params, crln, &tps); 
+                } else if (params->accelerate_averaging && (params->ps == PAIR_STATE_FREE_AND_METASTABLE)) {
+                    status = correlation_eval_zimmerman_trick_free_metastable(&a, ms, &traj, params, crln, &tps,Temperature);
                 } else {
                     status = correlation_eval(ms, &traj, params, crln, &tps); 
                 }
 		    
+                arena_rewind(&a, recv_mark);
                 if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
