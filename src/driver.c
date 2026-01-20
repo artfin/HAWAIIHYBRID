@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <dlfcn.h>
+#include <cpuid.h>
+#include <sys/utsname.h>
 
 #define USE_MPI
 #include "hawaii.h"
@@ -3771,6 +3773,138 @@ void usage()
     flag_print_options(stdout); 
 }
 
+typedef struct {
+    char hostname[256];
+    int cores;
+    int process_count;
+    int first_rank;
+} NodeInfo;
+
+int compare_node_info(const void *a, const void *b) {
+    return strcmp(((NodeInfo*) a)->hostname, ((NodeInfo*) b)->hostname);
+}
+
+void collect_and_display_node_info()
+{
+    char hostname[MPI_MAX_PROCESSOR_NAME];
+    int hostname_len;
+    MPI_Get_processor_name(hostname, &hostname_len);
+
+    NodeInfo node_info = {0};
+    strcpy(node_info.hostname, hostname);
+    node_info.cores = sysconf(_SC_NPROCESSORS_ONLN);
+
+    char all_hostnames[_wsize][256];
+    MPI_Gather(hostname, 256, MPI_CHAR, all_hostnames, 256, MPI_CHAR, 0, MPI_COMM_WORLD);
+        
+    NodeInfo *unique_nodes = malloc(_wsize * sizeof(NodeInfo));
+    int unique_nodes_count = 0;
+
+    if (_wrank == 0) {
+
+        for (int i = 0; i < _wsize; ++i) {
+            bool found = false;
+            for (int j = 0; j < unique_nodes_count; ++j) {
+                if (strcmp(unique_nodes[j].hostname, all_hostnames[i]) == 0) {
+                    unique_nodes[j].process_count++;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                strcpy(unique_nodes[unique_nodes_count].hostname, all_hostnames[i]);
+                unique_nodes[unique_nodes_count].process_count = 1;
+                unique_nodes[unique_nodes_count].first_rank = i;
+                unique_nodes_count++; 
+            }
+        }
+
+        qsort(unique_nodes, unique_nodes_count, sizeof(NodeInfo), compare_node_info);
+
+        PRINT0("Node info:\n")
+        for (int i = 0; i < unique_nodes_count; ++i) {
+            PRINT0("Node: %-20s (%3d processes)\n", unique_nodes[i].hostname, unique_nodes[i].process_count);
+        }
+        PRINT0("\n");
+    }
+
+    for (int i = 0; i < unique_nodes_count; ++i) {
+        if (_wrank == unique_nodes[i].first_rank) {
+            String_Builder sb = {0};
+
+            struct utsname sys_info;
+            if (uname(&sys_info) == 0) {
+                sb_append_format(&sb, "System: %s %s %s\n", sys_info.sysname, sys_info.release, sys_info.machine);
+            }
+
+            char cpu_brand[49] = {0};
+            unsigned int eax, ebx, ecx, edx;
+
+            for (int i = 0; i < 3; i++) {
+                __cpuid(0x80000002 + i, eax, ebx, ecx, edx);
+                memcpy(cpu_brand + i * 16, &eax, 4);
+                memcpy(cpu_brand + i * 16 + 4, &ebx, 4);
+                memcpy(cpu_brand + i * 16 + 8, &ecx, 4);
+                memcpy(cpu_brand + i * 16 + 12, &edx, 4);
+            }
+
+            sb_append_format(&sb, "CPU Brand String: %s\n", cpu_brand);
+
+            if (!__get_cpuid(0, &eax, &ebx, &ecx, &edx)) {
+                sb_append_format(&sb, "cpuid not supported\n");
+                continue;
+            }
+            
+            char vendor[13] = {0};
+            memcpy(vendor, &ebx, 4);
+            memcpy(vendor + 4, &edx, 4);
+            memcpy(vendor + 8, &ecx, 4);
+            sb_append_format(&sb, "Vendor: %s", vendor);
+
+            char brand[49] = {0};  // 48 chars + null terminator
+            if (__get_cpuid_max(0x80000004, NULL) >= 0x80000004) {
+                for (int i = 0; i < 3; i++) {
+                    __get_cpuid(0x80000002 + i, &eax, &ebx, &ecx, &edx);
+                    memcpy(brand + i * 16, &eax, 4);
+                    memcpy(brand + i * 16 + 4, &ebx, 4);
+                    memcpy(brand + i * 16 + 8, &ecx, 4);
+                    memcpy(brand + i * 16 + 12, &edx, 4);
+                }
+
+                sb_append_format(&sb, "CPU Brand: %s\n", brand);
+            }
+
+            // Get basic CPU info
+            __get_cpuid(1, &eax, &ebx, &ecx, &edx);
+            int family = (eax >> 8) & 0xF;
+            int model = (eax >> 4) & 0xF;
+            int stepping = eax & 0xF;
+            sb_append_format(&sb, "Family: %d, Model: %d, Stepping: %d\n", family, model, stepping);
+
+            // Check features
+            printf("Features: ");
+            if (edx & (1 << 23)) sb_append_cstring(&sb, "MMX ");
+            if (edx & (1 << 25)) sb_append_cstring(&sb, "SSE ");
+            if (edx & (1 << 26)) sb_append_cstring(&sb, "SSE2 ");
+            if (ecx & (1 << 0))  sb_append_cstring(&sb, "SSE3 ");
+            if (ecx & (1 << 9))  sb_append_cstring(&sb, "SSSE3 ");
+            if (ecx & (1 << 19)) sb_append_cstring(&sb, "SSE4.1 ");
+            if (ecx & (1 << 20)) sb_append_cstring(&sb, "SSE4.2 ");
+            if (edx & (1 << 28)) sb_append_cstring(&sb, "HTT ");
+            sb_append_cstring(&sb, "\n");
+
+            printf("%s", sb.items);
+
+            sb_free(&sb); 
+        }
+    }
+
+    PRINT0("\n\n");
+
+    free(unique_nodes);
+}
+
 int main(int argc, char* argv[]) 
 {
     MPI_Init(&argc, &argv);
@@ -3802,10 +3936,42 @@ int main(int argc, char* argv[])
 
     time_t init_rawtime;
     time(&init_rawtime);
+    
+    int MPI_version, MPI_subversion;
+    MPI_Get_version(&MPI_version, &MPI_subversion);
+    PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
 
-    PRINT0("*****************************************************\n");
-    PRINT0("*********** HAWAII HYBRID v0.1 **********************\n");
-    PRINT0("*****************************************************\n");
+    PRINT0("****************************************************************************\n");
+    PRINT0("* HAWAII HYBRID v0.1, build number ... \n");
+    PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
+    PRINT0("* This program is free software: you can redistribute it and/or modify\n"
+           "* it under the terms of the GNU General Public License as published by\n"
+           "* the Free Software Foundation, version 3 of the License\n");
+    PRINT0("*\n");
+    PRINT0("* This program is distributed in the hope that it will be useful\n"
+           "* but WITHOUT ANY WARRANTY.\n");
+    PRINT0("*\n");
+    PRINT0("* You should have received a copy of the GNU General Public License\n"
+           "* along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
+    PRINT0("* The authors of this software should be contacted if its code is intended\n" 
+           "* to be used as training data.\n");
+    PRINT0("* Contact information:\n"
+           "*   Artem Finenko    - artfin@mail.ru\n"
+           "*   Daniil Chistikov - danichist@yandex.ru\n"
+           "*   Andrey Vigasin   - vigasin@ifaran.ru\n");
+    PRINT0("*\n");
+    PRINT0("* Contributors:  Anastasia Sekacheva\n");
+    PRINT0("***************************************************************************\n\n");
+   
+    if (_wsize == 1) {
+        PRINT0("\n");
+        PRINT0("RUNNING IN SERIAL MODE USING SINGLE PROCESS\n\n")
+    } else {
+        PRINT0("RUNNING IN PARALLEL MODE USING %d PROCESSES\n\n", _wsize);
+    }
+    
+    collect_and_display_node_info();
+
     PRINT0("Loaded configuration file: %s\n", filename);
     PRINT0("%s\n", file_contents.items);
 
@@ -4084,3 +4250,21 @@ int main(int argc, char* argv[])
 
     return 0; 
 }
+
+/*
+ *  Copyright (C) 2026 A.Finenko & D.Chistikov 
+ *  Distributed under the GNU General Public License, version 3
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */       
