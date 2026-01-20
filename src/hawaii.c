@@ -3390,18 +3390,21 @@ if (_wrank > 0) {
                 }
 
                 Arena_Mark recv_mark = arena_snapshot(&a);
-                int status;
 
-                if (params->accelerate_averaging && (params->ps == PAIR_STATE_BOUND) )  {
-                    status = correlation_eval_zimmerman_trick(&a, ms, &traj, params, crln, &tps); 
-                } else if (params->accelerate_averaging && (params->ps == PAIR_STATE_FREE_AND_METASTABLE)) {
-                    status = correlation_eval_zimmerman_trick_free_metastable(&a, ms, &traj, params, crln, &tps,Temperature);
+                if (params->accelerate_averaging && (params->ps == PAIR_STATE_BOUND) )  
+                {
+                    correlation_eval_zimmerman_trick(&a, ms, &traj, params, crln, &tps); 
+                    arena_rewind(&a, recv_mark);
+                } else if (params->accelerate_averaging && (params->ps == PAIR_STATE_FREE_AND_METASTABLE)) 
+                {
+                    correlation_eval_zimmerman_trick_free_metastable(&a, ms, &traj, params, crln, &tps, Temperature);
+                    arena_rewind(&a, recv_mark);
                 } else {
-                    status = correlation_eval(ms, &traj, params, crln, &tps); 
+                    int status = correlation_eval(ms, &traj, params, crln, &tps); 
+                    
+                    arena_rewind(&a, recv_mark);
+                    if (status == -1) continue;
                 }
-		    
-                arena_rewind(&a, recv_mark);
-                if (status == -1) continue;
 
                 if (params->ps == PAIR_STATE_FREE_AND_METASTABLE) {
                     gsl_histogram_increment(tps_hist, tps);
