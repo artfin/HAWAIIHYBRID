@@ -3779,8 +3779,16 @@ typedef struct {
     char hostname[256];
     int cores;
     int process_count;
-    int first_rank;
+
+    // we print the information about the system only for the process with rank='first_rank' 
+    int first_rank; 
 } NodeInfo;
+
+typedef struct {
+    NodeInfo *items;
+    size_t count;
+    size_t capacity;
+} NodeInfos;
 
 int compare_node_info(const void *a, const void *b) {
     return strcmp(((NodeInfo*) a)->hostname, ((NodeInfo*) b)->hostname);
@@ -3792,47 +3800,66 @@ void collect_and_display_node_info()
     int hostname_len;
     MPI_Get_processor_name(hostname, &hostname_len);
 
-    NodeInfo node_info = {0};
-    strcpy(node_info.hostname, hostname);
-    node_info.cores = sysconf(_SC_NPROCESSORS_ONLN);
+    int cores = sysconf(_SC_NPROCESSORS_ONLN);
 
+    // Collecting all hostnames and core counts on rank 0
     char all_hostnames[_wsize][256];
     MPI_Gather(hostname, 256, MPI_CHAR, all_hostnames, 256, MPI_CHAR, 0, MPI_COMM_WORLD);
-        
-    NodeInfo *unique_nodes = malloc(_wsize * sizeof(NodeInfo));
-    int unique_nodes_count = 0;
+       
+    int all_cores[_wsize];
+    MPI_Gather(&cores, 1, MPI_INT, all_cores, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    NodeInfos unique_nodes = {0}; 
 
     if (_wrank == 0) {
-
         for (int i = 0; i < _wsize; ++i) {
             bool found = false;
-            for (int j = 0; j < unique_nodes_count; ++j) {
-                if (strcmp(unique_nodes[j].hostname, all_hostnames[i]) == 0) {
-                    unique_nodes[j].process_count++;
+            for (size_t j = 0; j < unique_nodes.count; ++j) {
+                if (strcmp(unique_nodes.items[j].hostname, all_hostnames[i]) == 0) {
+                    unique_nodes.items[j].process_count++;
                     found = true;
                     break;
                 }
             }
 
             if (!found) {
-                strcpy(unique_nodes[unique_nodes_count].hostname, all_hostnames[i]);
-                unique_nodes[unique_nodes_count].process_count = 1;
-                unique_nodes[unique_nodes_count].first_rank = i;
-                unique_nodes_count++; 
+                NodeInfo info = {
+                    .process_count = 1,
+                    .first_rank = i,
+                };
+
+                strcpy(info.hostname, all_hostnames[i]);
+                da_append(&unique_nodes, info);
             }
         }
 
-        qsort(unique_nodes, unique_nodes_count, sizeof(NodeInfo), compare_node_info);
+        qsort(unique_nodes.items, unique_nodes.count, sizeof(NodeInfo), compare_node_info);
 
-        PRINT0("Node info:\n")
-        for (int i = 0; i < unique_nodes_count; ++i) {
-            PRINT0("Node: %-20s (%3d processes), first rank = %d\n", unique_nodes[i].hostname, unique_nodes[i].process_count, unique_nodes[i].first_rank);
+        PRINT0("Node info:\n");
+        for (size_t i = 0; i < unique_nodes.count; ++i) {
+            PRINT0("Node: %-20s (%3d processes), first rank = %d\n", 
+                   unique_nodes.items[i].hostname, unique_nodes.items[i].process_count, unique_nodes.items[i].first_rank);
         }
         PRINT0("\n");
     }
 
-    for (int i = 0; i < unique_nodes_count; ++i) {
-        if (_wrank == unique_nodes[i].first_rank) {
+    // broadcasting the unique_nodes to all processes 
+    MPI_Bcast(&unique_nodes.count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (_wrank > 0) {
+        unique_nodes.items = malloc(unique_nodes.count * sizeof(NodeInfo));
+        unique_nodes.capacity = unique_nodes.count;
+    }
+
+    for (size_t i = 0; i < unique_nodes.count; ++i) {
+        MPI_Bcast(unique_nodes.items[i].hostname,    256, MPI_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&unique_nodes.items[i].cores,         1, MPI_INT,  0, MPI_COMM_WORLD);
+        MPI_Bcast(&unique_nodes.items[i].process_count, 1, MPI_INT,  0, MPI_COMM_WORLD);
+        MPI_Bcast(&unique_nodes.items[i].first_rank,    1, MPI_INT,  0, MPI_COMM_WORLD);
+    }
+
+    for (size_t i = 0; i < unique_nodes.count; ++i) {
+        if (_wrank == unique_nodes.items[i].first_rank) {
             String_Builder sb = {0};
 
             struct utsname sys_info;
@@ -3904,7 +3931,7 @@ void collect_and_display_node_info()
 
     PRINT0("\n\n");
 
-    free(unique_nodes);
+    free(unique_nodes.items);
 }
 
 int main(int argc, char* argv[]) 
