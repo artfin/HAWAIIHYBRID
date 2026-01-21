@@ -26,9 +26,6 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
-// TODO: add -check option for driver to check that the dynamic libraries are present and
-//       openable
-
 // TODO: if NITERATIONS = 10 and TOTAL_TRAJECTORIES = 10 - the code crashes with the error
 // 'cannot normalize ...'
 
@@ -2322,19 +2319,18 @@ void check_if_requantization_should_be_applied_to_monomer(Monomer *m, size_t ste
     }
 }
 
-int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
+int correlation_eval(Arena *a, MoleculeSystem *ms, Trajectory *traj, CalcParams *params, double *crln, size_t *tps)
 /** 
  * @brief @ref correlation_eval
  */ 
-// TODO: Use temporary arena instead of malloc 
 {
-    double *correlation_forw = malloc(params->MaxTrajectoryLength * sizeof(double));
+    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
+
+    double *correlation_forw = arena_alloc(a, params->MaxTrajectoryLength * sizeof(double));
     memset(correlation_forw, 0.0, params->MaxTrajectoryLength * sizeof(double));
 
-    double *correlation_back = malloc(params->MaxTrajectoryLength * sizeof(double));
+    double *correlation_back = arena_alloc(a, params->MaxTrajectoryLength * sizeof(double));
     memset(correlation_back, 0.0, params->MaxTrajectoryLength * sizeof(double));
-    
-    memset(crln, 0, params->MaxTrajectoryLength * sizeof(double));
             
     double dip1_0[3], dip1_t[3];
     double dip2_0[3], dip2_t[3];
@@ -2353,7 +2349,7 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         correlation_back[0] = dip1_0[0]*dip1_0[0] + dip1_0[1]*dip1_0[1] + dip1_0[2]*dip1_0[2];
     }
    
-    Array qp = create_array(ms->QP_SIZE);
+    Array qp = arena_create_array(a, ms->QP_SIZE);
     get_qp_from_ms(ms, &qp);
     set_initial_condition(traj, qp);
    
@@ -2367,7 +2363,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 
     ms->m1.req_switch_counter = 0;
     ms->m2.req_switch_counter = 0;
-	
+
+    // TODO: move tracker inside Trajectory, I think we have information inside make_step
+    //       to track the turning points 
     Tracker tr = {
       .before2 = qp.data[IR],
       .before  = qp.data[IR],
@@ -2392,6 +2390,8 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
         extract_q_and_write_into_ms(ms);
 
         (*dipole_1)(ms->intermediate_q, dip1_t);
+
+        // TODO: refactor the testing of dipole components into separate function
         if (isnan(dip1_t[0]) || isnan(dip1_t[1]) || isnan(dip1_t[2])) {
             printf("ERROR: one of the components of the dipole_1 is corrupted!\n");
             printf("The initial phase-point for broken trajectory in the forward direction is:\n");
@@ -2557,22 +2557,9 @@ int correlation_eval(MoleculeSystem *ms, Trajectory *traj, CalcParams *params, d
 
     *tps = tr.turning_points;
 
-    free_array(&qp);
-   
-    free(correlation_forw);
-    free(correlation_back); 
-
     return status;
 }
 
-void gsl_fft_square(double *farr, size_t N) {
-    farr[0] = farr[0] * farr[0];
-    farr[N/2] = farr[N/2] * farr[N/2];
-
-    for (size_t i = 1; i < N/2; ++i) {
-        farr[i] = farr[i] * farr[i] + farr[N-i] * farr[N-i];
-    }
-}
 
 #ifdef USE_MPI
 #include "hep_hawaii.h"
@@ -2582,6 +2569,7 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
  * @brief @ref calculate_correlation_array_and_save
  *
  */
+// TODO: this function uses different MPI communication model compared to calculate_correlation_and_save
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -2838,13 +2826,17 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                     if (energy > 0.0) continue;
                 }
 
-                int status;
+                Arena_Mark eval_mark = arena_snapshot(&a);
+
                 if (params->accelerate_averaging) {
-                    status = correlation_eval_zimmerman_trick(&a, ms, &traj, params, base_crln, &tps);
+                    correlation_eval_zimmerman_trick(&a, ms, &traj, params, base_crln, &tps);
+                    arena_rewind(&a, eval_mark);
                 } else {
-                    status = correlation_eval(ms, &traj, params, base_crln, &tps);
+                    int status = correlation_eval(&a, ms, &traj, params, base_crln, &tps);
+                    arena_rewind(&a, eval_mark); 
+
+                    if (status == -1) continue;
                 }  
-                if (status == -1) continue;
 
                 // TODO: turning points counting
                 //
@@ -3389,20 +3381,20 @@ if (_wrank > 0) {
                     if (energy > 0.0) continue;
                 }
 
-                Arena_Mark recv_mark = arena_snapshot(&a);
+                Arena_Mark eval_mark = arena_snapshot(&a);
 
                 if (params->accelerate_averaging && (params->ps == PAIR_STATE_BOUND) )  
                 {
                     correlation_eval_zimmerman_trick(&a, ms, &traj, params, crln, &tps); 
-                    arena_rewind(&a, recv_mark);
+                    arena_rewind(&a, eval_mark);
                 } else if (params->accelerate_averaging && (params->ps == PAIR_STATE_FREE_AND_METASTABLE)) 
                 {
                     correlation_eval_zimmerman_trick_free_metastable(&a, ms, &traj, params, crln, &tps, Temperature);
-                    arena_rewind(&a, recv_mark);
+                    arena_rewind(&a, eval_mark);
                 } else {
-                    int status = correlation_eval(ms, &traj, params, crln, &tps); 
-                    
-                    arena_rewind(&a, recv_mark);
+                    int status = correlation_eval(&a, ms, &traj, params, crln, &tps); 
+                    arena_rewind(&a, eval_mark);
+
                     if (status == -1) continue;
                 }
 
@@ -3540,8 +3532,6 @@ if (_wrank > 0) {
     return total_crln; 
 }
 
-#include "angles_handler.hpp"
-
 void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
 {
     MPI_Status status;
@@ -3568,6 +3558,16 @@ void recv_histogram_and_append(Arena *a, int source, gsl_histogram **h)
     }
 }
 
+void gsl_fft_square(double *farr, size_t N) {
+    farr[0] = farr[0] * farr[0];
+    farr[N/2] = farr[N/2] * farr[N/2];
+
+    for (size_t i = 1; i < N/2; ++i) {
+        farr[i] = farr[i] * farr[i] + farr[N-i] * farr[N-i];
+    }
+}
+
+#include "angles_handler.hpp"
 
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature) 
 /** 

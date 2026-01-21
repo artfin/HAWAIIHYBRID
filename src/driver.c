@@ -25,6 +25,9 @@
 
 // TODO: AVERAGE_CFS needs to check that provided CFs are not the same to avoid averaging duplicate
 
+// TODO: add -check option for driver to check that the dynamic libraries are present and
+//       openable
+
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
 // TODO: do we need OVER operation on the stack elements? 
@@ -3823,7 +3826,7 @@ void collect_and_display_node_info()
 
         PRINT0("Node info:\n")
         for (int i = 0; i < unique_nodes_count; ++i) {
-            PRINT0("Node: %-20s (%3d processes)\n", unique_nodes[i].hostname, unique_nodes[i].process_count);
+            PRINT0("Node: %-20s (%3d processes), first rank = %d\n", unique_nodes[i].hostname, unique_nodes[i].process_count, unique_nodes[i].first_rank);
         }
         PRINT0("\n");
     }
