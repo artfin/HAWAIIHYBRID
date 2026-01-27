@@ -3391,10 +3391,10 @@ bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_P
 
 bool execute_smooth(Funcall *func, Processing_Stack *stack)
 /**
- * @brief Performs the smoothing of spectral function (SFnc) using LOESS algorithm. 
+ * @brief Performs the smoothing of spectral function (SFnc) or spectrum (Spectrum) using LOESS algorithm. 
  *
- * Applies LOESS regression to smooth the spectral function (SFnc) on stack top. The algorithm
- * performs local polynomial fitting across the provided frequency grid. The result replaces
+ * Applies LOESS regression to smooth the spectral function (SFnc) or spectrum (Spectrum) on stack top. 
+ * The algorithm performs local polynomial fitting across the provided frequency grid. The result replaces
  * input spectral function on stack top.
  *
  * The function uses thread parallelization. 
