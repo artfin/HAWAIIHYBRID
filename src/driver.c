@@ -28,6 +28,8 @@
 // TODO: add -check option for driver to check that the dynamic libraries are present and
 //       openable
 
+// TODO: bake git commit info into the executable 
+
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
 // TODO: do we need OVER operation on the stack elements? 
@@ -3408,8 +3410,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
  */ 
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF); 
-    SFnc *sf = &tagged_item.item.sf;
+    expect_one_of_items_on_stack(&func->loc, &tagged_item, 2, STACK_ITEM_SF, STACK_ITEM_SPECTRUM); 
 
     size_t grid_npoints = 0;
     double grid_max = 0.0;
@@ -3481,23 +3482,51 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     INFO("window_size_step = %.5e\n", ws_step);
     INFO("window_size_delay = %zu\n", ws_delay);
     INFO("window_size_cap = %zu\n", ws_cap);
+   
+    switch (tagged_item.typ) {
+    case STACK_ITEM_SF: {
+        SFnc *sf = &tagged_item.item.sf;
 
-    loess_init(sf->nu, sf->data, sf->len);
-    loess_weight = WEIGHT_TRICUBE; 
+        SFnc smoothed = {
+            .nu          = NULL,
+            .data        = NULL,
+            .len         = grid_npoints,
+            .ntraj       = sf->ntraj,
+            .Temperature = sf->Temperature,
+            .normalized  = sf->normalized,
+        };
+    
+        loess_init(sf->nu, sf->data, sf->len);
+        loess_weight = WEIGHT_TRICUBE; 
 
-    SFnc smoothed = {
-        .nu          = NULL,
-        .data        = NULL,
-        .len         = grid_npoints,
-        .ntraj       = sf->ntraj,
-        .Temperature = sf->Temperature,
-        .normalized  = sf->normalized,
-    };
+        smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
+        smoothed.data = loess_apply_smoothing(&config);
 
-    smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
-    smoothed.data = loess_apply_smoothing(&config);
+        stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SF, &func->loc);
+    } break;
+    case STACK_ITEM_SPECTRUM: {
+        Spectrum *sp = &tagged_item.item.sp;
+        
+        Spectrum smoothed = {
+            .nu          = NULL,
+            .data        = NULL,
+            .len         = grid_npoints,
+            .ntraj       = sp->ntraj,
+            .Temperature = sp->Temperature,
+            .normalized  = sp->normalized,
+        };
+        
+        loess_init(sp->nu, sp->data, sp->len);
+        loess_weight = WEIGHT_TRICUBE; 
 
-    stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SF, &func->loc);
+        smoothed.nu = loess_create_grid(0.0, grid_max, grid_npoints); 
+        smoothed.data = loess_apply_smoothing(&config);
+
+        stack_push_with_type(stack, (void*) &smoothed, STACK_ITEM_SPECTRUM, &func->loc);
+    } break;
+    default: UNREACHABLE("execute_smooth");
+    } 
+
     return true;
 }
 
@@ -3911,6 +3940,7 @@ void collect_and_display_node_info()
             int stepping = eax & 0xF;
             sb_append_format(&sb, "Family: %d, Model: %d, Stepping: %d\n", family, model, stepping);
 
+            // TODO: AVX
             // Check features
             printf("Features: ");
             if (edx & (1 << 23)) sb_append_cstring(&sb, "MMX ");
