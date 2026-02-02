@@ -21,12 +21,18 @@
 
 #include <gsl/gsl_integration.h>
 
+#ifndef GIT_COMMIT
+#define GIT_COMMIT "unknown"
+#endif
+
+#ifndef GIT_BRANCH
+#define GIT_BRANCH "unknown"
+#endif
+
 #define CSPLINE_IMPLEMENTATION
 #include "cspline.h"
 
 // TODO: AVERAGE_CFS needs to check that provided CFs are not the same to avoid averaging duplicate
-
-// TODO: bake git commit info into the executable 
 
 // TODO: renaming mechanism to prevent blindly overwriting the existing file (WRITE_CF, WRITE_SF, WRITE_SPECTRUM) 
 //
@@ -4002,7 +4008,7 @@ int main(int argc, char* argv[])
     PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
 
     PRINT0("****************************************************************************\n");
-    PRINT0("* HAWAII HYBRID v0.1, build number ... \n");
+    PRINT0("* HAWAII HYBRID v0.1, commit %s (%s)\n", GIT_COMMIT, GIT_BRANCH);
     PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
     PRINT0("* This program is free software: you can redistribute it and/or modify\n"
            "* it under the terms of the GNU General Public License as published by\n"
@@ -4101,7 +4107,7 @@ int main(int argc, char* argv[])
             }
         } 
 
-        if (all_ok) 
+        if (all_ok) { 
             INFO("Configuration file validated successfully\n");
         } else {
             ERROR("Configuration file is invalid. Required libraries were not found.\n");
