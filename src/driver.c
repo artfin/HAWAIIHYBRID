@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #include <cpuid.h>
 #include <sys/utsname.h>
 
@@ -24,9 +25,6 @@
 #include "cspline.h"
 
 // TODO: AVERAGE_CFS needs to check that provided CFs are not the same to avoid averaging duplicate
-
-// TODO: add -check option for driver to check that the dynamic libraries are present and
-//       openable
 
 // TODO: bake git commit info into the executable 
 
@@ -3972,6 +3970,7 @@ int main(int argc, char* argv[])
     INIT_WSIZE;
 
     bool *debug = flag_bool("debug", false, "Show parsed tokens for debugging");
+    bool *check = flag_bool("check", false, "Check the correctness of the provided configuration file (for now, if dlls are available)");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -3987,6 +3986,8 @@ int main(int argc, char* argv[])
     }
 
     const char *filename = *rest_argv;
+
+    int result = 0;
 
     String_Builder file_contents = {0};
     if (!read_entire_file(filename, &file_contents)) {
@@ -4054,7 +4055,61 @@ int main(int argc, char* argv[])
         print_processing_params(&processing_params);
         PRINT0("--------------------------------------------------\n\n\n");
     }
-    
+
+    if (*check) {
+        if (calc_params.calculation_type == CALCULATION_PROCESSING) {
+            ERROR("Configuration validation is not applicable for PROCESSING tasks.\n");
+            return_defer(1);
+        }
+
+        PRINT0("--------------------------------------------------\n");
+        PRINT0("---------- CHECKING DYNAMIC LIBRARIES ------------\n");
+        PRINT0("--------------------------------------------------\n");
+
+        bool all_ok = true;
+
+        if (input_block.so_potential != NULL) {
+            if (access(input_block.so_potential, F_OK) == 0) {
+                INFO("%s: library with potential is available\n", input_block.so_potential);
+            } else {
+                INFO("%s: library with potential is not found\n", input_block.so_potential);
+                all_ok = false;
+            }
+        } else {
+            ERROR("Library with PES is not specified\n");
+            all_ok = false;
+        }
+
+        if (input_block.so_dipole_1 != NULL) {
+            if (access(input_block.so_dipole_1, F_OK) == 0) {
+                INFO("%s: library with dipole (1) is available\n", input_block.so_dipole_1);
+            } else {
+                INFO("%s: library with dipole (1) is not found\n", input_block.so_dipole_1);
+                all_ok = false;
+            }
+        } else {
+            ERROR("%s: library with dipole (1) is not specified\n", input_block.so_dipole_1);
+            all_ok = false;
+        }
+
+        if (input_block.so_dipole_2 != NULL) {
+            if (access(input_block.so_dipole_2, F_OK) == 0) {
+                INFO("%s: library with dipole (2) is available\n", input_block.so_dipole_2);
+            } else {
+                INFO("%s: library with dipole (2) is not found\n", input_block.so_dipole_2);
+                all_ok = false;
+            }
+        } 
+
+        if (all_ok) 
+            INFO("Configuration file validated successfully\n");
+        } else {
+            ERROR("Configuration file is invalid. Required libraries were not found.\n");
+        }
+
+        return_defer(!all_ok);
+    }
+
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
             if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
@@ -4282,10 +4337,12 @@ int main(int argc, char* argv[])
            deinit_timeinfo->tm_year + 1900, deinit_timeinfo->tm_mon + 1, deinit_timeinfo->tm_mday,
            deinit_timeinfo->tm_hour,        deinit_timeinfo->tm_min,     deinit_timeinfo->tm_sec);
 
+
+defer:
     sb_free(&file_contents);    
     MPI_Finalize();
 
-    return 0; 
+    return result; 
 }
 
 /*
