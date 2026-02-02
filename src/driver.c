@@ -3937,24 +3937,41 @@ void collect_and_display_node_info()
                 sb_append_format(&sb, "CPU Brand: %s\n", brand);
             }
 
-            // Get basic CPU info
             __get_cpuid(1, &eax, &ebx, &ecx, &edx);
             int family = (eax >> 8) & 0xF;
             int model = (eax >> 4) & 0xF;
             int stepping = eax & 0xF;
             sb_append_format(&sb, "Family: %d, Model: %d, Stepping: %d\n", family, model, stepping);
 
-            // TODO: AVX
-            // Check features
-            printf("Features: ");
+            sb_append_cstring(&sb, "Features: ");
+            // CPUID leaf 1
             if (edx & (1 << 23)) sb_append_cstring(&sb, "MMX ");
             if (edx & (1 << 25)) sb_append_cstring(&sb, "SSE ");
             if (edx & (1 << 26)) sb_append_cstring(&sb, "SSE2 ");
+            if (edx & (1 << 28)) sb_append_cstring(&sb, "HTT "); // Hyper-Threading 
+            
             if (ecx & (1 << 0))  sb_append_cstring(&sb, "SSE3 ");
             if (ecx & (1 << 9))  sb_append_cstring(&sb, "SSSE3 ");
             if (ecx & (1 << 19)) sb_append_cstring(&sb, "SSE4.1 ");
             if (ecx & (1 << 20)) sb_append_cstring(&sb, "SSE4.2 ");
-            if (edx & (1 << 28)) sb_append_cstring(&sb, "HTT ");
+            if (ecx & (1 << 25)) sb_append_cstring(&sb, "AES-NI ");
+            if (ecx & (1 << 28)) sb_append_cstring(&sb, "AVX ");
+            if (ecx & (1 << 12)) sb_append_cstring(&sb, "FMA3 ");
+
+            // CPUID leaf 7: structured extended features
+            if (__get_cpuid_max(0, NULL) >= 7) {
+                unsigned int eax7, ebx7, ecx7, edx7;
+                __cpuid_count(7, 0, eax7, ebx7, ecx7, edx7);
+
+                if (ebx7 & (1 << 3))  sb_append_cstring(&sb, "BMI1 ");
+                if (ebx7 & (1 << 5))  sb_append_cstring(&sb, "AVX2 ");
+                if (ebx7 & (1 << 8))  sb_append_cstring(&sb, "BMI2 ");
+                if (ebx7 & (1 << 16)) sb_append_cstring(&sb, "AVX-512F ");
+                if (ebx7 & (1 << 17)) sb_append_cstring(&sb, "AVX-512DQ ");
+                if (ebx7 & (1 << 28)) sb_append_cstring(&sb, "AVX-512CD ");
+                if (ebx7 & (1 << 30)) sb_append_cstring(&sb, "AVX-512BW ");
+                if (ebx7 & (1 << 31)) sb_append_cstring(&sb, "AVX-512VL ");
+            }
             sb_append_cstring(&sb, "\n");
 
             printf("%s", sb.items);
