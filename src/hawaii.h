@@ -657,6 +657,7 @@ bool average_correlation_functions(CFnc *average, CFncs cfncs);
 #define average_correlation_functions_ext(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
 int average_correlation_functions__impl(CFnc *average, int arg_count,  ...);
 
+void blackman_apodization(Array a, double sampling_time); 
 void connes_apodization(Array a, double sampling_time); 
 double *dct(double *v, size_t len);
 double *idct(double *v, size_t len);

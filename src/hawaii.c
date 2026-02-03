@@ -4152,9 +4152,9 @@ if (_wrank > 0) {
 
             // Here we chose to apply apodization procedure to dipole time-dependence
             // TODO: should we make it customizable? 
-            connes_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
-            connes_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
-            connes_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            blackman_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            blackman_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            blackman_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
             
             gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
             gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
@@ -5755,6 +5755,17 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     free(ydat2);
 
     return wp; 
+}
+
+void blackman_apodization(Array a, double sampling_time)
+{
+    double tmax = sampling_time * a.n;
+
+    for (size_t i = 0; i < a.n; ++i) {
+        double tcurr = sampling_time * i;
+        double factor = 0.42 + 0.5 * cos(M_PI * tcurr/tmax) + 2.0/25.0 * cos(2.0 * M_PI * tcurr/tmax);
+        a.data[i] *= factor; 
+    }
 }
 
 void connes_apodization(Array a, double sampling_time) 
