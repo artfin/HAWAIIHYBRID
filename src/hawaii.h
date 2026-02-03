@@ -22,6 +22,7 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_multifit_nlinear.h>
 #include <gsl/gsl_spline.h>
+#include <gsl/gsl_sf_bessel.h>
 
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_complex.h>
@@ -657,6 +658,7 @@ bool average_correlation_functions(CFnc *average, CFncs cfncs);
 #define average_correlation_functions_ext(average, ...) average_correlation_functions__impl(average, sizeof((CFnc[]){__VA_ARGS__}) / sizeof(CFnc), __VA_ARGS__)
 int average_correlation_functions__impl(CFnc *average, int arg_count,  ...);
 
+void kaiser_apodization(Array a, double sampling_time); 
 void blackman_apodization(Array a, double sampling_time); 
 void connes_apodization(Array a, double sampling_time); 
 double *dct(double *v, size_t len);
