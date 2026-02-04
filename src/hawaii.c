@@ -5758,7 +5758,42 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
 }
 
 
-void kaiser_apodization(Array a, double sampling_time) 
+void kaiser_apodization(Array a, double sampling_time)
+/*
+ * Python code to compare apodization windows:
+ *
+ * \python3
+ * import numpy as np
+ * import matplotlib.pyplot as plt
+ * from scipy.special import i0
+ * 
+ * def blackman_apodization(t): return 0.42 + 0.5 * np.cos(np.pi * t) + 2.0/25.0 * np.cos(2 * np.pi * t)
+ * 
+ * def connes_apodization(t): return (1.0 - t**2)**2
+ * 
+ * def kaiser_apodization(t, beta=10.0):
+ *     i0_beta = i0(beta)
+ *     argument = beta * np.sqrt(1.0 - t * t)
+ *     return i0(argument) / i0_beta
+ * 
+ * if __name__ == "__main__":
+ *     N = 100
+ *     sampling_time = 0.01
+ *     data = np.arange(N) * sampling_time
+ * 
+ *     blackman = blackman_apodization(data)
+ *     connes = connes_apodization(data)
+ *     kaiser = kaiser_apodization(data)
+ * 
+ *     plt.figure(figsize=(12, 8))
+ * 
+ *     plt.plot(data, blackman, color='k')
+ *     plt.plot(data, connes, color='r')
+ *     plt.plot(data, kaiser, color='g')
+ * 
+ *     plt.show()
+ *
+ */  
 {
     // TODO: hardcoded parameter just for testing purposes 
     double beta = 10.0;
