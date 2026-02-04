@@ -5757,6 +5757,7 @@ WingParams fit_baseline(CFnc *cf, size_t EXT_RANGE_MIN)
     return wp; 
 }
 
+
 void kaiser_apodization(Array a, double sampling_time) 
 {
     // TODO: hardcoded parameter just for testing purposes 
@@ -5768,8 +5769,7 @@ void kaiser_apodization(Array a, double sampling_time)
 
     for (size_t i = 0; i < a.n; ++i) {
         double tcurr = sampling_time * i;
-        double normalized_t = (tcurr - tmax/2.0) / (tmax/2.0);
-        double arg = beta * sqrt(1.0 - normalized_t * normalized_t);
+        double arg = beta * sqrt(1.0 - tcurr/tmax * tcurr/tmax);
 
         double factor = gsl_sf_bessel_I0(arg) / i0_beta;        
         a.data[i] *= factor;
