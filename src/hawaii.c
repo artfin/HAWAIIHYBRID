@@ -4973,17 +4973,17 @@ if (_wrank > 0) {
 
           {
               double count = gsl_histogram_sum(ms->m1.jini_histogram);
-              printf("INFO: Writing normalized histogram of initial angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              INFO("Writing normalized histogram of initial angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
               write_histogram_ext(ms->m1.fp_jini_histogram, ms->m1.jini_histogram, count);
 
               count = gsl_histogram_sum(ms->m1.jfin_histogram);
-              printf("INFO: Writing normalized histogram of final angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              INFO("Writing normalized histogram of final angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
               write_histogram_ext(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
           }
 
           if (params->average_time_between_collisions > 0) {
               double count = gsl_histogram_sum(R_histogram);
-              printf("INFO: Normalized histogram of final intermolecular distances where trajectories are terminated (# elements = %d):\n",
+              INFO("Normalized histogram of final intermolecular distances where trajectories are terminated (# elements = %d):\n",
                      (int) count);
 
               for (size_t i = 0; i < R_histogram->n; ++i) {
@@ -4991,14 +4991,13 @@ if (_wrank > 0) {
                     printf("  %.5e %.3e\n", R_histogram->range[i], gsl_histogram_get(R_histogram, i)/count);
                   }
               }
-              printf("=======================================\n");
-              printf("\n\n");
+              PRINT0("=======================================\n\n");
           }
 
           double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
           double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
 
-          printf("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n",
+          PRINT0("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n",
                   iter+1, params->niterations, (int)sf_total.ntraj, params->sf_filename);
 
           time_t current_rawtime;
@@ -5009,20 +5008,20 @@ if (_wrank > 0) {
           sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
 
           if (iter == 0) {
-              printf("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);
+              INFO("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);
           } else {
-              printf("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+              INFO("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
 
               double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
               sb_reset(&sb_datetime);
               sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
-              printf("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);
+              INFO("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);
           }
 
           ms->temp_rawtime = current_rawtime;
 
-          printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
-          printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
+          INFO("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
+          INFO("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
 
           write_spectral_function_ext(fp, sf_total);
 
