@@ -6,18 +6,12 @@
 #define R_HISTOGRAM_BINS 100
 #define R_HISTOGRAM_MAX  10000000.0
 
-#define DEFAULT_JINI_HISTOGRAM_FILENAME1 "jini.dat.1"
-#define DEFAULT_JINI_HISTOGRAM_FILENAME2 "jini.dat.2"
 #define DEFAULT_JINI_HISTOGRAM_BINS 352
-#define DEFAULT_JINI_HISTOGRAM_MAX 35.0 
+#define DEFAULT_JINI_HISTOGRAM_MAX 35.0
 
-#define DEFAULT_JFIN_HISTOGRAM_FILENAME1 "jfin.dat.1"
-#define DEFAULT_JFIN_HISTOGRAM_FILENAME2 "jfin.dat.2"
 #define DEFAULT_JFIN_HISTOGRAM_BINS 352
 #define DEFAULT_JFIN_HISTOGRAM_MAX  35.0
 
-#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME1 "nswitch.dat.1"
-#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME2 "nswitch.dat.2"
 #define DEFAULT_NSWITCH_HISTOGRAM_BINS 20
 #define DEFAULT_NSWITCH_HISTOGRAM_MAX 20.0
 
@@ -41,6 +35,7 @@ int _wrank = 0;
 int _wsize = 1;
 bool _print0_suppress_info = false;
 int _print0_margin = 0;
+FILE *_logfile = NULL;
 
 static size_t INIT_SB_CAPACITY = 256;
 
@@ -3013,19 +3008,8 @@ void setup_nswitch_histogram_for_monomer(Monomer *m)
     if (m->nswitch_histogram.nbins <= 0) m->nswitch_histogram.nbins = DEFAULT_NSWITCH_HISTOGRAM_BINS;
     if (m->nswitch_histogram.max  <= 0) m->nswitch_histogram.max  = DEFAULT_NSWITCH_HISTOGRAM_MAX;
 
-    if (m->nswitch_histogram.filename == NULL) {
-        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
-        switch (m->index) {
-        case 1: {
-            m->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME1);
-        } break;
-        case 2: {
-            m->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME2);
-        } break;
-        default: UNREACHABLE("setup_nswitch_histogram_for_monomer"); 
-        }
-    }
-        
+    assert(m->nswitch_histogram.filename != NULL);
+
     PRINT0("Initializing histogram to store number of requantization switches for monomer %d (%s) on individual trajectories within the range"
             " [%.1e -- %.1e] using %zu bins\n", m->index, display_monomer_type(m->t), 0.0, m->nswitch_histogram.max, m->nswitch_histogram.nbins);
 
@@ -3053,18 +3037,7 @@ void setup_jini_histogram_for_monomer(Monomer *m)
     if (m->jini_histogram_bins <= 0) m->jini_histogram_bins = DEFAULT_JINI_HISTOGRAM_BINS;
     if (m->jini_histogram_max  <= 0) m->jini_histogram_max  = DEFAULT_JINI_HISTOGRAM_MAX;
 
-    if (m->jini_histogram_filename == NULL) {
-        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
-        switch (m->index) {
-        case 1: {
-            m->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME1);
-        } break;
-        case 2: {
-            m->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME2);
-        } break;
-        default: UNREACHABLE("setup_jini_histogram_for_monomer");
-        }
-    } 
+    assert(m->jini_histogram_filename != NULL);
 
     PRINT0("Initializing histogram to store initial angular momenta values for monomer %d (%s) within the range [%.3e...%.3e] using %zu bins\n",
             m->index, display_monomer_type(m->t), 0.0, m->jini_histogram_max, m->jini_histogram_bins);
@@ -3092,18 +3065,7 @@ void setup_jfin_histogram_for_monomer(Monomer *m)
     if (m->jfin_histogram_bins <= 0) m->jfin_histogram_bins = DEFAULT_JFIN_HISTOGRAM_BINS;
     if (m->jfin_histogram_max  <= 0) m->jfin_histogram_max  = DEFAULT_JFIN_HISTOGRAM_MAX;
     
-    if (m->jfin_histogram_filename == NULL) {
-        // note: we are strdup-ing the string so that we can safely 'free' it without thinking  
-        switch (m->index) {
-        case 1: {
-            m->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME1);
-        } break;
-        case 2: {
-            m->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME2);
-        } break;
-        default: UNREACHABLE("setup_jfin_histogram_for_monomer");
-        }
-    }
+    assert(m->jfin_histogram_filename != NULL);
 
     PRINT0("Initializing histogram to store final angular momenta values for monomer %d (%s) within the range [%.3e...%.3e] using %zu bins\n",
             m->index, display_monomer_type(m->t), 0.0, m->jfin_histogram_max, m->jfin_histogram_bins);

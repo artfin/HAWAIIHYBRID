@@ -107,10 +107,18 @@ int syncfs(int);
 
 #define da_last(da) (da)->items[(da)->count - 1]
 
-extern int  _wrank;
-extern int  _wsize;
-extern bool _print0_suppress_info;
-extern int  _print0_margin; 
+extern int   _wrank;                ///< MPI rank of the current process (0 for serial mode)
+extern int   _wsize;                ///< Total number of MPI processes (1 for serial mode)
+extern bool  _print0_suppress_info; ///< When true, INFO() macro output is suppressed
+extern int   _print0_margin;        ///< Number of leading spaces prepended to logging output
+extern FILE *_logfile;              ///< When non-NULL, logging macros mirror output to this file
+#define HAWAII_LOG "hawaii.log"
+
+#define LOG_TO_FILE(...)                \
+    if (_logfile != NULL) {             \
+        fprintf(_logfile, __VA_ARGS__); \
+        fflush(_logfile);               \
+    }
 
 #ifdef USE_MPI
 #define INIT_WRANK                          \
@@ -123,24 +131,28 @@ extern int  _print0_margin;
     if ((_wrank == 0) && !_print0_suppress_info) {                  \
         if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
         printf("INFO: "); printf(__VA_ARGS__);                      \
+        LOG_TO_FILE("INFO: "); LOG_TO_FILE(__VA_ARGS__);            \
     }
 
 #define WARNING(...)                                                \
     if (_wrank == 0) {                                              \
         if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
         printf("WARNING: "); printf(__VA_ARGS__);                   \
+        LOG_TO_FILE("WARNING: "); LOG_TO_FILE(__VA_ARGS__);         \
     }
 
-#define ERROR(...) \
+#define ERROR(...)                                                \
     if (_wrank == 0) {                                            \
       if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
       printf("ERROR: "); printf(__VA_ARGS__);                     \
-    } 
+      LOG_TO_FILE("ERROR: "); LOG_TO_FILE(__VA_ARGS__);           \
+    }
 
 #define PRINT0(...)                                               \
     if (_wrank == 0) {                                            \
       if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
       printf(__VA_ARGS__);                                        \
+      LOG_TO_FILE(__VA_ARGS__);                                   \
     }
 
 #else
@@ -150,21 +162,24 @@ extern int  _print0_margin;
 #define INFO(...)                                                   \
     if (!_print0_suppress_info) {                                   \
         if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
-        printf(__VA_ARGS__);                                        \
+        printf("INFO: "); printf(__VA_ARGS__);                      \
+        LOG_TO_FILE("INFO: "); LOG_TO_FILE(__VA_ARGS__);            \
     }
 
 #define WARNING(...)                                            \
     if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
     printf("WARNING: "); printf(__VA_ARGS__);                   \
+    LOG_TO_FILE("WARNING: "); LOG_TO_FILE(__VA_ARGS__);
 
 #define ERROR(...)                                              \
     if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
     printf("ERROR: "); printf(__VA_ARGS__);                     \
+    LOG_TO_FILE("ERROR: "); LOG_TO_FILE(__VA_ARGS__);
 
 #define PRINT0(...)                                             \
     if (_print0_margin > 0) printf("%*s", _print0_margin, " "); \
-    printf(__VA_ARGS__);
-
+    printf(__VA_ARGS__);                                        \
+    LOG_TO_FILE(__VA_ARGS__);
 
 #endif
 
@@ -221,8 +236,9 @@ typedef struct {
  * @notes 
  * - 17.01.2025: renamed `I[3]` to `II[3]` to avoid collision when including the header file `complex.h` 
  */
-typedef struct { 
-    int index;                 ///< Index of monomer within the molecule system (1 or 2) 
+
+typedef struct {
+    int index;                 ///< Index of monomer within the molecule system (1 or 2)
     MonomerType t;             ///< Type identifier for the monomer.
     double II[3];              ///< Values of inertia tensor.
     double DJ;                 ///< Centrifugal distortion constant.
@@ -254,6 +270,13 @@ typedef struct {
     gsl_histogram *jfin_histogram;
     FILE *fp_jfin_histogram;
 } Monomer; 
+
+#define DEFAULT_JINI_HISTOGRAM_FILENAME1 "jini.dat.1"
+#define DEFAULT_JINI_HISTOGRAM_FILENAME2 "jini.dat.2"
+#define DEFAULT_JFIN_HISTOGRAM_FILENAME1 "jfin.dat.1"
+#define DEFAULT_JFIN_HISTOGRAM_FILENAME2 "jfin.dat.2"
+#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME1 "nswitch.dat.1"
+#define DEFAULT_NSWITCH_HISTOGRAM_FILENAME2 "nswitch.dat.2"
 
 /**
  * @struct MoleculeSystem

@@ -863,29 +863,33 @@ Output_Config setup_output_config(InputBlock *input_block, CalculationType calcu
     return oc;
 }
 
-void prefix_output_filenames(const char *project_name, CalcParams *calc_params, Monomer *m1, Monomer *m2) {
-    if (calc_params->cf_filename != NULL)
-        calc_params->cf_filename = prefix_with_dir(project_name, calc_params->cf_filename);
-    if (calc_params->sf_filename != NULL)
-        calc_params->sf_filename = prefix_with_dir(project_name, calc_params->sf_filename);
+void prefix_output_filenames(const char *project_name, CalcParams *calc_params, Monomer *m1, Monomer *m2) 
+{
+    if (calc_params->cf_filename != NULL) calc_params->cf_filename = prefix_with_dir(project_name, calc_params->cf_filename);
+    if (calc_params->sf_filename != NULL) calc_params->sf_filename = prefix_with_dir(project_name, calc_params->sf_filename);
+
     for (size_t i = 0; i < calc_params->num_satellite_temperatures; ++i) {
         if (calc_params->cf_filenames[i] != NULL)
             calc_params->cf_filenames[i] = prefix_with_dir(project_name, calc_params->cf_filenames[i]);
     }
 
-    if (m1->jini_histogram_filename != NULL)
-        m1->jini_histogram_filename = prefix_with_dir(project_name, m1->jini_histogram_filename);
-    if (m1->jfin_histogram_filename != NULL)
-        m1->jfin_histogram_filename = prefix_with_dir(project_name, m1->jfin_histogram_filename);
-    if (m1->nswitch_histogram.filename != NULL)
-        m1->nswitch_histogram.filename = prefix_with_dir(project_name, m1->nswitch_histogram.filename);
+    if (m1->jini_histogram_filename == NULL) m1->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME1);
+    m1->jini_histogram_filename = prefix_with_dir(project_name, m1->jini_histogram_filename);
 
-    if (m2->jini_histogram_filename != NULL)
-        m2->jini_histogram_filename = prefix_with_dir(project_name, m2->jini_histogram_filename);
-    if (m2->jfin_histogram_filename != NULL)
-        m2->jfin_histogram_filename = prefix_with_dir(project_name, m2->jfin_histogram_filename);
-    if (m2->nswitch_histogram.filename != NULL)
-        m2->nswitch_histogram.filename = prefix_with_dir(project_name, m2->nswitch_histogram.filename);
+    if (m1->jfin_histogram_filename == NULL) m1->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME1);
+    m1->jfin_histogram_filename = prefix_with_dir(project_name, m1->jfin_histogram_filename);
+
+    if (m1->nswitch_histogram.filename == NULL) m1->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME1);
+    m1->nswitch_histogram.filename = prefix_with_dir(project_name, m1->nswitch_histogram.filename);
+
+    if (m2->jini_histogram_filename == NULL) m2->jini_histogram_filename = strdup(DEFAULT_JINI_HISTOGRAM_FILENAME2);
+    m2->jini_histogram_filename = prefix_with_dir(project_name, m2->jini_histogram_filename);
+
+    if (m2->jfin_histogram_filename == NULL) m2->jfin_histogram_filename = strdup(DEFAULT_JFIN_HISTOGRAM_FILENAME2);
+    m2->jfin_histogram_filename = prefix_with_dir(project_name, m2->jfin_histogram_filename);
+
+    if (m2->nswitch_histogram.filename == NULL) m2->nswitch_histogram.filename = strdup(DEFAULT_NSWITCH_HISTOGRAM_FILENAME2);
+    m2->nswitch_histogram.filename = prefix_with_dir(project_name, m2->nswitch_histogram.filename);
 }
 
 void print_input_block(InputBlock *input_block) {
@@ -4134,46 +4138,6 @@ int main(int argc, char* argv[])
 
     time_t init_rawtime;
     time(&init_rawtime);
-    
-    if (!*quiet) {
-        int MPI_version, MPI_subversion;
-        MPI_Get_version(&MPI_version, &MPI_subversion);
-        PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
-
-        PRINT0("****************************************************************************\n");
-        PRINT0("* HAWAII HYBRID v0.1, commit %s (%s)\n", GIT_COMMIT, GIT_BRANCH);
-        PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
-        PRINT0("* This program is free software: you can redistribute it and/or modify\n"
-               "* it under the terms of the GNU General Public License as published by\n"
-               "* the Free Software Foundation, version 3 of the License\n");
-        PRINT0("*\n");
-        PRINT0("* This program is distributed in the hope that it will be useful\n"
-               "* but WITHOUT ANY WARRANTY.\n");
-        PRINT0("*\n");
-        PRINT0("* You should have received a copy of the GNU General Public License\n"
-               "* along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
-        PRINT0("* The authors of this software should be contacted if its code is intended\n"
-               "* to be used as training data.\n");
-        PRINT0("* Contact information:\n"
-               "*   Artem Finenko    - artfin@mail.ru\n"
-               "*   Daniil Chistikov - danichist@yandex.ru\n"
-               "*   Andrey Vigasin   - vigasin@ifaran.ru\n");
-        PRINT0("*\n");
-        PRINT0("* Contributors:  Anastasia Sekacheva\n");
-        PRINT0("***************************************************************************\n\n");
-
-        if (_wsize == 1) {
-            PRINT0("\n");
-            PRINT0("RUNNING IN SERIAL MODE USING SINGLE PROCESS\n\n")
-        } else {
-            PRINT0("RUNNING IN PARALLEL MODE USING %d PROCESSES\n\n", _wsize);
-        }
-
-        collect_and_display_node_info();
-    
-        PRINT0("Loaded configuration file: %s\n", filename);
-        PRINT0("%s\n", file_contents.items);
-    }
 
     Lexer l = lexer_new(filename, file_contents.items, file_contents.items + file_contents.count);
 
@@ -4258,9 +4222,56 @@ int main(int argc, char* argv[])
                 ERROR("Failed to create project directory '%s': %s\n", oc.project_name, strerror(errno));
                 return_defer(1);
             }
+
+            const char *logpath = prefix_with_dir(oc.project_name, HAWAII_LOG);
+            _logfile = fopen(logpath, "w");
+            if (_logfile == NULL) {
+                ERROR("Failed to open log file '%s': %s\n", logpath, strerror(errno));
+                return_defer(1);
+            }
         }
         INFO("Project directory: %s\n", oc.project_name);
         prefix_output_filenames(oc.project_name, &calc_params, &monomer1, &monomer2);
+    }
+
+    if (!*quiet) {
+        PRINT0("****************************************************************************\n");
+        PRINT0("* HAWAII HYBRID v0.1, commit %s (%s)\n", GIT_COMMIT, GIT_BRANCH);
+        PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
+        PRINT0("* This program is free software: you can redistribute it and/or modify\n"
+               "* it under the terms of the GNU General Public License as published by\n"
+               "* the Free Software Foundation, version 3 of the License\n");
+        PRINT0("*\n");
+        PRINT0("* This program is distributed in the hope that it will be useful\n"
+               "* but WITHOUT ANY WARRANTY.\n");
+        PRINT0("*\n");
+        PRINT0("* You should have received a copy of the GNU General Public License\n"
+               "* along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
+        PRINT0("* The authors of this software should be contacted if its code is intended\n"
+               "* to be used as training data.\n");
+        PRINT0("* Contact information:\n"
+               "*   Artem Finenko    - artfin@mail.ru\n"
+               "*   Daniil Chistikov - danichist@yandex.ru\n"
+               "*   Andrey Vigasin   - vigasin@ifaran.ru\n");
+        PRINT0("*\n");
+        PRINT0("* Contributors:  Anastasia Sekacheva\n");
+        PRINT0("***************************************************************************\n\n");
+
+        if (_wsize == 1) {
+            PRINT0("\n");
+            PRINT0("RUNNING IN SERIAL MODE USING SINGLE PROCESS\n\n")
+        } else {
+            PRINT0("RUNNING IN PARALLEL MODE USING %d PROCESSES\n\n", _wsize);
+
+            int MPI_version, MPI_subversion;
+            MPI_Get_version(&MPI_version, &MPI_subversion);
+            PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
+        }
+
+        collect_and_display_node_info();
+
+        PRINT0("Loaded configuration file: %s\n", filename);
+        PRINT0("%s\n", file_contents.items);
     }
 
     switch (calc_params.calculation_type) {
@@ -4494,7 +4505,8 @@ int main(int argc, char* argv[])
 
 
 defer:
-    sb_free(&file_contents);    
+    if (_logfile) fclose(_logfile);
+    sb_free(&file_contents);
     MPI_Finalize();
 
     return result; 

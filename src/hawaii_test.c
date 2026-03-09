@@ -185,13 +185,15 @@ void collect_test_reports(Reports *reports)
     sb_free(out_filename_content);
 }
 
-void cmd_replay_all(void) {
+void cmd_replay_all() 
+{
     Reports reports = {0};
     collect_test_reports(&reports);
     print_reports(&reports);
 }
 
-void cmd_replay_selected(int rest_argc, char **rest_argv) {
+void cmd_replay_selected(int rest_argc, char **rest_argv) 
+{
     Cmd cmd = {0};
     String_Builder tmp_filename_content = {0};
     String_Builder out_filename_content = {0};
