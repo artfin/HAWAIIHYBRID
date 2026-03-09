@@ -1,0 +1,39 @@
+
+[1] READ_SF
+  INFO: Reading spectral function from tests/sf.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 4
+
+[2] DROP
+  INFO: Dropping SF originated at ./tests/read-sf.conf:6:3 from the processing stack
+
+[3] READ_SF
+  INFO: Reading spectral function from tests/incomplete-header-sf-missing-temperature.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  WARNING: no match found for pattern '# TEMPERATURE: ([0-9]+\.[0-9]+)' in header
+  INFO: length of data arrays: 4
+
+[4] DROP
+  INFO: Dropping SF originated at ./tests/read-sf.conf:8:3 from the processing stack
+
+[5] READ_CF
+  INFO: Reading correlation function from tests/incomplete-header-sf-missing-ntraj.txt
+  INFO: # of lines in header: 4
+  WARNING: no match found for pattern '# AVERAGE OVER ([0-9]+\.[0-9]+) TRAJECTORIES' in header
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 4
+
+[6] DROP
+  INFO: Dropping CF originated at ./tests/read-sf.conf:10:3 from the processing stack
+
+[7] READ_SF
+  INFO: Reading spectral function from tests/sf-broken.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  ERROR: could not parse spectral function value on line 9
+
+ERROR: failed to execute commands in the PROCESSING block

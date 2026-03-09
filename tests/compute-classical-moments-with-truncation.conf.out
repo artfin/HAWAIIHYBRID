@@ -1,0 +1,31 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[3] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Truncating spectral function at max frequency = 1.9995e+02 cm-1 (resulting npoints: 3801)
+  
+WARNING: compute_Mn_from_sf_using_classical_detailed_balance: the provided frequency range maybe too short to accurately estimate the 0-th moment at T = 1000.00
+         Consider extending the frequency range.
+    M0 = 1.05570e-05 for 0 -- 1.599e+02 cm-1 and M0 = 1.22533e-05 for 0 -- 1.999e+02 cm-1
+
+  INFO: Spectral moment using classical detailed balance [based on SF] = 1.22533e-05
+
+[4] PUSH_FLOAT
+  INFO: Pushing FLOAT(1.22533e-05)
+
+[5] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: floats considered equal: 1.22533e-05 and 1.22533e-05 differ by 0.000% < tolerance 0.010%
+
+INFO: PROCESSING block run successfully

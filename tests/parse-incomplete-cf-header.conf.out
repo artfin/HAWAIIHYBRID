@@ -1,0 +1,36 @@
+*****************************************************
+*********** HAWAII HYBRID v0.1 **********************
+*****************************************************
+Loaded configuration file: ./tests/parse-incomplete-cf-header.conf
+&INPUT
+  CALCULATION_TYPE = PROCESSING 
+&END
+
+&PROCESSING
+   READ_CF("tests/incomplete-header-cf-missing-temperature.txt")
+   DROP()
+
+   READ_CF("tests/incomplete-header-cf-missing-ntraj.txt")
+   DROP() 
+&END
+
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/incomplete-header-cf-missing-temperature.txt
+  INFO: # of lines in header: 3
+  INFO: captured number of trajectories: 3400000.000000
+  WARNING: no match found for pattern '# TEMPERATURE: ([0-9]+\.[0-9]+)' in header
+
+[2] DROP
+  INFO: Dropping CF originated at ./tests/parse-incomplete-cf-header.conf:6:4 from the processing stack
+
+[3] READ_CF
+  INFO: Reading correlation function from tests/incomplete-header-cf-missing-ntraj.txt
+  INFO: # of lines in header: 3
+  WARNING: no match found for pattern '# AVERAGE OVER ([0-9]+\.[0-9]+) TRAJECTORIES' in header
+  INFO: captured temperature: 100.000000
+
+[4] DROP
+  INFO: Dropping CF originated at ./tests/parse-incomplete-cf-header.conf:9:4 from the processing stack
+
+INFO: PROCESSING block run successfully

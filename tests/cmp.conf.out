@@ -1,0 +1,96 @@
+
+[1] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating SF on processing stack
+
+[3] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-diff-len.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65535
+
+[4] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): 'len' field differs (65535 and 65536)
+
+[5] DUP
+  INFO: Dupicating SF on processing stack
+
+[6] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-diff-Temperature.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 999.000000
+  INFO: length of data arrays: 65536
+
+[7] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): 'Temperature' field differs (999.00 and 1000.00)
+
+[8] DUP
+  INFO: Dupicating SF on processing stack
+
+[9] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-diff-ntraj.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 499999999.990000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[10] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): 'ntraj' field differs (499999999.99 and 500000000.00)
+
+[11] DUP
+  INFO: Dupicating SF on processing stack
+
+[12] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-diff-sf-freq.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[13] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): frequncies at index 65535 differ (3.447457e+03 and 3.447447e+03)
+
+[14] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-diff-sf-value.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[15] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): values at index 65535 differ (-1.538e-102 and -1.528e-102)
+
+ERROR: failed to execute commands in the PROCESSING block

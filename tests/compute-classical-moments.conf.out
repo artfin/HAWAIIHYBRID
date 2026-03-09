@@ -1,0 +1,50 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating CF on processing stack
+
+[3] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using classical detailed balance [based on CF] = 1.76519e-05
+
+[4] DUP
+  INFO: Dupicating FLOAT(1.76519e-05) on processing stack
+
+[5] ROT
+  INFO: CF FLOAT FLOAT -> FLOAT FLOAT CF
+
+[6] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[7] DUP
+  INFO: Dupicating SF on processing stack
+
+[8] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using classical detailed balance [based on SF] = 1.76499e-05
+
+[9] ROT
+  INFO: FLOAT SF FLOAT -> SF FLOAT FLOAT
+
+[10] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 5.0000000000e-04
+  INFO: CMP: floats considered equal: 1.76519e-05 and 1.76499e-05 differ by 0.012% < tolerance 0.050%
+
+[11] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using classical detailed balance [based on SF] = 1.76499e-05
+
+[12] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 5.0000000000e-04
+  INFO: CMP: floats considered equal: 1.76499e-05 and 1.76519e-05 differ by 0.012% < tolerance 0.050%
+
+INFO: PROCESSING block run successfully

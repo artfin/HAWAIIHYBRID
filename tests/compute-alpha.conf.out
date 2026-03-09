@@ -1,0 +1,103 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[3] ALPHA
+
+[4] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[5] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[6] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[7] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[8] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0-diff-ntraj.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 499999999.000000
+  INFO: captured temperature: 1000.000000
+
+[9] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): 'ntraj' field differs (499999999.00 and 500000000.00)
+
+[10] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[11] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0-diff-Temperature.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 999.000000
+
+[12] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): 'Temperature' field differs (999.00 and 1000.00)
+
+[13] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[14] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0-diff-sp-freq.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[15] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): frequncies at index 65535 differ (3.447547e+03 and 3.447447e+03)
+
+[16] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[17] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0-diff-sp-value.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[18] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP returned 'false' (objects are NOT equal): values at index 65535 differ (-2.969e-12 and -2.959e-12)
+
+[19] DROP
+  INFO: Dropping SPECTRUM originated at ./tests/compute-alpha.conf:8:4 from the processing stack
+
+ERROR: failed to execute commands in the PROCESSING block

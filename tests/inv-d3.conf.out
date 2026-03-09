@@ -1,0 +1,30 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[3] ALPHA
+
+[4] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[5] D3
+
+[6] INV_D3
+
+[7] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+INFO: PROCESSING block run successfully

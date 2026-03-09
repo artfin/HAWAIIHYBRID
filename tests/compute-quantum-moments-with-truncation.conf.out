@@ -1,0 +1,84 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating CF on processing stack
+
+[3] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using classical detailed balance [based on CF] = 1.76519e-05
+
+[4] PUSH_FLOAT
+  INFO: Pushing FLOAT(1.76519e-05)
+
+[5] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: floats considered equal: 1.76519e-05 and 1.76519e-05 differ by 0.000% < tolerance 0.010%
+
+[6] DUP
+  INFO: Dupicating CF on processing stack
+
+[7] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 2
+  INFO: Spectral moment using classical detailed balance [based on CF] = 8.32015e-01
+
+[8] PUSH_FLOAT
+  INFO: Pushing FLOAT(8.32015e-01)
+
+[9] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: floats considered equal: 8.32015e-01 and 8.32015e-01 differ by 0.000% < tolerance 0.010%
+
+[10] D4
+  INFO: Egelstaff time constant: 1.57888e+02
+  INFO: padding 't' and 'data' arrays of CF to 65536
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[11] DUP
+  INFO: Dupicating SF on processing stack
+
+[12] COMPUTE_Mn_QUANTUM_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Truncating spectral function at max frequency = 9.9949e+01 cm-1 (resulting npoints: 1900)
+  
+WARNING: compute_Mn_from_sf_using_quantum_detailed_balance: the provided frequency range maybe too short to accurately estimate the 0-th moment at T = 1000.00
+         Consider extending the frequency range.
+    M0 = 5.88945e-06 for 0 -- 7.996e+01 cm-1 and M0 = 7.18597e-06 for 0 -- 9.990e+01 cm-1
+
+  INFO: Spectral moment using quantum detailed balance [based on SF] = 7.18597e-06
+
+[13] PUSH_FLOAT
+  INFO: Pushing FLOAT(7.18597e-06)
+
+[14] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: floats considered equal: 7.18597e-06 and 7.18597e-06 differ by 0.000% < tolerance 0.010%
+
+[15] COMPUTE_Mn_QUANTUM_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 2
+  INFO: Truncating spectral function at max frequency = 9.9949e+01 cm-1 (resulting npoints: 1900)
+  
+WARNING: compute_Mn_from_sf_using_quantum_detailed_balance: the provided frequency range maybe too short to accurately estimate the 2-th moment at T = 1000.00
+         Consider extending the frequency range.
+    M2 = 1.20659e-02 for 0 -- 7.996e+01 cm-1 and M2 = 2.25580e-02 for 0 -- 9.990e+01 cm-1
+
+  INFO: Spectral moment using quantum detailed balance [based on SF] = 2.25580e-02
+
+[16] PUSH_FLOAT
+  INFO: Pushing FLOAT(2.25580e-02)
+
+[17] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: floats considered equal: 2.25580e-02 and 2.25580e-02 differ by 0.000% < tolerance 0.010%
+
+INFO: PROCESSING block run successfully

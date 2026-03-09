@@ -1,0 +1,65 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating CF on processing stack
+
+[3] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using classical detailed balance [based on CF] = 1.76519e-05
+
+[4] SWAP
+  INFO: CF FLOAT -> FLOAT CF
+
+[5] DUP
+  INFO: Dupicating CF on processing stack
+
+[6] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 2
+  INFO: Spectral moment using classical detailed balance [based on CF] = 8.32015e-01
+
+[7] SWAP
+  INFO: CF FLOAT -> FLOAT CF
+
+[8] ROT
+  INFO: FLOAT FLOAT CF -> FLOAT CF FLOAT
+
+[9] SWAP
+  INFO: CF FLOAT -> FLOAT CF
+
+[10] D4
+  INFO: Egelstaff time constant: 1.57888e+02
+  INFO: padding 't' and 'data' arrays of CF to 65536
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[11] DUP
+  INFO: Dupicating SF on processing stack
+
+[12] COMPUTE_Mn_QUANTUM_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 0
+  INFO: Spectral moment using quantum detailed balance [based on SF] = 1.75986e-05
+
+[13] ROT
+  INFO: FLOAT SF FLOAT -> SF FLOAT FLOAT
+
+[14] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 5.0000000000e-03
+  INFO: CMP: floats considered equal: 1.76519e-05 and 1.75986e-05 differ by 0.302% < tolerance 0.500%
+
+[15] COMPUTE_Mn_QUANTUM_DETAILED_BALANCE
+  INFO: Spectral moment order: n = 2
+  INFO: Spectral moment using quantum detailed balance [based on SF] = 4.47442e-01
+
+[16] CMP
+  INFO: comparing two floats with the following tolerances:
+        value relative tolerance: 1.0000000000e-04
+  INFO: CMP: comparison between floats failed: 4.47442e-01 and 8.32015e-01 differ by 85.949%, exceeding tolerance 0.010%
+
+ERROR: failed to execute commands in the PROCESSING block

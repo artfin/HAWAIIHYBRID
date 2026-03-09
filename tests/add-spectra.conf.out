@@ -1,0 +1,95 @@
+
+[1] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-B-He-Ar-100.0-raw.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 2808000.000000
+  INFO: captured temperature: 100.000000
+
+[2] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-100.0-raw.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 100.000000
+
+[3] DUP2
+  INFO: Dupicating SPECTRUM and SPECTRUM on processing stack
+
+[4] ADD_SPECTRA
+  INFO: popped spectrum (index: 0) from processing stack
+  INFO: popped spectrum (index: 1) from processing stack
+  Spectrum(0): wavenumber step = 5.26047e-02, max frequency = 1.05204e+03, # of trajectories = 5.0000e+08
+  Spectrum(1): wavenumber step = 5.26047e-02, max frequency = 1.05204e+03, # of trajectories = 2.8080e+06
+  INFO: Resampling spectra using cubic spline interpolation
+  INFO: The following parameters will be used for added spectrum:
+    wavenumber step = 5.26047e-02 cm-1
+    wavenumber range  = 0.0 ... 1.05204e+03 cm-1
+    number of samples = 20000
+
+[5] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-T-He-Ar-100.0-raw.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 502808000.000000
+  INFO: captured temperature: 100.000000
+
+[6] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[7] DUP2
+  INFO: Dupicating SPECTRUM and SPECTRUM on processing stack
+
+[8] ADD_SPECTRA
+  INFO: popped spectrum (index: 0) from processing stack
+  INFO: popped spectrum (index: 1) from processing stack
+  Spectrum(0): wavenumber step = 5.00000e-02, max frequency = 1.05204e+03, # of trajectories = 5.0000e+08
+  Spectrum(1): wavenumber step = 5.00000e-02, max frequency = 1.05204e+03, # of trajectories = 2.8080e+06
+  INFO: Resampling spectra using cubic spline interpolation
+  INFO: The following parameters will be used for added spectrum:
+    wavenumber step = 5.00000e-02 cm-1
+    wavenumber range  = 0.0 ... 1.05204e+03 cm-1
+    number of samples = 21041
+
+[9] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-T-He-Ar-100.0-raw-wn-step=0.05.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 502808000.000000
+  INFO: captured temperature: 100.000000
+
+[10] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[11] ADD_SPECTRA
+  INFO: popped spectrum (index: 0) from processing stack
+  INFO: popped spectrum (index: 1) from processing stack
+  Spectrum(0): wavenumber step = 5.00000e-02, max frequency = 1.05204e+03, # of trajectories = 5.0000e+08
+  Spectrum(1): wavenumber step = 5.00000e-02, max frequency = 1.05204e+03, # of trajectories = 2.8080e+06
+  INFO: Resampling spectra using cubic spline interpolation
+  INFO: The following parameters will be used for added spectrum:
+    wavenumber step = 5.00000e-02 cm-1
+    wavenumber range  = 0.0 ... 1.05204e+03 cm-1
+    number of samples = 21041
+
+[12] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-T-He-Ar-100.0-raw-wn-step=0.05.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 502808000.000000
+  INFO: captured temperature: 100.000000
+
+[13] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+INFO: PROCESSING block run successfully

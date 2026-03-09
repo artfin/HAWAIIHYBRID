@@ -1,0 +1,61 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[3] DUP2
+  INFO: Dupicating CF and SF on processing stack
+
+[4] DROP2
+  INFO: Dropping SF originated at ./tests/dup2.conf:8:4 from the processing stack
+  INFO: Dropping CF originated at ./tests/dup2.conf:8:4 from the processing stack
+
+[5] DROP2
+  INFO: Dropping SF originated at ./tests/dup2.conf:7:4 from the processing stack
+  INFO: Dropping CF originated at ./tests/dup2.conf:6:4 from the processing stack
+
+[6] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[7] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[8] DUP2
+  INFO: Dupicating CF and SPECTRUM on processing stack
+
+[9] DROP2
+  INFO: Dropping SPECTRUM originated at ./tests/dup2.conf:12:4 from the processing stack
+  INFO: Dropping CF originated at ./tests/dup2.conf:12:4 from the processing stack
+
+[10] DROP2
+  INFO: Dropping SPECTRUM originated at ./tests/dup2.conf:11:4 from the processing stack
+  INFO: Dropping CF originated at ./tests/dup2.conf:10:4 from the processing stack
+
+[11] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[12] DUP2
+  ERROR: ./tests/dup2.conf:15:4: DUP2 requires 2 elements on stack, but only 1 found
+
+ERROR: failed to execute commands in the PROCESSING block

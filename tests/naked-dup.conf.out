@@ -1,0 +1,5 @@
+
+[1] DUP
+  ERROR: ./tests/naked-dup.conf:6:3: cannot execute DUP - no elements on stack
+
+ERROR: failed to execute commands in the PROCESSING block

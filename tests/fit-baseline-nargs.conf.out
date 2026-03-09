@@ -1,0 +1,12 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] FIT_BASELINE
+  ERROR: ./tests/fit-baseline-nargs.conf:7:3: function call FIT_BASELINE expects at most 1 arguments but got 2
+
+ERROR: failed to execute commands in the PROCESSING block

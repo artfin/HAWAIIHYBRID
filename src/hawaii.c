@@ -3839,6 +3839,7 @@ if (_wrank > 0) {
                 ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR]; 
             }
 
+            // TODO: insert the correct distribution for fixed j
             if (ms->m1.initial_j >= 0) {
                 assert((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER));
 

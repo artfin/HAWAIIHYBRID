@@ -1,0 +1,275 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating CF on processing stack
+
+[3] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[4] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[5] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[6] DUP
+  INFO: Dupicating CF on processing stack
+
+[7] FIT_BASELINE
+  INFO: Using points starting from 16384 (out of 65536 points) for CF extrapolation
+  INFO: CFmin    = -4.4518209059e-37
+  INFO: CFmax    = 9.0933032379e-33
+  INFO: max2time = 2.6700000000e+05
+  INFO: CFmax2   = 2.9827781067e-38
+  INFO: Initial parameter values: 1.00000e-01 1.00000e-01 1.00000e+00
+    [callback] LM iter  0: A = 0.100000000000, B = 0.100000000000, C = 1.0000, cond(J) =      inf, |f(x)| = 224.9916
+    [callback] LM iter  1: A = 0.117861676120, B = 0.207458268344, C = 0.0080, cond(J) = 127.9655, |f(x)| = 12.5286
+    [callback] LM iter  2: A = 0.013567271501, B = 0.226610418507, C = 0.0001, cond(J) = 429.5003, |f(x)| = 12.1933
+    [callback] LM iter  3: A = -0.007033936609, B = 0.227275672433, C = 0.0000, cond(J) = 2264.9156, |f(x)| = 12.1918
+    [callback] LM iter  4: A = -0.007247101745, B = 0.227599070918, C = 0.0000, cond(J) = 4180.0165, |f(x)| = 12.1918
+    [callback] LM iter  5: A = -0.007295953909, B = 0.228460650387, C = 0.0000, cond(J) = 4068.7246, |f(x)| = 12.1918
+    [callback] LM iter  6: A = -0.007361386689, B = 0.229627488823, C = 0.0000, cond(J) = 4057.0083, |f(x)| = 12.1918
+    [callback] LM iter  7: A = -0.007400698772, B = 0.230323394578, C = 0.0000, cond(J) = 4041.7450, |f(x)| = 12.1918
+    [callback] LM iter  8: A = -0.007416760985, B = 0.230607342421, C = 0.0000, cond(J) = 4032.6110, |f(x)| = 12.1918
+    [callback] LM iter  9: A = -0.007421731610, B = 0.230695317394, C = 0.0000, cond(J) = 4028.8984, |f(x)| = 12.1918
+    [callback] LM iter 10: A = -0.007422967368, B = 0.230717212864, C = 0.0000, cond(J) = 4027.7542, |f(x)| = 12.1918
+      summary from method 'trust-region/levenberg-marquardt'
+      number of iterations: 10
+      function evaluations: 11
+      Jacobian evaluations: 11
+      reason for stopping: small gradient
+      initial |f(x)| = 224.991632
+      final   |f(x)| = 12.191795
+  chisq / dof = 0.00302421
+  optimization status = success
+  INFO: Optimized parameters (before descaling):
+    A = -7.422967e-03, B = 2.307172e-01, C = 4.273166e-05
+  INFO: Optimized parameters (after descaling):
+    A = -2.214106e-40, B = 8.641094e-07, C = 1.274591e-42
+  INFO: Subtracting the analytic model for CF from the numerical data
+         (t, a.t.u.)    (CF value, raw)   (CF value, model)    (CF value, after subtraction)
+     0   0.000000e+00     9.093303e-33      -2.201361e-40       9.093303e-33
+     1   2.000000e+02     8.917991e-33      -2.201360e-40       8.917992e-33
+     2   4.000000e+02     8.422036e-33      -2.201360e-40       8.422037e-33
+     3   6.000000e+02     7.683664e-33      -2.201360e-40       7.683664e-33
+     4   8.000000e+02     6.802595e-33      -2.201359e-40       6.802595e-33
+     5   1.000000e+03     5.873588e-33      -2.201359e-40       5.873588e-33
+     6   1.200000e+03     4.970098e-33      -2.201358e-40       4.970098e-33
+     7   1.400000e+03     4.139620e-33      -2.201357e-40       4.139620e-33
+     8   1.600000e+03     3.406631e-33      -2.201356e-40       3.406632e-33
+     9   1.800000e+03     2.778584e-33      -2.201355e-40       2.778584e-33
+
+[8] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+  INFO: Adding Fourier-transformed analytic model to the numerical IDCT result
+  INFO: Adding Lorentzian that forms Q-branch to numerical data
+      (nu, cm-1)    (SF value, raw)   (SF value, model)  (SF value, after addition)
+   0  0.000000e+00   6.885771e-95      -1.990545e-99      6.885572e-95
+   1  5.260467e-02   6.885742e-95      -1.508372e-99      6.885591e-95
+   2  1.052093e-01   6.885706e-95      -1.142997e-99      6.885591e-95
+   3  1.578140e-01   6.885677e-95     -8.661268e-100      6.885591e-95
+   4  2.104187e-01   6.885656e-95     -6.563235e-100      6.885590e-95
+   5  2.630233e-01   6.885638e-95     -4.973412e-100      6.885588e-95
+   6  3.156280e-01   6.885625e-95     -3.768694e-100      6.885587e-95
+   7  3.682327e-01   6.885613e-95     -2.855798e-100      6.885584e-95
+   8  4.208373e-01   6.885600e-95     -2.164033e-100      6.885578e-95
+   9  4.734420e-01   6.885586e-95     -1.639836e-100      6.885570e-95
+
+[9] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-with-baseline.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[10] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[11] DUP
+  INFO: Dupicating CF on processing stack
+
+[12] FIT_BASELINE
+  INFO: Using points starting from 8000 (out of 65536 points) for CF extrapolation
+  INFO: CFmin    = -4.4518209059e-37
+  INFO: CFmax    = 9.0933032379e-33
+  INFO: max2time = 2.6700000000e+05
+  INFO: CFmax2   = 2.9827781067e-38
+  INFO: Initial parameter values: 1.00000e-01 1.00000e-01 1.00000e+00
+    [callback] LM iter  0: A = 0.100000000000, B = 0.100000000000, C = 1.0000, cond(J) =      inf, |f(x)| = 244.9460
+    [callback] LM iter  1: A = 0.003359273688, B = 0.116929190590, C = 0.0043, cond(J) =  29.5135, |f(x)| = 13.2234
+    [callback] LM iter  2: A = -0.004643166539, B = 0.080896566689, C = 0.0002, cond(J) = 703.2340, |f(x)| = 13.1658
+    [callback] LM iter  3: A = -0.005563172038, B = 0.185725634421, C = -0.0007, cond(J) = 236.3449, |f(x)| = 13.1654
+    [callback] LM iter  4: A = -0.008668174890, B = 0.222068727583, C = 0.0003, cond(J) = 1616.1001, |f(x)| = 13.1639
+    [callback] LM iter  5: A = -0.014361046868, B = 0.305298920081, C = 0.0002, cond(J) = 1866.3057, |f(x)| = 13.1638
+    [callback] LM iter  6: A = -0.019231941936, B = 0.340029106546, C = 0.0003, cond(J) = 2658.3542, |f(x)| = 13.1637
+    [callback] LM iter  7: A = -0.026352485004, B = 0.406351765382, C = 0.0003, cond(J) = 2424.0419, |f(x)| = 13.1637
+    [callback] LM iter  8: A = -0.029541156319, B = 0.425037187178, C = 0.0003, cond(J) = 2244.8983, |f(x)| = 13.1637
+    [callback] LM iter  9: A = -0.031320404914, B = 0.438306927884, C = 0.0003, cond(J) = 2116.9409, |f(x)| = 13.1637
+    [callback] LM iter 10: A = -0.031506232293, B = 0.439481410249, C = 0.0003, cond(J) = 2067.9527, |f(x)| = 13.1637
+    [callback] LM iter 11: A = -0.031523375869, B = 0.439611914312, C = 0.0003, cond(J) = 2062.1814, |f(x)| = 13.1637
+    [callback] LM iter 12: A = -0.031523535153, B = 0.439612970573, C = 0.0003, cond(J) = 2061.7473, |f(x)| = 13.1637
+      summary from method 'trust-region/levenberg-marquardt'
+      number of iterations: 12
+      function evaluations: 13
+      Jacobian evaluations: 13
+      reason for stopping: small gradient
+      initial |f(x)| = 244.946032
+      final   |f(x)| = 13.163704
+  chisq / dof = 0.00301184
+  optimization status = success
+  INFO: Optimized parameters (before descaling):
+    A = -3.152354e-02, B = 4.396130e-01, C = 2.558236e-04
+  INFO: Optimized parameters (after descaling):
+    A = -9.402771e-40, B = 1.646491e-06, C = 7.630651e-42
+  INFO: Subtracting the analytic model for CF from the numerical data
+         (t, a.t.u.)    (CF value, raw)   (CF value, model)    (CF value, after subtraction)
+     0   0.000000e+00     9.093303e-33      -9.326465e-40       9.093304e-33
+     1   2.000000e+02     8.917991e-33      -9.326464e-40       8.917992e-33
+     2   4.000000e+02     8.422036e-33      -9.326460e-40       8.422037e-33
+     3   6.000000e+02     7.683664e-33      -9.326455e-40       7.683665e-33
+     4   8.000000e+02     6.802595e-33      -9.326448e-40       6.802596e-33
+     5   1.000000e+03     5.873588e-33      -9.326439e-40       5.873589e-33
+     6   1.200000e+03     4.970098e-33      -9.326428e-40       4.970099e-33
+     7   1.400000e+03     4.139620e-33      -9.326415e-40       4.139621e-33
+     8   1.600000e+03     3.406631e-33      -9.326399e-40       3.406632e-33
+     9   1.800000e+03     2.778584e-33      -9.326382e-40       2.778585e-33
+
+[13] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+  INFO: Adding Fourier-transformed analytic model to the numerical IDCT result
+  INFO: Adding Lorentzian that forms Q-branch to numerical data
+      (nu, cm-1)    (SF value, raw)   (SF value, model)  (SF value, after addition)
+   0  0.000000e+00   6.885990e-95      -4.425959e-99      6.885548e-95
+   1  5.260467e-02   6.885966e-95      -3.826360e-99      6.885583e-95
+   2  1.052093e-01   6.885916e-95      -3.307991e-99      6.885585e-95
+   3  1.578140e-01   6.885869e-95      -2.859847e-99      6.885583e-95
+   4  2.104187e-01   6.885830e-95      -2.472414e-99      6.885583e-95
+   5  2.630233e-01   6.885795e-95      -2.137468e-99      6.885581e-95
+   6  3.156280e-01   6.885766e-95      -1.847899e-99      6.885581e-95
+   7  3.682327e-01   6.885738e-95      -1.597558e-99      6.885578e-95
+   8  4.208373e-01   6.885711e-95      -1.381132e-99      6.885573e-95
+   9  4.734420e-01   6.885684e-95      -1.194025e-99      6.885565e-95
+
+[14] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-with-custom-baseline.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[15] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[16] DUP
+  INFO: Dupicating CF on processing stack
+
+[17] FIT_BASELINE
+  INFO: Using points starting from 8000 (out of 65536 points) for CF extrapolation
+  INFO: CFmin    = -4.4518209059e-37
+  INFO: CFmax    = 9.0933032379e-33
+  INFO: max2time = 2.6700000000e+05
+  INFO: CFmax2   = 2.9827781067e-38
+  INFO: Initial parameter values: 1.00000e-01 1.00000e-01 1.00000e+00
+    [callback] LM iter  0: A = 0.100000000000, B = 0.100000000000, C = 1.0000, cond(J) =      inf, |f(x)| = 244.9460
+    [callback] LM iter  1: A = 0.003359273688, B = 0.116929190590, C = 0.0043, cond(J) =  29.5135, |f(x)| = 13.2234
+    [callback] LM iter  2: A = -0.004643166539, B = 0.080896566689, C = 0.0002, cond(J) = 703.2340, |f(x)| = 13.1658
+    [callback] LM iter  3: A = -0.005563172038, B = 0.185725634421, C = -0.0007, cond(J) = 236.3449, |f(x)| = 13.1654
+    [callback] LM iter  4: A = -0.008668174890, B = 0.222068727583, C = 0.0003, cond(J) = 1616.1001, |f(x)| = 13.1639
+    [callback] LM iter  5: A = -0.014361046868, B = 0.305298920081, C = 0.0002, cond(J) = 1866.3057, |f(x)| = 13.1638
+    [callback] LM iter  6: A = -0.019231941936, B = 0.340029106546, C = 0.0003, cond(J) = 2658.3542, |f(x)| = 13.1637
+    [callback] LM iter  7: A = -0.026352485004, B = 0.406351765382, C = 0.0003, cond(J) = 2424.0419, |f(x)| = 13.1637
+    [callback] LM iter  8: A = -0.029541156319, B = 0.425037187178, C = 0.0003, cond(J) = 2244.8983, |f(x)| = 13.1637
+    [callback] LM iter  9: A = -0.031320404914, B = 0.438306927884, C = 0.0003, cond(J) = 2116.9409, |f(x)| = 13.1637
+    [callback] LM iter 10: A = -0.031506232293, B = 0.439481410249, C = 0.0003, cond(J) = 2067.9527, |f(x)| = 13.1637
+    [callback] LM iter 11: A = -0.031523375869, B = 0.439611914312, C = 0.0003, cond(J) = 2062.1814, |f(x)| = 13.1637
+    [callback] LM iter 12: A = -0.031523535153, B = 0.439612970573, C = 0.0003, cond(J) = 2061.7473, |f(x)| = 13.1637
+      summary from method 'trust-region/levenberg-marquardt'
+      number of iterations: 12
+      function evaluations: 13
+      Jacobian evaluations: 13
+      reason for stopping: small gradient
+      initial |f(x)| = 244.946032
+      final   |f(x)| = 13.163704
+  chisq / dof = 0.00301184
+  optimization status = success
+  INFO: Optimized parameters (before descaling):
+    A = -3.152354e-02, B = 4.396130e-01, C = 2.558236e-04
+  INFO: Optimized parameters (after descaling):
+    A = -9.402771e-40, B = 1.646491e-06, C = 7.630651e-42
+  INFO: Subtracting the analytic model for CF from the numerical data
+         (t, a.t.u.)    (CF value, raw)   (CF value, model)    (CF value, after subtraction)
+     0   0.000000e+00     9.093303e-33      -9.326465e-40       9.093304e-33
+     1   2.000000e+02     8.917991e-33      -9.326464e-40       8.917992e-33
+     2   4.000000e+02     8.422036e-33      -9.326460e-40       8.422037e-33
+     3   6.000000e+02     7.683664e-33      -9.326455e-40       7.683665e-33
+     4   8.000000e+02     6.802595e-33      -9.326448e-40       6.802596e-33
+     5   1.000000e+03     5.873588e-33      -9.326439e-40       5.873589e-33
+     6   1.200000e+03     4.970098e-33      -9.326428e-40       4.970099e-33
+     7   1.400000e+03     4.139620e-33      -9.326415e-40       4.139621e-33
+     8   1.600000e+03     3.406631e-33      -9.326399e-40       3.406632e-33
+     9   1.800000e+03     2.778584e-33      -9.326382e-40       2.778585e-33
+
+[18] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+  INFO: Adding Fourier-transformed analytic model to the numerical IDCT result
+  INFO: Adding Lorentzian that forms Q-branch to numerical data
+      (nu, cm-1)    (SF value, raw)   (SF value, model)  (SF value, after addition)
+   0  0.000000e+00   6.885990e-95      -4.425959e-99      6.885548e-95
+   1  5.260467e-02   6.885966e-95      -3.826360e-99      6.885583e-95
+   2  1.052093e-01   6.885916e-95      -3.307991e-99      6.885585e-95
+   3  1.578140e-01   6.885869e-95      -2.859847e-99      6.885583e-95
+   4  2.104187e-01   6.885830e-95      -2.472414e-99      6.885583e-95
+   5  2.630233e-01   6.885795e-95      -2.137468e-99      6.885581e-95
+   6  3.156280e-01   6.885766e-95      -1.847899e-99      6.885581e-95
+   7  3.682327e-01   6.885738e-95      -1.597558e-99      6.885578e-95
+   8  4.208373e-01   6.885711e-95      -1.381132e-99      6.885573e-95
+   9  4.734420e-01   6.885684e-95      -1.194025e-99      6.885565e-95
+
+[19] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0-with-custom-baseline.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[20] CMP
+  INFO: comparing two spectral functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[21] DROP
+  INFO: Dropping CF originated at ./tests/convert-cf-to-sf.conf:6:3 from the processing stack
+
+INFO: PROCESSING block run successfully

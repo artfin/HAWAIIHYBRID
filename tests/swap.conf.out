@@ -1,0 +1,17 @@
+
+[1] PUSH_FLOAT
+  INFO: Pushing FLOAT(4.00000e+00)
+
+[2] PUSH_FLOAT
+  INFO: Pushing FLOAT(5.00000e+00)
+
+[3] SWAP
+  INFO: FLOAT FLOAT -> FLOAT FLOAT
+
+[4] PRINT
+  FLOAT(4.00000e+00)
+
+[5] PRINT
+  FLOAT(5.00000e+00)
+
+INFO: PROCESSING block run successfully

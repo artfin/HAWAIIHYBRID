@@ -1,0 +1,11 @@
+
+[1] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] CF_TO_SF
+  ERROR: ./tests/cf-to-sf-argtype.conf:7:3: corrupted stack: expected to find CF but found SF, which is created at
+         ./tests/cf-to-sf-argtype.conf:6:3

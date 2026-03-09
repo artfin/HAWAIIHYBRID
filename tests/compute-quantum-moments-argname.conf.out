@@ -1,0 +1,16 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[3] D3
+
+[4] COMPUTE_Mn_QUANTUM_DETAILED_BALANCE
+  ERROR: ./tests/compute-quantum-moments-argname.conf:10:3: function call COMPUTE_Mn_QUANTUM_DETAILED_BALANCE expects a named argument 'n' but got 'order'

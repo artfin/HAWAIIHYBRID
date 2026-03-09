@@ -1,0 +1,31 @@
+
+[1] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] ALPHA
+
+[3] DUP
+  INFO: Dupicating SPECTRUM on processing stack
+
+[4] WRITE_SPECTRUM
+  INFO: Wrote 2146534 characters to 'tests/SPCL-F-He-Ar-1000.0.tmp'
+
+[5] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0.tmp
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[6] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+INFO: PROCESSING block run successfully

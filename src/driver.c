@@ -9,6 +9,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cpuid.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 
 #define USE_MPI
@@ -31,6 +32,8 @@
 
 #define CSPLINE_IMPLEMENTATION
 #include "cspline.h"
+
+// TODO: move INITIAL_J to MANUAL block - so that it would be more explicit and visible 
 
 // TODO: AVERAGE_CFS needs to check that provided CFs are not the same to avoid averaging duplicate
 
@@ -67,7 +70,28 @@
 // and have a library of them (we actually have one in constants.h) instead of specifying them as floats 
 // in the input file
 
+typedef enum {
+    OVERWRITE_ALWAYS,
+    OVERWRITE_FAIL_IF_EXISTS,
+    OVERWRITE_POLICY_COUNT,
+} OverwritePolicy;
+static_assert(OVERWRITE_POLICY_COUNT == 2, "");
+
+const char *OVERWRITE_POLICIES[OVERWRITE_POLICY_COUNT] = {
+    [OVERWRITE_ALWAYS]         = "ALWAYS",
+    [OVERWRITE_FAIL_IF_EXISTS] = "FAIL_IF_EXISTS",
+};
+
 typedef struct {
+    const char *project_name;
+    const char *output_filename;
+    OverwritePolicy overwrite_policy;
+} Output_Config;
+
+typedef struct {
+    const char* project_name;
+    const char* output_filename;
+    OverwritePolicy overwrite_policy;
     double reduced_mass;
     double Temperature;
     double *temperatures;
@@ -147,6 +171,9 @@ static_assert(sizeof(BOOLEAN_AS_STR)/sizeof(BOOLEAN_AS_STR[0]) == 2, "");
 
 typedef enum {
     /* INPUT BLOCK */
+    KEYWORD_PROJECT_NAME,
+    KEYWORD_OUTPUT_FILENAME,
+
     KEYWORD_CALCULATION_TYPE,
     KEYWORD_PAIR_STATE,
     KEYWORD_PAIR_REDUCED_MASS,
@@ -227,6 +254,8 @@ static size_t DEFAULT_WINDOW_SIZE_DELAY = 10;
 static size_t DEFAULT_WINDOW_SIZE_CAP = 0;
 
 const char* KEYWORDS[KEYWORD_COUNT] = {
+    [KEYWORD_PROJECT_NAME]                    = "PROJECT_NAME",
+    [KEYWORD_OUTPUT_FILENAME]                 = "OUTPUT_FILENAME",
     [KEYWORD_CALCULATION_TYPE]                = "CALCULATION_TYPE",
     [KEYWORD_PAIR_STATE]                      = "PAIR_STATE",
     [KEYWORD_PAIR_REDUCED_MASS]               = "PAIR_REDUCED_MASS",
@@ -284,9 +313,11 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
 }; 
-static_assert(KEYWORD_COUNT == 54, "");
+static_assert(KEYWORD_COUNT == 56, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
+    [KEYWORD_PROJECT_NAME]                    = TOKEN_DQSTRING,
+    [KEYWORD_OUTPUT_FILENAME]                 = TOKEN_DQSTRING,
     [KEYWORD_CALCULATION_TYPE]                = TOKEN_STRING,
     [KEYWORD_PAIR_STATE]                      = TOKEN_STRING,
     [KEYWORD_PAIR_REDUCED_MASS]               = TOKEN_FLOAT,
@@ -793,6 +824,69 @@ bool get_token(Lexer *l) {
     return true; 
 }
 
+char *prefix_with_dir(const char *dir, const char *filename) {
+    size_t dir_len = strlen(dir);
+    size_t file_len = strlen(filename);
+
+    char *result = malloc(dir_len + 1 + file_len + 1);
+    assert(result != NULL);
+
+    memcpy(result, dir, dir_len);
+    result[dir_len] = '/';
+    memcpy(result + dir_len + 1, filename, file_len);
+    result[dir_len + 1 + file_len] = '\0';
+
+    return result;
+}                                                                                                                                                                                                
+                                                                                                                                                                                                 
+Output_Config setup_output_config(InputBlock *input_block, CalculationType calculation_type) {
+    Output_Config oc = {0};
+    oc.output_filename = input_block->output_filename;
+    oc.overwrite_policy = OVERWRITE_ALWAYS;
+                                                                                                                                                                                                 
+    if (input_block->project_name != NULL) {
+        oc.project_name = input_block->project_name;
+
+    } else if (calculation_type != CALCULATION_PROCESSING) {
+        time_t now;
+        time(&now);
+
+        struct tm *tm_info = localtime(&now);
+
+        char buf[64];
+        snprintf(buf, sizeof(buf), "run_%04d%02d%02d_%02d%02d%02d",
+                 tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
+                 tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+        oc.project_name = strdup(buf);
+    }
+    
+    return oc;
+}
+
+void prefix_output_filenames(const char *project_name, CalcParams *calc_params, Monomer *m1, Monomer *m2) {
+    if (calc_params->cf_filename != NULL)
+        calc_params->cf_filename = prefix_with_dir(project_name, calc_params->cf_filename);
+    if (calc_params->sf_filename != NULL)
+        calc_params->sf_filename = prefix_with_dir(project_name, calc_params->sf_filename);
+    for (size_t i = 0; i < calc_params->num_satellite_temperatures; ++i) {
+        if (calc_params->cf_filenames[i] != NULL)
+            calc_params->cf_filenames[i] = prefix_with_dir(project_name, calc_params->cf_filenames[i]);
+    }
+
+    if (m1->jini_histogram_filename != NULL)
+        m1->jini_histogram_filename = prefix_with_dir(project_name, m1->jini_histogram_filename);
+    if (m1->jfin_histogram_filename != NULL)
+        m1->jfin_histogram_filename = prefix_with_dir(project_name, m1->jfin_histogram_filename);
+    if (m1->nswitch_histogram.filename != NULL)
+        m1->nswitch_histogram.filename = prefix_with_dir(project_name, m1->nswitch_histogram.filename);
+
+    if (m2->jini_histogram_filename != NULL)
+        m2->jini_histogram_filename = prefix_with_dir(project_name, m2->jini_histogram_filename);
+    if (m2->jfin_histogram_filename != NULL)
+        m2->jfin_histogram_filename = prefix_with_dir(project_name, m2->jfin_histogram_filename);
+    if (m2->nswitch_histogram.filename != NULL)
+        m2->nswitch_histogram.filename = prefix_with_dir(project_name, m2->nswitch_histogram.filename);
+}
 
 void print_input_block(InputBlock *input_block) {
     printf("Input Block:\n");
@@ -1123,6 +1217,14 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
         get_and_expect_token(l, expect_token);
         
         switch (keyword_type) {
+            case KEYWORD_PROJECT_NAME: {
+                input_block->project_name = strdup(l->string_storage.items);
+            } break;
+
+            case KEYWORD_OUTPUT_FILENAME: {
+                input_block->output_filename = strdup(l->string_storage.items);
+            } break;
+
             case KEYWORD_CALCULATION_TYPE: {
                 if (strcasecmp(l->string_storage.items, "PR_MU") == 0) {
                     params->calculation_type = CALCULATION_PR_MU;
@@ -3185,70 +3287,76 @@ bool execute_D4a(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
-bool execute_write_cf(Funcall *func, Processing_Stack *stack)
+bool execute_write_cf(Funcall *func, Processing_Stack *stack, Output_Config *oc)
 /**
  * @brief Writes correlation function (CFnc) to output file
  *
  * Serializes the correlation function from stack top to a file specified
  * by a string argument. The correlation function is consumed from stack top
- * during the operation. Its metadata (Temperature and trajectory count) is saved in 
- * a format expected by READ_CF. 
+ * during the operation. Its metadata (Temperature and trajectory count) is saved in
+ * a format expected by READ_CF.
  *
  * The function handles the normlization: if correlation function's normalization flag
- * is false, the data is divided by the trajectory count before writing to file. 
+ * is false, the data is divided by the trajectory count before writing to file.
  *
  * @param output_filename Required: output filename provided as unnamed string argument
  *
  * Fails if stack is empty or top element is not correlation function (CFnc)
- */ 
+ */
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF); 
-    CFnc *cf = &tagged_item.item.cf; 
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_CF);
+    CFnc *cf = &tagged_item.item.cf;
 
     expect_n_funcall_arguments(func, 1);
     Funcall_Argument arg = shift_funcall_argument(func);
     expect_string_funcall_argument(func, &arg);
-    const char *filename = arg.string_storage; 
+    const char *filename = arg.string_storage;
+
+    if (oc->project_name != NULL)
+        filename = prefix_with_dir(oc->project_name, filename);
 
     if (!write_correlation_function(filename, *cf)) {
         PRINT0("ERROR: could not write to file '%s'\n", filename);
-        return false; 
+        return false;
     }
 
     free_cfnc(*cf);
     return true;
 }
 
-bool execute_write_sf(Funcall *func, Processing_Stack *stack)
+bool execute_write_sf(Funcall *func, Processing_Stack *stack, Output_Config *oc)
 /**
  * @brief Writes spectral function (SFnc) to output file
  *
  * Serializes the spectral function from stack top to a file specified
  * by a string argument. The spectral function is consumed from stack top
- * during the operation. Its metadata (Temperature and trajectory count) is saved in 
- * a format expected by READ_SF. 
+ * during the operation. Its metadata (Temperature and trajectory count) is saved in
+ * a format expected by READ_SF.
  *
  * The function handles the normlization: if spectral function's normalization flag
- * is false, the data is divided by the trajectory count before writing to file. 
+ * is false, the data is divided by the trajectory count before writing to file.
  *
  * @param output_filename Required: output filename provided as unnamed string argument
  *
  * Fails if stack is empty or top element is not spectral function (SFnc)
- */ 
+ */
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF); 
-    SFnc *sf = &tagged_item.item.sf; 
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SF);
+    SFnc *sf = &tagged_item.item.sf;
 
     expect_n_funcall_arguments(func, 1);
     Funcall_Argument arg = shift_funcall_argument(func);
     expect_string_funcall_argument(func, &arg);
-    const char *filename = arg.string_storage; 
+    const char *filename = arg.string_storage;
+
+    if (oc->project_name != NULL)
+        filename = prefix_with_dir(oc->project_name, filename);
 
     if (!write_spectral_function(filename, *sf)) {
         PRINT0("ERROR: could not write to file '%s'\n", filename);
-        return false; 
+        return false;
     }
 
     free_sfnc(*sf);
@@ -3278,7 +3386,7 @@ bool execute_add(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
-bool execute_write_float(Funcall *func, Processing_Stack *stack)
+bool execute_write_float(Funcall *func, Processing_Stack *stack, Output_Config *oc)
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
     expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_FLOAT);
@@ -3292,6 +3400,9 @@ bool execute_write_float(Funcall *func, Processing_Stack *stack)
         expect_string_funcall_argument(func, &arg);
         filename = arg.string_storage;
     }
+
+    if (oc->project_name != NULL)
+        filename = prefix_with_dir(oc->project_name, filename);
 
     const char *mode;
     {
@@ -3348,32 +3459,35 @@ bool execute_push_float(Funcall *func, Processing_Stack *stack)
 }
 
 
-bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params)
+bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_Params *processing_params, Output_Config *oc)
 /**
  * @brief Writes spectrum (Spectrum) to output file
  *
- * Serializes the spectrum from stack top to a file specified by a string argument. 
- * The spectrum is consumed from stack top during the operation. Its metadata (Temperature 
- * and trajectory count) is saved in a format expected by READ_SPECTRUM. 
+ * Serializes the spectrum from stack top to a file specified by a string argument.
+ * The spectrum is consumed from stack top during the operation. Its metadata (Temperature
+ * and trajectory count) is saved in a format expected by READ_SPECTRUM.
  *
  * The function handles the normlization: if spectrum's normalization flag
- * is false, the data is divided by the trajectory count before writing to file. 
- * If SPECTRUM_FREQUENCY_MAX parameter is set, spectrum is truncated 
- * at the specified frequency before saving to file. 
+ * is false, the data is divided by the trajectory count before writing to file.
+ * If SPECTRUM_FREQUENCY_MAX parameter is set, spectrum is truncated
+ * at the specified frequency before saving to file.
  *
  * @param output_filename Required: output filename provided as unnamed string argument
  *
  * Fails if stack is empty or top element is not spectrum (Spectrum)
- */ 
+ */
 {
     Tagged_Stack_Item tagged_item = stack_pop_with_type(stack, func->loc);
-    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM); 
+    expect_item_on_stack(&func->loc, &tagged_item, STACK_ITEM_SPECTRUM);
     Spectrum *sp = &tagged_item.item.sp;
 
     expect_n_funcall_arguments(func, 1);
     Funcall_Argument arg = shift_funcall_argument(func);
     expect_string_funcall_argument(func, &arg);
-    const char *filename = arg.string_storage; 
+    const char *filename = arg.string_storage;
+
+    if (oc->project_name != NULL)
+        filename = prefix_with_dir(oc->project_name, filename);
 
     if (processing_params->spectrum_frequency_max > 0) {
         assert(sp->len > 1);
@@ -3386,11 +3500,11 @@ bool execute_write_spectrum(Funcall *func, Processing_Stack *stack, Processing_P
 
     if (!write_spectrum(filename, *sp)) {
         PRINT0("ERROR: could not write to file '%s'\n", filename);
-        return false; 
+        return false;
     }
 
     free_spectrum(*sp);
-    return true; 
+    return true;
 }
 
 bool execute_smooth(Funcall *func, Processing_Stack *stack)
@@ -3534,7 +3648,7 @@ bool execute_smooth(Funcall *func, Processing_Stack *stack)
     return true;
 }
 
-int run_processing(Processing_Params *processing_params) 
+int run_processing(Processing_Params *processing_params, Output_Config *oc)
 {
     Processing_Stack stack = {0};
 
@@ -3631,16 +3745,16 @@ int run_processing(Processing_Params *processing_params)
             if (!execute_smooth(func, &stack)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_CF") == 0) {
-            if (!execute_write_cf(func, &stack)) return_defer(1);
+            if (!execute_write_cf(func, &stack, oc)) return_defer(1);
          
         } else if (strcasecmp(funcname, "WRITE_SF") == 0) {
-            if (!execute_write_sf(func, &stack)) return_defer(1);
+            if (!execute_write_sf(func, &stack, oc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_SPECTRUM") == 0) { 
-            if (!execute_write_spectrum(func, &stack, processing_params)) return_defer(1);
+            if (!execute_write_spectrum(func, &stack, processing_params, oc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "WRITE_FLOAT") == 0) {
-            if (!execute_write_float(func, &stack)) return_defer(1);
+            if (!execute_write_float(func, &stack, oc)) return_defer(1);
 
         } else if (strcasecmp(funcname, "PUSH_FLOAT") == 0) {
             if (!execute_push_float(func, &stack)) return_defer(1);
@@ -3994,6 +4108,7 @@ int main(int argc, char* argv[])
 
     bool *debug = flag_bool("debug", false, "Show parsed tokens for debugging");
     bool *check = flag_bool("check", false, "Check the correctness of the provided configuration file (for now, if dlls are available)");
+    bool *quiet = flag_bool("quiet", false, "Suppress banner, machine info, and timing output");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -4020,43 +4135,45 @@ int main(int argc, char* argv[])
     time_t init_rawtime;
     time(&init_rawtime);
     
-    int MPI_version, MPI_subversion;
-    MPI_Get_version(&MPI_version, &MPI_subversion);
-    PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
+    if (!*quiet) {
+        int MPI_version, MPI_subversion;
+        MPI_Get_version(&MPI_version, &MPI_subversion);
+        PRINT0("MPI Version: %d.%d\n", MPI_version, MPI_subversion);
 
-    PRINT0("****************************************************************************\n");
-    PRINT0("* HAWAII HYBRID v0.1, commit %s (%s)\n", GIT_COMMIT, GIT_BRANCH);
-    PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
-    PRINT0("* This program is free software: you can redistribute it and/or modify\n"
-           "* it under the terms of the GNU General Public License as published by\n"
-           "* the Free Software Foundation, version 3 of the License\n");
-    PRINT0("*\n");
-    PRINT0("* This program is distributed in the hope that it will be useful\n"
-           "* but WITHOUT ANY WARRANTY.\n");
-    PRINT0("*\n");
-    PRINT0("* You should have received a copy of the GNU General Public License\n"
-           "* along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
-    PRINT0("* The authors of this software should be contacted if its code is intended\n" 
-           "* to be used as training data.\n");
-    PRINT0("* Contact information:\n"
-           "*   Artem Finenko    - artfin@mail.ru\n"
-           "*   Daniil Chistikov - danichist@yandex.ru\n"
-           "*   Andrey Vigasin   - vigasin@ifaran.ru\n");
-    PRINT0("*\n");
-    PRINT0("* Contributors:  Anastasia Sekacheva\n");
-    PRINT0("***************************************************************************\n\n");
-   
-    if (_wsize == 1) {
-        PRINT0("\n");
-        PRINT0("RUNNING IN SERIAL MODE USING SINGLE PROCESS\n\n")
-    } else {
-        PRINT0("RUNNING IN PARALLEL MODE USING %d PROCESSES\n\n", _wsize);
-    }
+        PRINT0("****************************************************************************\n");
+        PRINT0("* HAWAII HYBRID v0.1, commit %s (%s)\n", GIT_COMMIT, GIT_BRANCH);
+        PRINT0("* Hawaii Hybrid project homepage: https://artfin.github.io/HAWAIIHYBRID/\n");
+        PRINT0("* This program is free software: you can redistribute it and/or modify\n"
+               "* it under the terms of the GNU General Public License as published by\n"
+               "* the Free Software Foundation, version 3 of the License\n");
+        PRINT0("*\n");
+        PRINT0("* This program is distributed in the hope that it will be useful\n"
+               "* but WITHOUT ANY WARRANTY.\n");
+        PRINT0("*\n");
+        PRINT0("* You should have received a copy of the GNU General Public License\n"
+               "* along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
+        PRINT0("* The authors of this software should be contacted if its code is intended\n"
+               "* to be used as training data.\n");
+        PRINT0("* Contact information:\n"
+               "*   Artem Finenko    - artfin@mail.ru\n"
+               "*   Daniil Chistikov - danichist@yandex.ru\n"
+               "*   Andrey Vigasin   - vigasin@ifaran.ru\n");
+        PRINT0("*\n");
+        PRINT0("* Contributors:  Anastasia Sekacheva\n");
+        PRINT0("***************************************************************************\n\n");
+
+        if (_wsize == 1) {
+            PRINT0("\n");
+            PRINT0("RUNNING IN SERIAL MODE USING SINGLE PROCESS\n\n")
+        } else {
+            PRINT0("RUNNING IN PARALLEL MODE USING %d PROCESSES\n\n", _wsize);
+        }
+
+        collect_and_display_node_info();
     
-    collect_and_display_node_info();
-
-    PRINT0("Loaded configuration file: %s\n", filename);
-    PRINT0("%s\n", file_contents.items);
+        PRINT0("Loaded configuration file: %s\n", filename);
+        PRINT0("%s\n", file_contents.items);
+    }
 
     Lexer l = lexer_new(filename, file_contents.items, file_contents.items + file_contents.count);
 
@@ -4133,6 +4250,19 @@ int main(int argc, char* argv[])
         return_defer(!all_ok);
     }
 
+    Output_Config oc = setup_output_config(&input_block, calc_params.calculation_type);
+
+    if (oc.project_name != NULL) {
+        if (_wrank == 0) {
+            if (mkdir(oc.project_name, 0755) != 0 && errno != EEXIST) {
+                ERROR("Failed to create project directory '%s': %s\n", oc.project_name, strerror(errno));
+                return_defer(1);
+            }
+        }
+        INFO("Project directory: %s\n", oc.project_name);
+        prefix_output_filenames(oc.project_name, &calc_params, &monomer1, &monomer2);
+    }
+
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
             if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
@@ -4166,7 +4296,7 @@ int main(int argc, char* argv[])
             calculate_correlation_and_save(&ms, &calc_params, input_block.Temperature);
            
             if (_wrank == 0) { 
-                if (run_processing(&processing_params)) {
+                if (run_processing(&processing_params, &oc)) {
                     PRINT0("ERROR: an error occured when running PROCESSING block\n");
                     exit(1); 
                 }
@@ -4219,11 +4349,11 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            if (run_processing(&processing_params)) {
+            if (run_processing(&processing_params, &oc)) {
                 PRINT0("\n");
                 ERROR("failed to execute commands in the PROCESSING block\n");
                 exit(1); 
-            } 
+            }  
             
             PRINT0("\n");
             INFO("PROCESSING block run successfully\n") 
@@ -4345,20 +4475,22 @@ int main(int argc, char* argv[])
         case CALCULATION_TYPES_COUNT: UNREACHABLE(""); 
     } 
         
-    time_t deinit_rawtime;
-    time(&deinit_rawtime);
-    struct tm *deinit_timeinfo = localtime(&deinit_rawtime);
-    double elapsed_since_init = difftime(deinit_rawtime, init_rawtime); 
+    if (!*quiet) {
+        time_t deinit_rawtime;
+        time(&deinit_rawtime);
+        struct tm *deinit_timeinfo = localtime(&deinit_rawtime);
+        double elapsed_since_init = difftime(deinit_rawtime, init_rawtime);
 
-    String_Builder sb_datetime = {0};
-    sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_init);
-    PRINT0("\n");
-    PRINT0("EXECUTION OF HAWAIIHYBRID PROGRAM TOOK %s\n", sb_datetime.items);
-    sb_free(&sb_datetime);
-    
-    PRINT0("TERMINATED AT %04d-%02d-%02d %02d:%02d:%02d\n",  
-           deinit_timeinfo->tm_year + 1900, deinit_timeinfo->tm_mon + 1, deinit_timeinfo->tm_mday,
-           deinit_timeinfo->tm_hour,        deinit_timeinfo->tm_min,     deinit_timeinfo->tm_sec);
+        String_Builder sb_datetime = {0};
+        sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_init);
+        PRINT0("\n");
+        PRINT0("EXECUTION OF HAWAIIHYBRID PROGRAM TOOK %s\n", sb_datetime.items);
+        sb_free(&sb_datetime);
+
+        PRINT0("TERMINATED AT %04d-%02d-%02d %02d:%02d:%02d\n",
+               deinit_timeinfo->tm_year + 1900, deinit_timeinfo->tm_mon + 1, deinit_timeinfo->tm_mday,
+               deinit_timeinfo->tm_hour,        deinit_timeinfo->tm_min,     deinit_timeinfo->tm_sec);
+    }
 
 
 defer:

@@ -1,0 +1,47 @@
+
+[1] READ_SF
+  INFO: Reading spectral function from tests/SF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] SMOOTH
+  INFO: grid_npoints = 1200
+  INFO: grid_max = 1.20000e+03 cm-1
+  INFO: window_size_min = 21
+  INFO: window_size_step = 5.00000e-02
+  INFO: window_size_delay = 10
+  INFO: window_size_cap = 0
+  max # of cores: 8
+  running using 6 threads
+    (thread 3) i = 600, frequency = 6.005e+02, smoothed value = 1.779e-96, window_size (in points) = 51, window_size (in frequency units) = 2.683e+00
+  (thread 0) i = 0, frequency = 0.000e+00, smoothed value = 6.886e-95, window_size (in points) = 21, window_size (in frequency units) = 1.105e+00
+(thread 2) i = 400, frequency = 4.003e+02, smoothed value = 8.287e-96, window_size (in points) = 41, window_size (in frequency units) = 2.157e+00
+  (thread 1) i = 200, frequency = 2.002e+02, smoothed value = 3.319e-95, window_size (in points) = 31, window_size (in frequency units) = 1.631e+00
+  (thread 4) i = 800, frequency = 8.007e+02, smoothed value = 3.754e-97, window_size (in points) = 61, window_size (in frequency units) = 3.209e+00
+  (thread 5) i = 1000, frequency = 1.001e+03, smoothed value = 8.074e-98, window_size (in points) = 71, window_size (in frequency units) = 3.735e+00
+  (thread 2) i = 500, frequency = 5.004e+02, smoothed value = 3.867e-96, window_size (in points) = 46, window_size (in frequency units) = 2.420e+00
+  (thread 3) i = 700, frequency = 7.006e+02, smoothed value = 8.146e-97, window_size (in points) = 56, window_size (in frequency units) = 2.946e+00
+  (thread 0) i = 100, frequency = 1.001e+02, smoothed value = 5.553e-95, window_size (in points) = 26, window_size (in frequency units) = 1.368e+00
+  (thread 1) i = 300, frequency = 3.003e+02, smoothed value = 1.717e-95, window_size (in points) = 36, window_size (in frequency units) = 1.894e+00
+  (thread 4) i = 900, frequency = 9.008e+02, smoothed value = 1.740e-97, window_size (in points) = 66, window_size (in frequency units) = 3.472e+00
+  (thread 5) i = 1100, frequency = 1.101e+03, smoothed value = 3.815e-98, window_size (in points) = 76, window_size (in frequency units) = 3.998e+00
+
+[3] ALPHA
+
+[4] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPCL-F-He-Ar-1000.0-sm.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[5] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+INFO: PROCESSING block run successfully

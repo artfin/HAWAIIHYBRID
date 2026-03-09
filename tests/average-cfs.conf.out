@@ -1,0 +1,57 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/cf.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 3400000.000000
+  INFO: captured temperature: 100.000000
+  INFO: length of data arrays: 4
+
+[2] READ_CF
+  INFO: Reading correlation function from tests/cf.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 3400000.000000
+  INFO: captured temperature: 100.000000
+  INFO: length of data arrays: 4
+
+[3] AVERAGE_CFS
+  INFO: Popped CF (i: 1) from processing stack: ntraj = 3.4000e+06
+  INFO: Popped CF (i: 2) from processing stack: ntraj = 3.4000e+06
+  INFO: averaging 2 correlation functions...
+
+[4] READ_CF
+  INFO: Reading correlation function from tests/cf-average.txt
+  INFO: # of lines in header: 5
+  INFO: captured number of trajectories: 6800000.000000
+  INFO: captured temperature: 100.000000
+  INFO: length of data arrays: 4
+
+[5] CMP
+  INFO: comparing two correlation functions with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        time absolute tolerance:        1.0000000000e-03
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[6] READ_CF
+  INFO: Reading correlation function from tests/cf.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 3400000.000000
+  INFO: captured temperature: 100.000000
+  INFO: length of data arrays: 4
+
+[7] READ_CF
+  INFO: Reading correlation function from tests/incomplete-header-cf-missing-ntraj.txt
+  INFO: # of lines in header: 3
+  WARNING: no match found for pattern '# AVERAGE OVER ([0-9]+\.[0-9]+) TRAJECTORIES' in header
+  INFO: captured temperature: 100.000000
+  INFO: length of data arrays: 4
+
+[8] AVERAGE_CFS
+  INFO: Popped CF (i: 1) from processing stack: ntraj = 0.0000e+00
+  INFO: Popped CF (i: 2) from processing stack: ntraj = 3.4000e+06
+  INFO: averaging 2 correlation functions...
+  ERROR: # of trajectories for correlation function (0) is invalid: 0.0000e+00
+  ERROR: ./tests/average-cfs.conf:14:3: an error occured during averaging of correlation functions
+
+ERROR: failed to execute commands in the PROCESSING block

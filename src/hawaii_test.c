@@ -82,7 +82,7 @@ Report EXPECTED_TESTS_STATUS[] = {
 static_assert(TEST_COUNT == 35, "");
 
 Status run_test(Cmd *cmd, const char *test_name) {
-    cmd_append(cmd, "./driver.exe", temp_sprintf("./tests/%s", test_name));
+    cmd_append(cmd, "./driver.exe", "-quiet", temp_sprintf("./tests/%s", test_name));
     Fd fdout = fd_open_for_write(temp_sprintf("./tests/%s.out.tmp", test_name));
     if (!nob_cmd_run_sync_redirect_and_reset(cmd, (Cmd_Redirect) { .fdout = &fdout })) {
         return Fail;
@@ -111,7 +111,40 @@ bool test_exists(const char *test_name)
 }
 
 
-void collect_test_reports(Reports *reports) 
+Status expected_run_status(const char *test_name) {
+    for (size_t j = 0; j < TEST_COUNT; ++j) {
+        if (strcmp(EXPECTED_TESTS_STATUS[j].name, test_name) == 0)
+            return EXPECTED_TESTS_STATUS[j].run_status;
+    }
+    return Success;
+}
+
+void print_reports(Reports *reports) {
+    printf("Reports:\n");
+    printf("\t%-40s\t%-10s\t%s\n", "Test Name", "Run", "Result");
+    for (size_t i = 0; i < reports->count; ++i) {
+        Report *report = &reports->items[i];
+        Status expected_run = expected_run_status(report->name);
+
+        printf("%2zu \t%-40s\t", i+1, report->name);
+
+        if (report->run_status == expected_run) {
+            printf("\e[32m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
+        } else {
+            printf("\e[31m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
+        }
+
+        if (report->result_status == Success) {
+            printf("\e[32m%s\e[0m", STATUS_AS_STR[report->result_status]);
+        } else {
+            printf("\e[31m%s\e[0m", STATUS_AS_STR[report->result_status]);
+        }
+
+        printf("\n");
+    }
+}
+
+void collect_test_reports(Reports *reports)
 {
     Cmd cmd = {0};
     String_Builder tmp_filename_content = {0};
@@ -127,9 +160,9 @@ void collect_test_reports(Reports *reports)
         const char *tmp_filename = temp_sprintf(TMP_FILENAME_TEMPLATE, test_name);
         if (!read_entire_file(tmp_filename, &tmp_filename_content)) {
             printf("ERROR: could not read the file %s\n", tmp_filename);
-            continue;     
+            continue;
         }
-        sb_append_null(&tmp_filename_content); // just in case 
+        sb_append_null(&tmp_filename_content);
 
         const char *out_filename = temp_sprintf(OUT_FILENAME_TEMPLATE, test_name);
         if (file_exists(out_filename)) {
@@ -137,12 +170,9 @@ void collect_test_reports(Reports *reports)
                 printf("ERROR: could not read the file %s\n", out_filename);
                 continue;
             }
-
-            sb_append_null(&out_filename_content); // just in case 
-            
-            report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail; 
+            sb_append_null(&out_filename_content);
+            report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail;
             da_append(reports, report);
-        
             out_filename_content.count = 0;
         } else {
             printf("ERROR: missing expected output file for '%s'\n", test_name);
@@ -155,10 +185,123 @@ void collect_test_reports(Reports *reports)
     sb_free(out_filename_content);
 }
 
+void cmd_replay_all(void) {
+    Reports reports = {0};
+    collect_test_reports(&reports);
+    print_reports(&reports);
+}
+
+void cmd_replay_selected(int rest_argc, char **rest_argv) {
+    Cmd cmd = {0};
+    String_Builder tmp_filename_content = {0};
+    String_Builder out_filename_content = {0};
+    Reports reports = {0};
+
+    for (int i = 0; i < rest_argc; ++i) {
+        const char *test_name = *rest_argv;
+        rest_argv += 1;
+
+        if (!test_exists(test_name)) continue;
+
+        Status run_status = run_test(&cmd, test_name);
+
+        const char *tmp_filename = temp_sprintf(TMP_FILENAME_TEMPLATE, test_name);
+        if (!read_entire_file(tmp_filename, &tmp_filename_content)) {
+            printf("ERROR: could not read the file %s\n", tmp_filename);
+            continue;
+        }
+        sb_append_null(&tmp_filename_content);
+
+        printf("%s", tmp_filename_content.items);
+
+        Report report = {
+            .name = strdup(test_name),
+            .run_status = run_status,
+        };
+
+        const char *out_filename = temp_sprintf(OUT_FILENAME_TEMPLATE, test_name);
+        if (file_exists(out_filename)) {
+            if (!read_entire_file(out_filename, &out_filename_content)) {
+                printf("ERROR: could not read the file %s\n", out_filename);
+                continue;
+            }
+            sb_append_null(&out_filename_content);
+            report.result_status = (strcmp(tmp_filename_content.items, out_filename_content.items) == 0) ? Success : Fail;
+            out_filename_content.count = 0;
+        } else {
+            printf("ERROR: missing expected output file for '%s'\n", test_name);
+        }
+
+        da_append(&reports, report);
+        tmp_filename_content.count = 0;
+    }
+
+    sb_free(tmp_filename_content);
+    sb_free(out_filename_content);
+
+    print_reports(&reports);
+}
+
+void cmd_record(int rest_argc, char **rest_argv) {
+    if (rest_argc == 0) {
+        printf("ERROR: no test names are provided to record\n");
+        exit(1);
+    }
+
+    Cmd cmd = {0};
+
+    for (int i = 0; i < rest_argc; ++i) {
+        const char *test_name = *rest_argv;
+        rest_argv += 1;
+
+        if (!test_exists(test_name)) continue;
+
+        printf("Recording test '%s'\n", test_name);
+        Status status = run_test(&cmd, test_name);
+        (void) status;
+
+        cmd_append(&cmd, "mv", temp_sprintf("./tests/%s.out.tmp", test_name), temp_sprintf("./tests/%s.out", test_name));
+        if (!nob_cmd_run_sync_and_reset(&cmd)) {
+            printf("ERROR: failed to record test '%s'\n", test_name);
+            continue;
+        }
+    }
+}
+
+void cmd_diff(int rest_argc, char **rest_argv) {
+    if (rest_argc == 0) {
+        printf("ERROR: no test names are provided to diff\n");
+        exit(1);
+    }
+
+    Cmd cmd = {0};
+
+    for (int i = 0; i < rest_argc; ++i) {
+        const char *test_name = *rest_argv;
+        rest_argv += 1;
+
+        if (!test_exists(test_name)) continue;
+
+        run_test(&cmd, test_name);
+
+        const char *out_filename = temp_sprintf(OUT_FILENAME_TEMPLATE, test_name);
+        const char *tmp_filename = temp_sprintf(TMP_FILENAME_TEMPLATE, test_name);
+
+        if (!file_exists(out_filename)) {
+            printf("ERROR: missing recorded output for '%s'\n", test_name);
+            continue;
+        }
+
+        cmd_append(&cmd, "diff", "--color", out_filename, tmp_filename);
+        nob_cmd_run_sync_and_reset(&cmd);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     bool *replay = flag_bool("replay", false, "Replay all tests (if no argument is provided) or a particular test");
     bool *record = flag_bool("record", false, "Record the result for particular test");
+    bool *diff = flag_bool("diff", false, "Run a test and show diff between recorded and obtained output");
     bool *help = flag_bool("help", false, "Print this help message");
 
     if (!flag_parse(argc, argv)) {
@@ -171,97 +314,30 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    int rest_argc = flag_rest_argc();
+    char **rest_argv = flag_rest_argv();
+
     if (*replay) {
-        int rest_argc = flag_rest_argc();
-        char **rest_argv = flag_rest_argv();
-
-
         if (rest_argc == 0) {
-            Reports reports = {0};
-            collect_test_reports(&reports);
-
-            printf("Reports:\n");
-            printf("\t%-40s\t%-10s\t%s\n", "Test Name", "Run", "Result"); 
-            for (size_t i = 0; i < reports.count; ++i) {
-                Report *report = &reports.items[i];
-                printf("%2zu \t%-40s\t", i+1, report->name);
-
-                if (report->run_status == EXPECTED_TESTS_STATUS[i].run_status) {
-                    printf("\e[32m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
-                } else {
-                    printf("\e[31m%-10s\e[0m\t", STATUS_AS_STR[report->run_status]);
-                }
-
-                if (report->result_status == Success) {
-                    printf("\e[32m%s\e[0m", STATUS_AS_STR[report->result_status]);
-                } else if (report->result_status == Fail) {
-                    printf("\e[31m%s\e[0m", STATUS_AS_STR[report->result_status]);
-                }
-
-                printf("\n");
-            }
+            cmd_replay_all();
         } else {
-            Cmd cmd = {0};
-
-            String_Builder tmp_filename_content = {0};
-
-            for (int i = 0; i < rest_argc; ++i) {
-                const char *test_name = *rest_argv;
-                rest_argv += 1;
-
-                if (!test_exists(test_name)) continue; 
-                
-                Status status = run_test(&cmd, test_name);
-                (void) status;
-
-                const char *tmp_filename = temp_sprintf(TMP_FILENAME_TEMPLATE, test_name);
-                if (!read_entire_file(tmp_filename, &tmp_filename_content)) {
-                    printf("ERROR: could not read the file %s\n", tmp_filename);
-                    continue;     
-                }
-                sb_append_null(&tmp_filename_content); // just in case 
-
-                printf("%s\n\n", tmp_filename_content.items);
-            }
-
-            sb_free(tmp_filename_content);
+            cmd_replay_selected(rest_argc, rest_argv);
         }
     }
 
     if (*record) {
-        int rest_argc = flag_rest_argc();
-        char **rest_argv = flag_rest_argv();
+        cmd_record(rest_argc, rest_argv);
+    }
 
-        if (rest_argc == 0) {
-            printf("ERROR: no test names are provided to record\n");
-            exit(1);
-        }
-
-        Cmd cmd = {0};
-        
-        for (int i = 0; i < rest_argc; ++i) {
-            const char *test_name = *rest_argv;
-            rest_argv += 1;
-
-            if (!test_exists(test_name)) continue;
-
-            printf("Recording test '%s'\n", test_name);
-            Status status = run_test(&cmd, test_name);
-            (void) status;
-
-            cmd_append(&cmd, "mv", temp_sprintf("./tests/%s.out.tmp", test_name), temp_sprintf("./tests/%s.out", test_name));
-            if (!nob_cmd_run_sync_and_reset(&cmd)) {
-                printf("ERROR: failed to record test '%s'\n", test_name);
-                continue;
-            }
-        }
+    if (*diff) {
+        cmd_diff(rest_argc, rest_argv);
     }
 
     return 0;
 }
 
 /*
- *  Copyright (C) 2026 A.Finenko & D.Chistikov 
+ *  Copyright (C) 2026 A.Finenko & D.Chistikov
  *  Distributed under the GNU General Public License, version 3
  *
  * This program is free software: you can redistribute it and/or modify

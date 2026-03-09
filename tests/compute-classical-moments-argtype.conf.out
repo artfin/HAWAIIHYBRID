@@ -1,0 +1,10 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE
+  ERROR: ./tests/compute-classical-moments-argtype.conf:7:3: function call COMPUTE_Mn_CLASSICAL_DETAILED_BALANCE expects an integer argument but got ARGUMENT_STRING

@@ -1,0 +1,135 @@
+
+[1] READ_CF
+  INFO: Reading correlation function from tests/CF-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+  INFO: length of data arrays: 65536
+
+[2] DUP
+  INFO: Dupicating CF on processing stack
+
+[3] CF_TO_SF
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[4] DUP
+  INFO: Dupicating SF on processing stack
+
+[5] D1
+
+[6] ALPHA
+
+[7] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPD1-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[8] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[9] DUP
+  INFO: Dupicating SF on processing stack
+
+[10] D2
+
+[11] ALPHA
+
+[12] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPD2-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[13] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[14] DUP
+  INFO: Dupicating SF on processing stack
+
+[15] D3
+
+[16] ALPHA
+
+[17] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPD3-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[18] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[19] DROP
+  INFO: Dropping SF originated at ./tests/desymmetrizations.conf:9:6 from the processing stack
+
+[20] DUP
+  INFO: Dupicating CF on processing stack
+
+[21] D4
+  INFO: Egelstaff time constant: 1.57888e+02
+  INFO: padding 't' and 'data' arrays of CF to 65536
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[22] ALPHA
+
+[23] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPD4-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[24] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[25] DUP
+  INFO: Dupicating CF on processing stack
+
+[26] D4a
+  INFO: Egelstaff time constant: 1.57888e+02
+  INFO: padding 't' and 'data' arrays of CF to 65536
+  INFO: Applying Connes apodization to CF
+  INFO: Performing IDCT to transform CF to SF
+
+[27] ALPHA
+
+[28] READ_SPECTRUM
+  INFO: Reading spectrum from tests/SPD4a-F-He-Ar-1000.0.txt
+  INFO: # of lines in header: 4
+  INFO: captured number of trajectories: 500000000.000000
+  INFO: captured temperature: 1000.000000
+
+[29] CMP
+  INFO: comparing two spectra with the following tolerances:
+        temperature absolute tolerance: 1.0000000000e-02
+        ntraj absolute tolerance:       1.0000000000e-03
+        frequency absolute tolerance:   1.0000000000e-06
+        value relative tolerance:       1.0000000000e-04
+  INFO: CMP: comparison returned 'true' (objects are identical)
+
+[30] DROP
+  INFO: Dropping CF originated at ./tests/desymmetrizations.conf:6:4 from the processing stack
+
+INFO: PROCESSING block run successfully
