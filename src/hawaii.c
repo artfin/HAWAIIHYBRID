@@ -53,10 +53,11 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "CORRELATION_SINGLE",
     "CORRELATION_ARRAY",
     "PROCESSING",
-    "CALCULATE_PHASE_SPACE_M0", 
-    "CALCULATE_PHASE_SPACE_M2", 
+    "CALCULATE_PHASE_SPACE_M0",
+    "CALCULATE_PHASE_SPACE_M2",
+    "PR_MU_DIRECT_QUANTUM_STATE_SAMPLING",
 };
-static_assert(CALCULATION_TYPES_COUNT == 7, "");
+static_assert(CALCULATION_TYPES_COUNT == 8, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -4285,8 +4286,769 @@ if (_wrank > 0) {
         sf_total.data[i] /= sf_total.ntraj;
     }
 
-    return sf_total; 
+    return sf_total;
 }
+
+// ========================================================================================
+// Direct quantum state sampling for PR/MU representation
+// ========================================================================================
+
+// Alias method tables for fast O(1) sampling of J quantum number
+static double *_dqs_Utable = NULL;
+static int    *_dqs_Ktable = NULL;
+static int     _dqs_kappamax = 0;
+static bool    _dqs_table_generated = false;
+
+static void dqs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, double kB_inv_cm)
+{
+    if (_dqs_table_generated) {
+        INFO("Direct quantum state sampling: J table has already been generated. Skipping...\n");
+        return;
+    }
+
+    PRINT0("Direct quantum state sampling: generating J table (Jmax = %d, T = %.2f K, B = %.5f cm-1)\n",
+           Jmax, Temperature, B_inv_cm);
+
+    int kappamax = Jmax + 1;
+    _dqs_kappamax = kappamax;
+
+    _dqs_Utable = (double*) malloc(kappamax * sizeof(double));
+    _dqs_Ktable = (int*)    malloc(kappamax * sizeof(int));
+
+    int *overfull_group  = (int*) malloc(kappamax * sizeof(int));
+    int *underfull_group = (int*) malloc(kappamax * sizeof(int));
+
+    // Build unnormalized weights: w(kappa) = (2*kappa - 1) * exp(-B*kappa*(kappa-1) / (kB*T))
+    // Using recurrence: w(kappa+1)/w(kappa) = (2*kappa+1)/(2*kappa-1) * exp(-2*B*kappa/(kB*T))
+    double exp_fact = exp(-2.0 * B_inv_cm / kB_inv_cm / Temperature);
+    double cur_exp_fact = exp_fact;
+
+    _dqs_Utable[0] = 1.0;
+    double S = _dqs_Utable[0];
+
+    for (int i = 1; i < kappamax; ++i) {
+        _dqs_Utable[i] = _dqs_Utable[i-1] * (2.0*i + 1.0) / (2.0*i - 1.0) * cur_exp_fact;
+        cur_exp_fact *= exp_fact;
+        S += _dqs_Utable[i];
+    }
+
+    // Normalize and scale for alias method
+    for (int i = 0; i < kappamax; ++i) {
+        _dqs_Utable[i] = _dqs_Utable[i] / S * (double)kappamax;
+    }
+
+    // Partition into overfull and underfull groups
+    int ovf_idx = 0, uvf_idx = 0;
+    for (int i = 0; i < kappamax; ++i) {
+        if (_dqs_Utable[i] > 1.0) {
+            overfull_group[ovf_idx++] = i;
+        } else {
+            underfull_group[uvf_idx++] = i;
+        }
+    }
+
+    // Build alias table
+    while (ovf_idx > 0 && uvf_idx > 0) {
+        int u_idx = underfull_group[uvf_idx - 1];
+        int o_idx = overfull_group[ovf_idx - 1];
+
+        _dqs_Ktable[u_idx] = o_idx;
+        _dqs_Utable[o_idx] = _dqs_Utable[o_idx] + _dqs_Utable[u_idx] - 1.0;
+
+        if (_dqs_Utable[o_idx] < 1.0) {
+            underfull_group[uvf_idx - 1] = o_idx;
+            ovf_idx--;
+        } else {
+            uvf_idx--;
+        }
+    }
+
+    // Clean up remaining entries (due to floating point, some may be ~1.0)
+    for (int i = uvf_idx - 1; i >= 0; --i) {
+        _dqs_Utable[underfull_group[i]] = 1.0;
+        _dqs_Ktable[underfull_group[i]] = underfull_group[i];
+    }
+    for (int i = ovf_idx - 1; i >= 0; --i) {
+        _dqs_Utable[overfull_group[i]] = 1.0;
+        _dqs_Ktable[overfull_group[i]] = overfull_group[i];
+    }
+
+    free(overfull_group);
+    free(underfull_group);
+
+    _dqs_table_generated = true;
+}
+
+static void dqs_free_J_table(void)
+{
+    free(_dqs_Utable); _dqs_Utable = NULL;
+    free(_dqs_Ktable); _dqs_Ktable = NULL;
+    _dqs_kappamax = 0;
+    _dqs_table_generated = false;
+}
+
+// Sample a uniform integer in [0, Nmax] without modulo bias
+static int dqs_sample_unbiased(int Nmax)
+{
+    uint64_t M = (uint64_t)Nmax + 1;
+    uint64_t threshold = ((uint64_t)1 << 32) - (((uint64_t)1 << 32) % M);
+
+    for (;;) {
+        uint32_t raw = mt_lrand();
+        uint64_t val = (uint64_t)raw;
+        if (val < threshold) {
+            return (int)(val % M);
+        }
+    }
+}
+
+// J^2 = ptheta^2 + pphi^2/sin^2(theta)
+// ptheta = J * cos(chi)
+// pphi   = J * sin(theta) * sin(chi)
+static void dqs_sample_J_ptheta_pphi_theta_phi(double *J, double *ptheta, double *pphi, double *theta, double *phi)
+{
+    assert(_dqs_table_generated);
+
+    *phi   = mt_drand() * 2.0 * M_PI;
+    double chi = mt_drand() * 2.0 * M_PI;
+    *theta = acos(2.0 * mt_drand() - 1.0);
+
+    int kappa = dqs_sample_unbiased(_dqs_kappamax - 1);  // kappa in [0, kappamax-1]
+    double u = mt_drand();
+    if (u < _dqs_Utable[kappa]) {
+        *J = (double)(kappa + 1);  // kappa is 0-indexed, J = kappa+1
+    } else {
+        *J = (double)(_dqs_Ktable[kappa] + 1);
+    }
+
+    *ptheta = (*J) * cos(chi);
+    *pphi   = (*J) * sin(*theta) * sin(chi);
+}
+
+// Compute a reasonable Jmax such that the Boltzmann weight w(Jmax) is negligible
+static int dqs_estimate_Jmax(double Temperature, double B_inv_cm, double kB_inv_cm)
+{
+    // w(kappa) = (2*kappa - 1) * exp(-B*kappa*(kappa-1) / (kB*T))
+    // Find kappa where w(kappa)/w_max < threshold
+    double threshold = 1e-10;
+
+    // First find the peak: dw/dkappa = 0 gives kappa_peak ~ sqrt(kB*T/(2*B)) + 0.5
+    double kappa_peak = sqrt(kB_inv_cm * Temperature / (2.0 * B_inv_cm)) + 0.5;
+
+    // Evaluate w at peak for reference
+    int kp = (int)ceil(kappa_peak);
+    if (kp < 1) kp = 1;
+    double w_peak = (2.0*kp - 1.0) * exp(-B_inv_cm * kp * (kp - 1) / (kB_inv_cm * Temperature));
+
+    // Search upward from peak until w drops below threshold * w_peak
+    int kappa = kp;
+    for (; kappa < 10000; ++kappa) {
+        double w = (2.0*kappa - 1.0) * exp(-B_inv_cm * kappa * (kappa - 1) / (kB_inv_cm * Temperature));
+        if (w < threshold * w_peak) break;
+    }
+
+    PRINT0("Direct quantum state sampling: estimated Jmax = %d (T = %.2f K, B = %.5f cm-1)\n", kappa, Temperature, B_inv_cm);
+    return kappa;
+}
+
+
+SFnc calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
+{
+    assert(dipole_1 != NULL);
+    assert(dipole_2 != NULL);
+    assert(dipole_1 == dipole_2);
+
+    // Validate system: must be LINEAR_MOLECULE_REQ_INTEGER + ATOM
+    if (ms->m1.t != LINEAR_MOLECULE_REQ_INTEGER) {
+        PRINT0("ERROR: PR_MU_DIRECT_QUANTUM_STATE_SAMPLING requires 1st monomer to be LINEAR_MOLECULE_REQ_INTEGER, got %s\n",
+               display_monomer_type(ms->m1.t));
+        exit(1);
+    }
+    if (ms->m2.t != ATOM) {
+        PRINT0("ERROR: PR_MU_DIRECT_QUANTUM_STATE_SAMPLING requires 2nd monomer to be ATOM, got %s\n",
+               display_monomer_type(ms->m2.t));
+        exit(1);
+    }
+
+    assert(params->MaxTrajectoryLength > 0);
+    assert(params->sampling_time > 0);
+    assert(params->cvode_tolerance > 0);
+    assert(params->total_trajectories > 0);
+    assert(params->niterations >= 1);
+    assert(params->R0 > 0);
+    assert(params->ApproximateFrequencyMax > 0);
+    assert(params->sf_filename != NULL);
+
+    Arena a = {0};
+
+    assert(ms->m1.torque_cache_len > 0);
+    assert(ms->m1.torque_limit > 0);
+    ms->m1.apply_requantization = true;
+
+    FILE *fp = NULL;
+    if (_wrank == 0) {
+        fp = fopen(params->sf_filename, "w");
+        if (fp == NULL) {
+            PRINT0("ERROR: Could not open '%s' for writing! Exiting...\n", params->sf_filename);
+            exit(1);
+        }
+    }
+
+    double frequency_step = 1.0 / (params->sampling_time * ATU) / LightSpeed_cm / params->MaxTrajectoryLength;
+    double theoretical_frequency_max = 1.0 / (LightSpeed * 100.0 * params->sampling_time * ATU) / 2.0;
+
+    if (params->ApproximateFrequencyMax > theoretical_frequency_max) {
+        PRINT0("ERROR: Requested maximum frequency (%.3e) should be less than 1/2 of the maximum signal frequency, which is (%.3e)\n",
+                params->ApproximateFrequencyMax, theoretical_frequency_max);
+        exit(1);
+    }
+
+    size_t frequency_array_length = (int)(params->ApproximateFrequencyMax / frequency_step) + 1;
+    double max_frequency = frequency_step * (frequency_array_length - 1);
+
+    // Compute rotational constant B from moment of inertia
+    double B_inv_cm = Planck / (8.0 * M_PI * M_PI * ms->m1.II[0] * AMU * ALU * ALU) / LightSpeed_cm;
+    double kB_inv_cm = Boltzmann / (Planck * LightSpeed_cm);
+
+    // Estimate Jmax and build alias table
+    int Jmax = dqs_estimate_Jmax(Temperature, B_inv_cm, kB_inv_cm);
+    dqs_generate_J_table(Jmax, Temperature, B_inv_cm, kB_inv_cm);
+
+    PRINT0("\n\n");
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("Calculating spectral function using pr/mu representation\n");
+    PRINT0("with DIRECT QUANTUM STATE SAMPLING at T = %.2f K\n", Temperature);
+
+    _print0_margin = 4;
+    PRINT0("trajectories to be calculated (total_trajectories):                       %zu\n",  params->total_trajectories);
+    PRINT0("# of iterations that the calculation is divided into (niterations):       %zu\n",  params->niterations);
+    PRINT0("maximum length of trajectory (MaxTrajectoryLength):                       %zu samples\n",  params->MaxTrajectoryLength);
+    PRINT0("sampling time of dipole on trajectory (sampling_time):                    %.2f a.t.u.\n", params->sampling_time);
+    PRINT0("initial intermolecular distance (R0):                                     %.2f a.u.\n", params->R0);
+    PRINT0("CVode tolerance:                                                          %.3e\n", params->cvode_tolerance);
+    PRINT0("approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
+    PRINT0("\n");
+    PRINT0("Rotational constant B:                                                    %.5f cm-1\n", B_inv_cm);
+    PRINT0("Estimated Jmax for sampling:                                              %d\n", Jmax);
+    PRINT0("Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
+    PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
+    PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
+
+    setup_nswitch_histogram_for_monomer(&ms->m1);
+    setup_nswitch_histogram_for_monomer(&ms->m2);
+
+    setup_jini_histogram_for_monomer(&ms->m1);
+    setup_jfin_histogram_for_monomer(&ms->m1);
+    setup_jini_histogram_for_monomer(&ms->m2);
+    setup_jfin_histogram_for_monomer(&ms->m2);
+
+    gsl_rng *gsl_rng_state = NULL;
+    gsl_histogram *R_histogram = NULL;
+
+    if (params->average_time_between_collisions > 0) {
+        PRINT0("The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
+        PRINT0("average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n",
+               params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9);
+
+        gsl_rng_env_setup();
+        gsl_rng_state = gsl_rng_alloc(gsl_rng_mt19937);
+        gsl_rng_set(gsl_rng_state, ms->seed);
+
+        PRINT0("Initializing histogram to store maximum intermolecular distances (R) within the range [%.3e...%.3e] using %d bins\n",
+               params->R0, R_HISTOGRAM_MAX, R_HISTOGRAM_BINS);
+
+        R_histogram = gsl_histogram_alloc(R_HISTOGRAM_BINS);
+        gsl_histogram_set_ranges_uniform(R_histogram, params->R0, R_HISTOGRAM_MAX);
+    } else {
+        PRINT0("The trajectory will be cut off at initial distance R0 = %.3e\n", params->R0);
+    }
+
+    _print0_margin = 0;
+    PRINT0("------------------------------------------------------------------------\n");
+    PRINT0("\n");
+
+    PRINT0("Theoretical maximum frequency with provided parameters: %.3e cm-1\n", theoretical_frequency_max);
+    PRINT0("The frequency step with provided parameters:            %.3e cm-1\n", frequency_step);
+    PRINT0("The spectral function will be calculated in the range [0 .. %.3e cm-1] for %zu points\n", max_frequency, frequency_array_length);
+
+    PRINT0("NOTE: Connes apodization will be applied to the time dependence of dipole before applying Fourier transform\n");
+
+    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time;
+
+    size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
+
+    double *dipx = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
+    assert(dipx != NULL && "ASSERT: not enough memory!\n");
+    memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double));
+
+    double *dipy = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
+    assert(dipy != NULL && "ASSERT: not enough memory!\n");
+    memset(dipy, 0, params->MaxTrajectoryLength*sizeof(double));
+
+    double *dipz = (double*) malloc(params->MaxTrajectoryLength*sizeof(double));
+    assert(dipz != NULL && "ASSERT: not enough memory!\n");
+    memset(dipz, 0, params->MaxTrajectoryLength*sizeof(double));
+
+    SFnc sf_iter = {
+        .nu          = NULL,
+        .data        = (double*) arena_alloc(&a, frequency_array_length*sizeof(double)),
+        .len         = frequency_array_length,
+        .capacity    = frequency_array_length,
+        .ntraj       = 0,
+        .Temperature = Temperature,
+    };
+
+    SFnc sf_total = {
+        .nu          = linspace(0.0, max_frequency, frequency_array_length),
+        .data        = (double*) malloc(frequency_array_length*sizeof(double)),
+        .len         = frequency_array_length,
+        .capacity    = frequency_array_length,
+        .ntraj       = 0,
+        .Temperature = Temperature,
+    };
+    memset(sf_total.data, 0, frequency_array_length*sizeof(double));
+
+    String_Builder sb_datetime = {};
+
+    Trajectory traj = init_trajectory(ms, params->cvode_tolerance);
+    traj.check_energy_conservation = false;
+
+    if (params->partial_partition_function_ratio == 0) {
+        PRINT0("\n\n");
+        INFO("No value of the ratio of partial partition function (ppf) to full partition function is provided\n");
+        PRINT0("Invoking estimation of ppf using adaptive Monte Carlo integration\n");
+
+        double pf_analytic = analytic_full_partition_function_by_V(ms, Temperature);
+        PRINT0("Full partition function Q/V = %.12lf\n", pf_analytic);
+
+        assert(params->sampler_Rmin > 0);
+        assert(params->sampler_Rmax > 0);
+
+        double hep_ppf, hep_ppf_err;
+        c_mpi_perform_integration(ms, INTEGRAND_PF, params, Temperature, 15, 2e6, &hep_ppf, &hep_ppf_err);
+
+        PRINT0("Partial partition function Qp/V = %.12lf\n", hep_ppf);
+
+        double ppf_ratio = hep_ppf / pf_analytic;
+        PRINT0("Ratio of partial partition to full partition function: %.5e\n\n", ppf_ratio);
+
+        params->partial_partition_function_ratio = ppf_ratio;
+    }
+
+    PRINT0("\n\n");
+    PRINT0("Running preliminary calculation of M0 to test the sampler and dipole function...\n");
+    PRINT0("The estimate will be based on %zu points\n\n", params->initialM0_npoints);
+
+    double prelim_M0, prelim_M0std;
+    mpi_calculate_M0(ms, params, Temperature, &prelim_M0, &prelim_M0std);
+    PRINT0("M0 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M0, prelim_M0std, prelim_M0 - prelim_M0std, prelim_M0 + prelim_M0std);
+    PRINT0("Error: %.3f%%\n\n", prelim_M0std/prelim_M0 * 100.0);
+
+    double prelim_M2, prelim_M2std;
+    mpi_calculate_M2(ms, params, Temperature, &prelim_M2, &prelim_M2std);
+    PRINT0("M2 = %.10e +/- %.10e [%.10e ... %.10e]\n", prelim_M2, prelim_M2std, prelim_M2 - prelim_M2std, prelim_M2 + prelim_M2std);
+    PRINT0("Error: %.3f%%\n\n", prelim_M2std/prelim_M2 * 100.0);
+
+    Arena_Mark iter_mark = arena_snapshot(&a);
+
+    for (size_t iter = 0; iter < params->niterations; ++iter) {
+        memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
+
+        int cvode_status = 0;
+        double t, tout;
+
+if (_wrank > 0) {
+        for (size_t traj_counter = 0; traj_counter < local_ntrajectories; )
+        {
+            // Sample intermolecular coordinates (same as PR_MU)
+            q_generator(ms, params);
+            ms->intermolecular_qp[IR] = params->R0;
+
+            // Sample intermolecular momenta (same as PR_MU)
+            p_generator(ms, Temperature);
+
+            if (ms->intermolecular_qp[IPR] > 0.0) {
+                ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR];
+            }
+
+            // DIRECT QUANTUM STATE SAMPLING for monomer 1:
+            // Sample J from Boltzmann distribution, then derive (ptheta, pphi, theta, phi)
+            {
+                double J_sampled, ptheta_sampled, pphi_sampled, theta_sampled, phi_sampled;
+                dqs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
+                                                    &theta_sampled, &phi_sampled);
+
+                ms->m1.qp[IPHI]    = phi_sampled;
+                ms->m1.qp[ITHETA]  = theta_sampled;
+                ms->m1.qp[IPTHETA] = ptheta_sampled;
+                ms->m1.qp[IPPHI]   = pphi_sampled;
+            }
+
+            double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
+
+            Array qp0 = arena_create_array(&a, ms->QP_SIZE);
+            get_qp_from_ms(ms, &qp0);
+            set_initial_condition(&traj, qp0);
+
+            t    = 0.0;
+            tout = params->sampling_time;
+
+            ms->m1.req_switch_counter = 0;
+            ms->m2.req_switch_counter = 0;
+
+            ms->m1.torque_cache = (double*) arena_alloc(&a, ms->m1.torque_cache_len*sizeof(double));
+            memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
+
+            double poisson_tmax = -1.0;
+            if (params->average_time_between_collisions > 0) {
+                poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
+            }
+
+            double trajectory_weight = 1.0;
+
+            // No requantization at t=0: J is already an integer by construction
+            // No centrifugal distortion adjustment (skipped for this mode)
+            {
+                Monomer *m = &ms->m1;
+                double jini[3];
+                j_monomer(m, jini);
+                double jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
+
+                if (ms->m1.jini_histogram != NULL) {
+                    if (jini_len > ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
+                        ms->m1.jini_histogram = gsl_histogram_extend_right(ms->m1.jini_histogram, jini_len - ms->m1.jini_histogram->range[ms->m1.jini_histogram->n] + 1);
+                        printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
+                               _wrank, ms->m1.jini_histogram->range[0], ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]);
+                    }
+                    gsl_histogram_increment(ms->m1.jini_histogram, jini_len);
+                }
+            }
+
+            bool is_requantization_enabled_this_step = false;
+
+            size_t step_counter = 0;
+            for ( ; step_counter < params->MaxTrajectoryLength; ++step_counter, tout += params->sampling_time) {
+                cvode_status = make_step(&traj, tout, &t);
+                if (cvode_status) {
+                    printf("CVODE ERROR: status =  %d\n", cvode_status);
+                    break;
+                }
+
+                // Dynamic requantization switching based on torque (same as PR_MU)
+                {
+                    if (is_requantization_enabled_this_step) {
+                        is_requantization_enabled_this_step = false;
+                    }
+
+                    double torq = torque_monomer(&ms->m1);
+                    ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
+
+                    is_requantization_enabled_this_step = false;
+
+                    bool all_less_than_limit = true;
+                    bool all_more_than_limit = true;
+                    for (size_t i = 0; i < ms->m1.torque_cache_len; ++i) {
+                        torq = ms->m1.torque_cache[i];
+                        if (torq > ms->m1.torque_limit) all_less_than_limit = false;
+                        if (torq < ms->m1.torque_limit) all_more_than_limit = false;
+                        if (!all_less_than_limit && !all_more_than_limit) break;
+                    }
+
+                    if (all_less_than_limit) {
+                        if (!ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = true;
+                            is_requantization_enabled_this_step = true;
+                            ms->m1.req_switch_counter++;
+                        }
+                    } else if (all_more_than_limit) {
+                        if (ms->m1.apply_requantization) {
+                            ms->m1.apply_requantization = false;
+                            ms->m1.req_switch_counter++;
+                        }
+                    }
+                }
+
+                double dipt[3];
+                extract_q_and_write_into_ms(ms);
+                (*dipole_1)(ms->intermediate_q, dipt);
+
+                if (isnan(dipt[0]) || isnan(dipt[1]) || isnan(dipt[2])) {
+                    printf("ERROR: one of the components of the dipole is corrupted!\n");
+                    printf("The initial phase-point for broken trajectory is:\n");
+
+                    Array qp = arena_create_array(&a, ms->QP_SIZE);
+                    get_qp_from_ms(ms, &qp);
+                    for (size_t i = 0; i < ms->QP_SIZE; ++i) {
+                        printf("%.10e ", qp.data[i]);
+                    }
+                    printf("\n");
+                    continue;
+                }
+
+                dipx[step_counter] = dipt[0];
+                dipy[step_counter] = dipt[1];
+                dipz[step_counter] = dipt[2];
+
+                if (ms->intermolecular_qp[IR] > params->R0) break;
+            }
+
+            if (cvode_status) {
+                printf("Caught CVode error. Resampling new conditions...\n");
+                continue;
+            }
+
+            if (ms->intermolecular_qp[IR] < params->R0) {
+                if (!params->allow_truncating_trajectories_at_length_limit) {
+                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole. "
+                            "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                            "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n");
+                    continue;
+                }
+            }
+
+            {
+                trajectory_apply_requantization(&traj);
+
+                double jfin[3];
+                j_monomer(&ms->m1, jfin);
+                double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
+
+                if (ms->m1.jfin_histogram != NULL) {
+                    while (jfinl > ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
+                        int bins_to_add = 5;
+                        ms->m1.jfin_histogram = gsl_histogram_extend_right(ms->m1.jfin_histogram, bins_to_add);
+                        printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
+                               _wrank, ms->m1.jfin_histogram->range[0], ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]);
+                    }
+                    gsl_histogram_increment(ms->m1.jfin_histogram, jfinl);
+                }
+            }
+
+            if (ms->m1.nswitch_histogram.is_allocated) {
+                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
+                    ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h,
+                                                                            ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
+                }
+                gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
+            }
+
+            if (poisson_tmax > 0.0) {
+                double psi0, ppsi;
+                compute_psi_ppsi_for_linear_molecule(ms->m1.qp[IPHI], ms->m1.qp[IPPHI], ms->m1.qp[ITHETA], ms->m1.qp[IPTHETA], &psi0, &ppsi);
+
+                if (fabs(ppsi) < 1e-14) {
+                    while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
+                        dipx[step_counter] = dipx[step_counter - 1];
+                        dipy[step_counter] = dipy[step_counter - 1];
+                        dipz[step_counter] = dipz[step_counter - 1];
+                        step_counter++;
+                        tout += params->sampling_time;
+                    }
+                } else {
+                    if (isnan(psi0)) {
+                        printf("INFO: caught a NaN value of psi0. Continuing...\n");
+                        continue;
+                    }
+
+                    double tini = tout;
+                    while ((tout < poisson_tmax) && (step_counter < params->MaxTrajectoryLength)) {
+                        ms->intermolecular_qp[IR] += ms->intermolecular_qp[IPR]/ms->mu * (tout - tini);
+                        double psit = psi0 + ppsi/ms->m1.II[0]*(tout - tini);
+
+                        double dipmol[3];
+                        dipmol[0] = mu_CO*cos(psit);
+                        dipmol[1] = mu_CO*sin(psit);
+                        dipmol[2] = 0.0;
+
+                        double diplab[3];
+                        rotate_to_lab_for_linear_molecule(dipmol, diplab);
+
+                        dipx[step_counter] = diplab[0];
+                        dipy[step_counter] = diplab[1];
+                        dipz[step_counter] = diplab[2];
+
+                        step_counter++;
+                        tout += params->sampling_time;
+                    }
+                }
+
+                if ((tout < poisson_tmax) && !params->allow_truncating_trajectories_at_length_limit) {
+                    printf("INFO: trajectory exceeds maximum length. Insufficient memory allocated for storing dipole."
+                           "The Fouier transform of the dipole for this trajectory will be skipped.\n"
+                           "Consider increasing MaxTrajectoryLength to include longer trajectories in the cumulative result. Continuing...\n");
+                    continue;
+                }
+
+                while (ms->intermolecular_qp[IR] > R_histogram->range[R_histogram->n]) {
+                    int bins_to_add = 10;
+                    R_histogram = gsl_histogram_extend_right(R_histogram, bins_to_add);
+                }
+                gsl_histogram_increment(R_histogram, ms->intermolecular_qp[IR]);
+            }
+
+            kaiser_apodization((Array){.data = dipx, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            kaiser_apodization((Array){.data = dipy, .n = params->MaxTrajectoryLength}, params->sampling_time);
+            kaiser_apodization((Array){.data = dipz, .n = params->MaxTrajectoryLength}, params->sampling_time);
+
+            gsl_fft_real_radix2_transform(dipx, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipy, 1, params->MaxTrajectoryLength);
+            gsl_fft_real_radix2_transform(dipz, 1, params->MaxTrajectoryLength);
+
+            gsl_fft_square(dipx, params->MaxTrajectoryLength);
+            gsl_fft_square(dipy, params->MaxTrajectoryLength);
+            gsl_fft_square(dipz, params->MaxTrajectoryLength);
+
+            for (size_t i = 0; i < frequency_array_length; ++i) {
+                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) * trajectory_weight;
+            }
+
+            memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double));
+            memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double));
+            memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double));
+
+            traj_counter++;
+          }
+
+          MPI_Send(sf_iter.data, frequency_array_length, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+
+          if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+              send_histogram_and_reset(ms->m1.nswitch_histogram.h);
+          }
+
+          MPI_Send(&ms->m1.jini_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(ms->m1.jini_histogram->bin, ms->m1.jini_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(ms->m1.jini_histogram);
+
+          MPI_Send(&ms->m1.jfin_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+          MPI_Send(ms->m1.jfin_histogram->bin, ms->m1.jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+          gsl_histogram_reset(ms->m1.jfin_histogram);
+
+          if (params->average_time_between_collisions > 0) {
+              MPI_Send(&R_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+              MPI_Send(R_histogram->bin, R_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+              gsl_histogram_reset(R_histogram);
+          }
+} else {
+          /* MASTER CODE */
+          assert(_wsize > 1);
+
+          MPI_Status status;
+
+          for (int i = 1; i < _wsize; ++i) {
+              memset(sf_iter.data, 0, frequency_array_length*sizeof(double));
+              MPI_Recv(sf_iter.data, frequency_array_length, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+
+              for (size_t j = 0; j < frequency_array_length; ++j) {
+                  sf_total.data[j] += sf_iter.data[j];
+              }
+
+              sf_total.ntraj += local_ntrajectories;
+
+              Arena_Mark recv_mark = arena_snapshot(&a);
+
+              if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.nswitch_histogram.h);
+              }
+
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jini_histogram);
+              recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jfin_histogram);
+
+              if (params->average_time_between_collisions > 0) {
+                  recv_histogram_and_append(&a, status.MPI_SOURCE, &R_histogram);
+              }
+
+              arena_rewind(&a, recv_mark);
+          }
+
+          if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
+              double count = gsl_histogram_sum(ms->m1.nswitch_histogram.h);
+              INFO("writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
+
+              _print0_suppress_info = true;
+              int nchars = write_histogram_ext(ms->m1.nswitch_histogram.fp, ms->m1.nswitch_histogram.h, count);
+              _print0_suppress_info = false;
+
+              INFO("wrote %d characters to %s (histogram count = %d)\n\n", nchars, ms->m1.nswitch_histogram.filename, (int) count);
+          }
+
+          {
+              double count = gsl_histogram_sum(ms->m1.jini_histogram);
+              printf("INFO: Writing normalized histogram of initial angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              write_histogram_ext(ms->m1.fp_jini_histogram, ms->m1.jini_histogram, count);
+
+              count = gsl_histogram_sum(ms->m1.jfin_histogram);
+              printf("INFO: Writing normalized histogram of final angular momenta values for 1st monomer: (# elements of %d)\n", (int) count);
+              write_histogram_ext(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
+          }
+
+          if (params->average_time_between_collisions > 0) {
+              double count = gsl_histogram_sum(R_histogram);
+              printf("INFO: Normalized histogram of final intermolecular distances where trajectories are terminated (# elements = %d):\n",
+                     (int) count);
+
+              for (size_t i = 0; i < R_histogram->n; ++i) {
+                  if (gsl_histogram_get(R_histogram, i) > 0) {
+                    printf("  %.5e %.3e\n", R_histogram->range[i], gsl_histogram_get(R_histogram, i)/count);
+                  }
+              }
+              printf("=======================================\n");
+              printf("\n\n");
+          }
+
+          double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
+          double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
+
+          printf("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n",
+                  iter+1, params->niterations, (int)sf_total.ntraj, params->sf_filename);
+
+          time_t current_rawtime;
+          time(&current_rawtime);
+          double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);
+
+          sb_reset(&sb_datetime);
+          sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+
+          if (iter == 0) {
+              printf("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);
+          } else {
+              printf("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+
+              double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+              sb_reset(&sb_datetime);
+              sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+              printf("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);
+          }
+
+          ms->temp_rawtime = current_rawtime;
+
+          printf("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
+          printf("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
+
+          write_spectral_function_ext(fp, sf_total);
+
+          arena_rewind(&a, iter_mark);
+      }
+    }
+
+    sb_free(&sb_datetime);
+
+    if (gsl_rng_state != NULL) gsl_rng_free(gsl_rng_state);
+    if (R_histogram != NULL) gsl_histogram_free(R_histogram);
+
+    free(dipx);
+    free(dipy);
+    free(dipz);
+    arena_free(&a);
+
+    dqs_free_J_table();
+
+    for (size_t i = 0; i < frequency_array_length; ++i) {
+        sf_total.data[i] /= sf_total.ntraj;
+    }
+
+    return sf_total;
+}
+
 #endif // USE_MPI
 
 int assert_float_is_equal_to(double estimate, double true_value, double abs_tolerance) {

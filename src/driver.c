@@ -1242,6 +1242,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_PHASE_SPACE_M2;
                 } else if (strcasecmp(l->string_storage.items, "PROCESSING") == 0) {
                     params->calculation_type = CALCULATION_PROCESSING;
+                } else if (strcasecmp(l->string_storage.items, "PR_MU_DIRECT_QUANTUM_STATE_SAMPLING") == 0) {
+                    params->calculation_type = CALCULATION_PR_MU_DIRECT_QUANTUM_STATE_SAMPLING;
                 } else if (strcasecmp(l->string_storage.items, "MANUAL") == 0) {
                     params->calculation_type = CALCULATION_MANUAL;
                 } else {
@@ -4291,7 +4293,25 @@ int main(int argc, char* argv[])
             SFnc sf = calculate_spectral_function_using_prmu_representation_and_save(&ms, &calc_params, input_block.Temperature);
 
             UNUSED(sf);
-            break; 
+            break;
+        }
+        case CALCULATION_PR_MU_DIRECT_QUANTUM_STATE_SAMPLING: {
+            if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
+                PRINT0("ERROR: for PR_MU_DIRECT_QUANTUM_STATE_SAMPLING calculation we expect to have only one dipole\n");
+                exit(1);
+            }
+
+            assert(input_block.so_dipole_1 != NULL);
+            setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
+            dipole_2 = dipole_1;
+
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(input_block.reduced_mass, &monomer1, &monomer2, 0);
+            SFnc sf = calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_save(&ms, &calc_params, input_block.Temperature);
+
+            UNUSED(sf);
+            break;
         }
         case CALCULATION_CORRELATION_SINGLE: {
             setup_dipole(input_block.so_dipole_1, &dipole_1, &free_dipole_1);
