@@ -55,7 +55,7 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "PROCESSING",
     "CALCULATE_PHASE_SPACE_M0",
     "CALCULATE_PHASE_SPACE_M2",
-    "PR_MU_DIRECT_QUANTUM_STATE_SAMPLING",
+    "PR_MU_TRANSITION_FREQUENCY_SAMPLING",
 };
 static_assert(CALCULATION_TYPES_COUNT == 8, "");
 
@@ -4290,30 +4290,30 @@ if (_wrank > 0) {
 }
 
 // ========================================================================================
-// Direct quantum state sampling for PR/MU representation
+// Transition frequency sampling for PR/MU representation
 // ========================================================================================
 
 // Alias method tables for fast O(1) sampling of J quantum number
-static double *_dqs_Utable = NULL;
-static int    *_dqs_Ktable = NULL;
-static int     _dqs_kappamax = 0;
-static bool    _dqs_table_generated = false;
+static double *_tfs_Utable = NULL;
+static int    *_tfs_Ktable = NULL;
+static int     _tfs_kappamax = 0;
+static bool    _tfs_table_generated = false;
 
-static void dqs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, double kB_inv_cm)
+static void tfs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, double kB_inv_cm)
 {
-    if (_dqs_table_generated) {
-        INFO("Direct quantum state sampling: J table has already been generated. Skipping...\n");
+    if (_tfs_table_generated) {
+        INFO("Transition frequency sampling: J table has already been generated. Skipping...\n");
         return;
     }
 
-    PRINT0("Direct quantum state sampling: generating J table (Jmax = %d, T = %.2f K, B = %.5f cm-1)\n",
+    PRINT0("Transition frequency sampling: generating J table (Jmax = %d, T = %.2f K, B = %.5f cm-1)\n",
            Jmax, Temperature, B_inv_cm);
 
     int kappamax = Jmax + 1;
-    _dqs_kappamax = kappamax;
+    _tfs_kappamax = kappamax;
 
-    _dqs_Utable = (double*) malloc(kappamax * sizeof(double));
-    _dqs_Ktable = (int*)    malloc(kappamax * sizeof(int));
+    _tfs_Utable = (double*) malloc(kappamax * sizeof(double));
+    _tfs_Ktable = (int*)    malloc(kappamax * sizeof(int));
 
     int *overfull_group  = (int*) malloc(kappamax * sizeof(int));
     int *underfull_group = (int*) malloc(kappamax * sizeof(int));
@@ -4323,24 +4323,24 @@ static void dqs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, 
     double exp_fact = exp(-2.0 * B_inv_cm / kB_inv_cm / Temperature);
     double cur_exp_fact = exp_fact;
 
-    _dqs_Utable[0] = 1.0;
-    double S = _dqs_Utable[0];
+    _tfs_Utable[0] = 1.0;
+    double S = _tfs_Utable[0];
 
     for (int i = 1; i < kappamax; ++i) {
-        _dqs_Utable[i] = _dqs_Utable[i-1] * (2.0*i + 1.0) / (2.0*i - 1.0) * cur_exp_fact;
+        _tfs_Utable[i] = _tfs_Utable[i-1] * (2.0*i + 1.0) / (2.0*i - 1.0) * cur_exp_fact;
         cur_exp_fact *= exp_fact;
-        S += _dqs_Utable[i];
+        S += _tfs_Utable[i];
     }
 
     // Normalize and scale for alias method
     for (int i = 0; i < kappamax; ++i) {
-        _dqs_Utable[i] = _dqs_Utable[i] / S * (double)kappamax;
+        _tfs_Utable[i] = _tfs_Utable[i] / S * (double)kappamax;
     }
 
     // Partition into overfull and underfull groups
     int ovf_idx = 0, uvf_idx = 0;
     for (int i = 0; i < kappamax; ++i) {
-        if (_dqs_Utable[i] > 1.0) {
+        if (_tfs_Utable[i] > 1.0) {
             overfull_group[ovf_idx++] = i;
         } else {
             underfull_group[uvf_idx++] = i;
@@ -4352,10 +4352,10 @@ static void dqs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, 
         int u_idx = underfull_group[uvf_idx - 1];
         int o_idx = overfull_group[ovf_idx - 1];
 
-        _dqs_Ktable[u_idx] = o_idx;
-        _dqs_Utable[o_idx] = _dqs_Utable[o_idx] + _dqs_Utable[u_idx] - 1.0;
+        _tfs_Ktable[u_idx] = o_idx;
+        _tfs_Utable[o_idx] = _tfs_Utable[o_idx] + _tfs_Utable[u_idx] - 1.0;
 
-        if (_dqs_Utable[o_idx] < 1.0) {
+        if (_tfs_Utable[o_idx] < 1.0) {
             underfull_group[uvf_idx - 1] = o_idx;
             ovf_idx--;
         } else {
@@ -4365,30 +4365,30 @@ static void dqs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, 
 
     // Clean up remaining entries (due to floating point, some may be ~1.0)
     for (int i = uvf_idx - 1; i >= 0; --i) {
-        _dqs_Utable[underfull_group[i]] = 1.0;
-        _dqs_Ktable[underfull_group[i]] = underfull_group[i];
+        _tfs_Utable[underfull_group[i]] = 1.0;
+        _tfs_Ktable[underfull_group[i]] = underfull_group[i];
     }
     for (int i = ovf_idx - 1; i >= 0; --i) {
-        _dqs_Utable[overfull_group[i]] = 1.0;
-        _dqs_Ktable[overfull_group[i]] = overfull_group[i];
+        _tfs_Utable[overfull_group[i]] = 1.0;
+        _tfs_Ktable[overfull_group[i]] = overfull_group[i];
     }
 
     free(overfull_group);
     free(underfull_group);
 
-    _dqs_table_generated = true;
+    _tfs_table_generated = true;
 }
 
-static void dqs_free_J_table(void)
+static void tfs_free_J_table(void)
 {
-    free(_dqs_Utable); _dqs_Utable = NULL;
-    free(_dqs_Ktable); _dqs_Ktable = NULL;
-    _dqs_kappamax = 0;
-    _dqs_table_generated = false;
+    free(_tfs_Utable); _tfs_Utable = NULL;
+    free(_tfs_Ktable); _tfs_Ktable = NULL;
+    _tfs_kappamax = 0;
+    _tfs_table_generated = false;
 }
 
 // Sample a uniform integer in [0, Nmax] without modulo bias
-static int dqs_sample_unbiased(int Nmax)
+static int tfs_sample_unbiased(int Nmax)
 {
     uint64_t M = (uint64_t)Nmax + 1;
     uint64_t threshold = ((uint64_t)1 << 32) - (((uint64_t)1 << 32) % M);
@@ -4405,20 +4405,20 @@ static int dqs_sample_unbiased(int Nmax)
 // J^2 = ptheta^2 + pphi^2/sin^2(theta)
 // ptheta = J * cos(chi)
 // pphi   = J * sin(theta) * sin(chi)
-static void dqs_sample_J_ptheta_pphi_theta_phi(double *J, double *ptheta, double *pphi, double *theta, double *phi)
+static void tfs_sample_J_ptheta_pphi_theta_phi(double *J, double *ptheta, double *pphi, double *theta, double *phi)
 {
-    assert(_dqs_table_generated);
+    assert(_tfs_table_generated);
 
     *phi   = mt_drand() * 2.0 * M_PI;
     double chi = mt_drand() * 2.0 * M_PI;
     *theta = acos(2.0 * mt_drand() - 1.0);
 
-    int kappa = dqs_sample_unbiased(_dqs_kappamax - 1);  // kappa in [0, kappamax-1]
+    int kappa = tfs_sample_unbiased(_tfs_kappamax - 1);  // kappa in [0, kappamax-1]
     double u = mt_drand();
-    if (u < _dqs_Utable[kappa]) {
+    if (u < _tfs_Utable[kappa]) {
         *J = (double)(kappa + 1);  // kappa is 0-indexed, J = kappa+1
     } else {
-        *J = (double)(_dqs_Ktable[kappa] + 1);
+        *J = (double)(_tfs_Ktable[kappa] + 1);
     }
 
     *ptheta = (*J) * cos(chi);
@@ -4426,7 +4426,7 @@ static void dqs_sample_J_ptheta_pphi_theta_phi(double *J, double *ptheta, double
 }
 
 // Compute a reasonable Jmax such that the Boltzmann weight w(Jmax) is negligible
-static int dqs_estimate_Jmax(double Temperature, double B_inv_cm, double kB_inv_cm)
+static int tfs_estimate_Jmax(double Temperature, double B_inv_cm, double kB_inv_cm)
 {
     // w(kappa) = (2*kappa - 1) * exp(-B*kappa*(kappa-1) / (kB*T))
     // Find kappa where w(kappa)/w_max < threshold
@@ -4447,12 +4447,12 @@ static int dqs_estimate_Jmax(double Temperature, double B_inv_cm, double kB_inv_
         if (w < threshold * w_peak) break;
     }
 
-    PRINT0("Direct quantum state sampling: estimated Jmax = %d (T = %.2f K, B = %.5f cm-1)\n", kappa, Temperature, B_inv_cm);
+    PRINT0("Transition frequency sampling: estimated Jmax = %d (T = %.2f K, B = %.5f cm-1)\n", kappa, Temperature, B_inv_cm);
     return kappa;
 }
 
 
-SFnc calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
+SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature)
 {
     assert(dipole_1 != NULL);
     assert(dipole_2 != NULL);
@@ -4460,12 +4460,12 @@ SFnc calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_sa
 
     // Validate system: must be LINEAR_MOLECULE_REQ_INTEGER + ATOM
     if (ms->m1.t != LINEAR_MOLECULE_REQ_INTEGER) {
-        PRINT0("ERROR: PR_MU_DIRECT_QUANTUM_STATE_SAMPLING requires 1st monomer to be LINEAR_MOLECULE_REQ_INTEGER, got %s\n",
+        PRINT0("ERROR: PR_MU_TRANSITION_FREQUENCY_SAMPLING requires 1st monomer to be LINEAR_MOLECULE_REQ_INTEGER, got %s\n",
                display_monomer_type(ms->m1.t));
         exit(1);
     }
     if (ms->m2.t != ATOM) {
-        PRINT0("ERROR: PR_MU_DIRECT_QUANTUM_STATE_SAMPLING requires 2nd monomer to be ATOM, got %s\n",
+        PRINT0("ERROR: PR_MU_TRANSITION_FREQUENCY_SAMPLING requires 2nd monomer to be ATOM, got %s\n",
                display_monomer_type(ms->m2.t));
         exit(1);
     }
@@ -4511,13 +4511,13 @@ SFnc calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_sa
     double kB_inv_cm = Boltzmann / (Planck * LightSpeed_cm);
 
     // Estimate Jmax and build alias table
-    int Jmax = dqs_estimate_Jmax(Temperature, B_inv_cm, kB_inv_cm);
-    dqs_generate_J_table(Jmax, Temperature, B_inv_cm, kB_inv_cm);
+    int Jmax = tfs_estimate_Jmax(Temperature, B_inv_cm, kB_inv_cm);
+    tfs_generate_J_table(Jmax, Temperature, B_inv_cm, kB_inv_cm);
 
     PRINT0("\n\n");
     PRINT0("------------------------------------------------------------------------\n");
     PRINT0("Calculating spectral function using pr/mu representation\n");
-    PRINT0("with DIRECT QUANTUM STATE SAMPLING at T = %.2f K\n", Temperature);
+    PRINT0("with TRANSITION FREQUENCY SAMPLING at T = %.2f K\n", Temperature);
 
     _print0_margin = 4;
     PRINT0("trajectories to be calculated (total_trajectories):                       %zu\n",  params->total_trajectories);
@@ -4671,11 +4671,11 @@ if (_wrank > 0) {
                 ms->intermolecular_qp[IPR] = -ms->intermolecular_qp[IPR];
             }
 
-            // DIRECT QUANTUM STATE SAMPLING for monomer 1:
+            // Transition frequency sampling for monomer 1:
             // Sample J from Boltzmann distribution, then derive (ptheta, pphi, theta, phi)
             {
                 double J_sampled, ptheta_sampled, pphi_sampled, theta_sampled, phi_sampled;
-                dqs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
+                tfs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
                                                     &theta_sampled, &phi_sampled);
 
                 ms->m1.qp[IPHI]    = phi_sampled;
@@ -5040,7 +5040,7 @@ if (_wrank > 0) {
     free(dipz);
     arena_free(&a);
 
-    dqs_free_J_table();
+    tfs_free_J_table();
 
     for (size_t i = 0; i < frequency_array_length; ++i) {
         sf_total.data[i] /= sf_total.ntraj;

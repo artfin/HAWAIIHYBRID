@@ -340,7 +340,7 @@ typedef enum {
     CALCULATION_PROCESSING,
     CALCULATION_PHASE_SPACE_M0,
     CALCULATION_PHASE_SPACE_M2,
-    CALCULATION_PR_MU_DIRECT_QUANTUM_STATE_SAMPLING,
+    CALCULATION_PR_MU_TRANSITION_FREQUENCY_SAMPLING,
     CALCULATION_TYPES_COUNT,
     CALCULATION_MANUAL,
 } CalculationType;
@@ -543,7 +543,7 @@ void free_ms(MoleculeSystem *ms);
 CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
 CFnc calculate_correlation_and_save_tests(MoleculeSystem *ms, CalcParams *params, double Temperature);
 SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
-SFnc calculate_spectral_function_using_prmu_direct_quantum_state_sampling_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
+SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_save(MoleculeSystem *ms, CalcParams *params, double Temperature);
 CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *params, double base_temperature);
 #endif // USE_MPI
 
