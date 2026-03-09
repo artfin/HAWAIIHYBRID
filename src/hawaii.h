@@ -392,6 +392,8 @@ typedef struct {
     double ApproximateFrequencyMax; // cm-1
     double R0; // initial distance, a.u. 
     double average_time_between_collisions; // a.t.u.
+    double *average_time_between_collisions_per_j; // a.t.u., array indexed by J
+    size_t  num_average_time_between_collisions_per_j;
 
     /* correlation function array ONLY */
     double* partial_partition_function_ratios;

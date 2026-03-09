@@ -4510,8 +4510,14 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
     double B_inv_cm = Planck / (8.0 * M_PI * M_PI * ms->m1.II[0] * AMU * ALU * ALU) / LightSpeed_cm;
     double kB_inv_cm = Boltzmann / (Planck * LightSpeed_cm);
 
-    // Estimate Jmax and build alias table
-    int Jmax = tfs_estimate_Jmax(Temperature, B_inv_cm, kB_inv_cm);
+    // Determine Jmax: from per-J array if provided, otherwise estimate
+    int Jmax;
+    if (params->average_time_between_collisions_per_j != NULL) {
+        Jmax = (int) params->num_average_time_between_collisions_per_j;
+        PRINT0("Jmax = %d (determined from AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J array length)\n", Jmax);
+    } else {
+        Jmax = tfs_estimate_Jmax(Temperature, B_inv_cm, kB_inv_cm);
+    }
     tfs_generate_J_table(Jmax, Temperature, B_inv_cm, kB_inv_cm);
 
     PRINT0("\n\n");
@@ -4529,7 +4535,7 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
     PRINT0("approximate maximum frequency:                                            %.3e cm-1\n", params->ApproximateFrequencyMax);
     PRINT0("\n");
     PRINT0("Rotational constant B:                                                    %.5f cm-1\n", B_inv_cm);
-    PRINT0("Estimated Jmax for sampling:                                              %d\n", Jmax);
+    PRINT0("Jmax for sampling:                                                        %d\n", Jmax);
     PRINT0("Applying requantization to nearest integer for the 1st monomer (%s)\n", display_monomer_type(ms->m1.t));
     PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
     PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
@@ -4545,10 +4551,19 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
     gsl_rng *gsl_rng_state = NULL;
     gsl_histogram *R_histogram = NULL;
 
-    if (params->average_time_between_collisions > 0) {
+    bool use_poisson_cutoff = (params->average_time_between_collisions_per_j != NULL)
+                           || (params->average_time_between_collisions > 0);
+
+    if (use_poisson_cutoff) {
         PRINT0("The trajectory will be cut off based on free path time sampled from a Poisson distribution\n");
-        PRINT0("average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n",
-               params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9);
+
+        if (params->average_time_between_collisions_per_j != NULL) {
+            PRINT0("Using per-J average time between collisions (%zu values provided for kappa = 1..%zu)\n",
+                   params->num_average_time_between_collisions_per_j, params->num_average_time_between_collisions_per_j);
+        } else {
+            PRINT0("average time between collisions (in Poisson distribution): %.3e a.t.u. = %.3e ns\n",
+                   params->average_time_between_collisions, params->average_time_between_collisions*ATU*1e9);
+        }
 
         gsl_rng_env_setup();
         gsl_rng_state = gsl_rng_alloc(gsl_rng_mt19937);
@@ -4673,16 +4688,14 @@ if (_wrank > 0) {
 
             // Transition frequency sampling for monomer 1:
             // Sample J from Boltzmann distribution, then derive (ptheta, pphi, theta, phi)
-            {
-                double J_sampled, ptheta_sampled, pphi_sampled, theta_sampled, phi_sampled;
-                tfs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
-                                                    &theta_sampled, &phi_sampled);
+            double J_sampled, ptheta_sampled, pphi_sampled, theta_sampled, phi_sampled;
+            tfs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
+                                                &theta_sampled, &phi_sampled);
 
-                ms->m1.qp[IPHI]    = phi_sampled;
-                ms->m1.qp[ITHETA]  = theta_sampled;
-                ms->m1.qp[IPTHETA] = ptheta_sampled;
-                ms->m1.qp[IPPHI]   = pphi_sampled;
-            }
+            ms->m1.qp[IPHI]    = phi_sampled;
+            ms->m1.qp[ITHETA]  = theta_sampled;
+            ms->m1.qp[IPTHETA] = ptheta_sampled;
+            ms->m1.qp[IPPHI]   = pphi_sampled;
 
             double pr_mu = -ms->intermolecular_qp[IPR] / ms->mu;
 
@@ -4700,8 +4713,10 @@ if (_wrank > 0) {
             memset(ms->m1.torque_cache, 0, ms->m1.torque_cache_len * sizeof(double));
 
             double poisson_tmax = -1.0;
-            if (params->average_time_between_collisions > 0) {
-                poisson_tmax = gsl_ran_exponential(gsl_rng_state, params->average_time_between_collisions);
+            if (params->average_time_between_collisions_per_j != NULL) {
+                int kappa = (int) round(J_sampled);  // kappa = 1, 2, ..., Jmax
+                double avg_time = params->average_time_between_collisions_per_j[kappa - 1];
+                poisson_tmax = gsl_ran_exponential(gsl_rng_state, avg_time);
             }
 
             double trajectory_weight = 1.0;
@@ -4923,7 +4938,7 @@ if (_wrank > 0) {
           MPI_Send(ms->m1.jfin_histogram->bin, ms->m1.jfin_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
           gsl_histogram_reset(ms->m1.jfin_histogram);
 
-          if (params->average_time_between_collisions > 0) {
+          if (use_poisson_cutoff) {
               MPI_Send(&R_histogram->n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
               MPI_Send(R_histogram->bin, R_histogram->n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
               gsl_histogram_reset(R_histogram);
@@ -4953,7 +4968,7 @@ if (_wrank > 0) {
               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jini_histogram);
               recv_histogram_and_append(&a, status.MPI_SOURCE, &ms->m1.jfin_histogram);
 
-              if (params->average_time_between_collisions > 0) {
+              if (use_poisson_cutoff) {
                   recv_histogram_and_append(&a, status.MPI_SOURCE, &R_histogram);
               }
 
@@ -4981,7 +4996,7 @@ if (_wrank > 0) {
               write_histogram_ext(ms->m1.fp_jfin_histogram, ms->m1.jfin_histogram, count);
           }
 
-          if (params->average_time_between_collisions > 0) {
+          if (use_poisson_cutoff) {
               double count = gsl_histogram_sum(R_histogram);
               INFO("Normalized histogram of final intermolecular distances where trajectories are terminated (# elements = %d):\n",
                      (int) count);

@@ -217,6 +217,7 @@ typedef enum {
     KEYWORD_EVEN_J_SPIN_WEIGHT,
     KEYWORD_ACCELERATE_AVERAGING,
     KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS,
+    KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J,
 
     /* MONOMER BLOCK */
     KEYWORD_MONOMER_TYPE,
@@ -294,6 +295,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
     [KEYWORD_ACCELERATE_AVERAGING]            = "ACCELERATE_AVERAGING",
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = "AVERAGE_TIME_BETWEEN_COLLISIONS",
+    [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J] = "AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J",
     /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]                    = "MONOMER_TYPE",
     [KEYWORD_DJ]                              = "DJ",
@@ -313,7 +315,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
 }; 
-static_assert(KEYWORD_COUNT == 56, "");
+static_assert(KEYWORD_COUNT == 57, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_PROJECT_NAME]                    = TOKEN_DQSTRING,
@@ -356,6 +358,7 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
     [KEYWORD_ACCELERATE_AVERAGING]            = TOKEN_BOOLEAN,
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = TOKEN_FLOAT,
+    [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J] = TOKEN_OCURLY,
     /* MONOMER BLOCK */
     [KEYWORD_MONOMER_TYPE]                    = TOKEN_STRING,
     [KEYWORD_DJ]                              = TOKEN_FLOAT,
@@ -393,6 +396,12 @@ typedef struct {
     size_t count;
     size_t capacity;
 } CF_Filenames;
+
+typedef struct {
+    double *items;
+    size_t count;
+    size_t capacity;
+} AverageTimeBetweenCollisionsPerJ;
 
 typedef struct {
     double *items;
@@ -955,6 +964,12 @@ void print_params(CalcParams *params) {
     printf("  ApproximateFrequencyMax = %.5e\n", params->ApproximateFrequencyMax);
     printf("  R0 = %.5e\n", params->R0);
     printf("  average_time_between_collisions = %.5e\n", params->average_time_between_collisions);
+    printf("  average_time_between_collisions_per_j = {");
+    for (size_t i = 0; i < params->num_average_time_between_collisions_per_j; ++i) {
+        printf("%.5e", params->average_time_between_collisions_per_j[i]);
+        if (i < params->num_average_time_between_collisions_per_j - 1) printf(", ");
+    }
+    printf("} (count = %zu)\n", params->num_average_time_between_collisions_per_j);
     printf("  --- correlation function array calculation ONLY --- \n"); 
 
     printf("  num_satellite_temperatures = %zu\n", params->num_satellite_temperatures);
@@ -1201,9 +1216,10 @@ void get_and_expect_token(Lexer *l, Token_Type token) {
 void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params) 
 {
     Satellite_Temperatures st = {0};
-    Temperatures temperatures = {0}; 
+    Temperatures temperatures = {0};
     CF_Filenames cf_filenames = {0};
     Partial_Partition_Function_Ratios ppfs = {0};
+    AverageTimeBetweenCollisionsPerJ atbc_per_j = {0};
 
     while (true) {
         get_token(l);
@@ -1373,6 +1389,20 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
             case KEYWORD_ACCELERATE_AVERAGING:    params->accelerate_averaging = l->boolean_value; break;
             case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS: params->average_time_between_collisions = l->double_number; break;
+            case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J: {
+               while(true) {
+                   get_and_expect_token(l, TOKEN_FLOAT);
+                   da_append(&atbc_per_j, l->double_number);
+
+                   get_token(l);
+                   expect_one_of_tokens(l, 2, TOKEN_COMMA, TOKEN_CCURLY);
+                   if (l->token_type == TOKEN_CCURLY) break;
+               }
+
+               params->average_time_between_collisions_per_j = atbc_per_j.items;
+               params->num_average_time_between_collisions_per_j = atbc_per_j.count;
+               break;
+            }
             default: {
               PRINT0("ERROR: %s:%d:%d: keyword '%s' cannot be used within &INPUT block\n",
                      l->loc.input_path, l->loc.line_number, l->loc.line_offset-(int)l->token_len+1, l->string_storage.items);
