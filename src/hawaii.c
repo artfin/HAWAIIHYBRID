@@ -4723,20 +4723,13 @@ if (_wrank > 0) {
 
             // No requantization at t=0: J is already an integer by construction
             // No centrifugal distortion adjustment (skipped for this mode)
-            {
-                Monomer *m = &ms->m1;
-                double jini[3];
-                j_monomer(m, jini);
-                double jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
 
-                if (ms->m1.jini_histogram != NULL) {
-                    if (jini_len > ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
-                        ms->m1.jini_histogram = gsl_histogram_extend_right(ms->m1.jini_histogram, jini_len - ms->m1.jini_histogram->range[ms->m1.jini_histogram->n] + 1);
-                        printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
-                               _wrank, ms->m1.jini_histogram->range[0], ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]);
-                    }
-                    gsl_histogram_increment(ms->m1.jini_histogram, jini_len);
-                }
+            // Save initial angular momentum for histogram (inserted after successful propagation)
+            double jini_len_saved;
+            {
+                double jini[3];
+                j_monomer(&ms->m1, jini);
+                jini_len_saved = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
             }
 
             bool is_requantization_enabled_this_step = false;
@@ -4821,31 +4814,7 @@ if (_wrank > 0) {
                 }
             }
 
-            {
-                trajectory_apply_requantization(&traj);
-
-                double jfin[3];
-                j_monomer(&ms->m1, jfin);
-                double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
-
-                if (ms->m1.jfin_histogram != NULL) {
-                    while (jfinl > ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
-                        int bins_to_add = 5;
-                        ms->m1.jfin_histogram = gsl_histogram_extend_right(ms->m1.jfin_histogram, bins_to_add);
-                        printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
-                               _wrank, ms->m1.jfin_histogram->range[0], ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]);
-                    }
-                    gsl_histogram_increment(ms->m1.jfin_histogram, jfinl);
-                }
-            }
-
-            if (ms->m1.nswitch_histogram.is_allocated) {
-                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
-                    ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h,
-                                                                            ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
-                }
-                gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
-            }
+            trajectory_apply_requantization(&traj);
 
             if (poisson_tmax > 0.0) {
                 double psi0, ppsi;
@@ -4920,6 +4889,41 @@ if (_wrank > 0) {
             memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double));
             memset(dipy, 0, params->MaxTrajectoryLength * sizeof(double));
             memset(dipz, 0, params->MaxTrajectoryLength * sizeof(double));
+
+            // All histogram insertions happen at the same point so that
+            // jini, jfin and nswitch histograms contain the same number of samples
+            if (ms->m1.jini_histogram != NULL) {
+                if (jini_len_saved > ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
+                    ms->m1.jini_histogram = gsl_histogram_extend_right(ms->m1.jini_histogram, jini_len_saved - ms->m1.jini_histogram->range[ms->m1.jini_histogram->n] + 1);
+                    printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
+                           _wrank, ms->m1.jini_histogram->range[0], ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]);
+                }
+                gsl_histogram_increment(ms->m1.jini_histogram, jini_len_saved);
+            }
+
+            {
+                double jfin[3];
+                j_monomer(&ms->m1, jfin);
+                double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
+
+                if (ms->m1.jfin_histogram != NULL) {
+                    while (jfinl > ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
+                        int bins_to_add = 5;
+                        ms->m1.jfin_histogram = gsl_histogram_extend_right(ms->m1.jfin_histogram, bins_to_add);
+                        printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
+                               _wrank, ms->m1.jfin_histogram->range[0], ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]);
+                    }
+                    gsl_histogram_increment(ms->m1.jfin_histogram, jfinl);
+                }
+            }
+
+            if (ms->m1.nswitch_histogram.is_allocated) {
+                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
+                    ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h,
+                                                                            ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
+                }
+                gsl_histogram_increment(ms->m1.nswitch_histogram.h, ms->m1.req_switch_counter);
+            }
 
             traj_counter++;
           }
