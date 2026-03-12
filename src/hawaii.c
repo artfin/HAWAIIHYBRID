@@ -4540,6 +4540,19 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
     PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
     PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
 
+    // These are the 'default' inertia tensor values, corresponding to centrifugal distortion correction equal to zero
+    // for J = 0. When inertia tensor values are corrected to account for centrifugal distortion, the rotational constant B
+    // is calculated using these saved inertia tensor values.
+    double IIini_m1[3];
+    IIini_m1[0] = ms->m1.II[0];
+    IIini_m1[1] = ms->m1.II[1];
+    IIini_m1[2] = ms->m1.II[2];
+    if (ms->m1.DJ > 0) {
+        assert(ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER);
+        PRINT0("An effective rotational constant (which accounts for centrifugal distortion) will be used. "
+               "The following value D for the 1st monomer is provided: %.5e cm-1\n", ms->m1.DJ);
+    }
+
     setup_nswitch_histogram_for_monomer(&ms->m1);
     setup_nswitch_histogram_for_monomer(&ms->m2);
 
@@ -4687,6 +4700,12 @@ if (_wrank > 0) {
             }
 
             // Transition frequency sampling for monomer 1:
+            // Reset inertia tensor to original values before each trajectory
+            // (centrifugal distortion from the previous trajectory may have modified them)
+            ms->m1.II[0] = IIini_m1[0];
+            ms->m1.II[1] = IIini_m1[1];
+            ms->m1.II[2] = IIini_m1[2];
+
             // Sample J from Boltzmann distribution, then derive (ptheta, pphi, theta, phi)
             double J_sampled, ptheta_sampled, pphi_sampled, theta_sampled, phi_sampled;
             tfs_sample_J_ptheta_pphi_theta_phi(&J_sampled, &ptheta_sampled, &pphi_sampled,
@@ -4722,7 +4741,21 @@ if (_wrank > 0) {
             double trajectory_weight = 1.0;
 
             // No requantization at t=0: J is already an integer by construction
-            // No centrifugal distortion adjustment (skipped for this mode)
+            // Apply centrifugal distortion adjustment to the inertia tensor at t=0
+            if (ms->m1.DJ > 0) {
+                Monomer *m = &ms->m1;
+
+                double jini[3];
+                j_monomer(m, jini);
+                double jini_len = sqrt(jini[0]*jini[0] + jini[1]*jini[1] + jini[2]*jini[2]);
+
+                double Bini_cm = Planck/(8.0*M_PI*M_PI*IIini_m1[0]*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+                double Beff_cm = Bini_cm - 2*m->DJ*(jini_len + 1)*(jini_len + 1);
+
+                double IIeff = Planck/(8.0*M_PI*M_PI*Beff_cm*LightSpeed*100)/AMU/ALU/ALU;
+                m->II[0] = IIeff;
+                m->II[1] = IIeff;
+            }
 
             // Save initial angular momentum for histogram (inserted after successful propagation)
             double jini_len_saved;
@@ -4742,12 +4775,24 @@ if (_wrank > 0) {
                     break;
                 }
 
+                // Update inertia tensor when requantization was just enabled and centrifugal distortion is active
+                if (is_requantization_enabled_this_step && (ms->m1.DJ > 0)) {
+                    Monomer *m = &ms->m1;
+
+                    double j[3];
+                    j_monomer(m, j);
+                    double jlen = sqrt(j[0]*j[0] + j[1]*j[1] + j[2]*j[2]);
+
+                    double Bini_cm = Planck/(8.0*M_PI*M_PI*IIini_m1[0]*AMU*ALU*ALU) / LightSpeed_cm; // cm-1
+                    double Beff_cm = Bini_cm - 2*m->DJ*(jlen + 1)*(jlen + 1);
+
+                    double IIeff = Planck/(8.0*M_PI*M_PI*Beff_cm*LightSpeed*100)/AMU/ALU/ALU;
+                    m->II[0] = IIeff;
+                    m->II[1] = IIeff;
+                }
+
                 // Dynamic requantization switching based on torque (same as PR_MU)
                 {
-                    if (is_requantization_enabled_this_step) {
-                        is_requantization_enabled_this_step = false;
-                    }
-
                     double torq = torque_monomer(&ms->m1);
                     ms->m1.torque_cache[step_counter % ms->m1.torque_cache_len] = torq;
 
@@ -4893,7 +4938,7 @@ if (_wrank > 0) {
             // All histogram insertions happen at the same point so that
             // jini, jfin and nswitch histograms contain the same number of samples
             if (ms->m1.jini_histogram != NULL) {
-                if (jini_len_saved > ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
+                if (jini_len_saved >= ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]) {
                     ms->m1.jini_histogram = gsl_histogram_extend_right(ms->m1.jini_histogram, jini_len_saved - ms->m1.jini_histogram->range[ms->m1.jini_histogram->n] + 1);
                     printf("[%d] INFO: extending histogram of initial angular momentum to [%.3e ... %.3e]\n",
                            _wrank, ms->m1.jini_histogram->range[0], ms->m1.jini_histogram->range[ms->m1.jini_histogram->n]);
@@ -4907,7 +4952,7 @@ if (_wrank > 0) {
                 double jfinl = sqrt(jfin[0]*jfin[0] + jfin[1]*jfin[1] + jfin[2]*jfin[2]);
 
                 if (ms->m1.jfin_histogram != NULL) {
-                    while (jfinl > ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
+                    while (jfinl >= ms->m1.jfin_histogram->range[ms->m1.jfin_histogram->n]) {
                         int bins_to_add = 5;
                         ms->m1.jfin_histogram = gsl_histogram_extend_right(ms->m1.jfin_histogram, bins_to_add);
                         printf("[%d] INFO: extending histogram of final angular momentum to [%.3e ... %.3e]\n",
@@ -4918,7 +4963,7 @@ if (_wrank > 0) {
             }
 
             if (ms->m1.nswitch_histogram.is_allocated) {
-                if (ms->m1.req_switch_counter > ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
+                if (ms->m1.req_switch_counter >= ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n]) {
                     ms->m1.nswitch_histogram.h = gsl_histogram_extend_right(ms->m1.nswitch_histogram.h,
                                                                             ms->m1.req_switch_counter - ms->m1.nswitch_histogram.h->range[ms->m1.nswitch_histogram.h->n] + 1);
                 }
@@ -4979,6 +5024,37 @@ if (_wrank > 0) {
               arena_rewind(&a, recv_mark);
           }
 
+          double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
+          double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
+
+          PRINT0("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n",
+                  iter+1, params->niterations, (int)sf_total.ntraj, params->sf_filename);
+
+          time_t current_rawtime;
+          time(&current_rawtime);
+          double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);
+
+          sb_reset(&sb_datetime);
+          sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
+
+          if (iter == 0) {
+              INFO("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);
+          } else {
+              INFO("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
+
+              double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
+              sb_reset(&sb_datetime);
+              sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
+              INFO("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);
+          }
+
+          ms->temp_rawtime = current_rawtime;
+
+          INFO("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
+          INFO("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
+
+          write_spectral_function_ext(fp, sf_total);
+
           if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) || (ms->m1.t == LINEAR_MOLECULE_REQ_HALFINTEGER)) {
               double count = gsl_histogram_sum(ms->m1.nswitch_histogram.h);
               INFO("writing normalized histogram of number of angular momentum switches for 1st monomer (# elements = %d):\n", (int) count);
@@ -5012,37 +5088,6 @@ if (_wrank > 0) {
               }
               PRINT0("=======================================\n\n");
           }
-
-          double M0_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 0) / sf_total.ntraj;
-          double M2_est = compute_Mn_from_sf_using_classical_detailed_balance(sf_total, 2) / sf_total.ntraj;
-
-          PRINT0("ITERATION %zu/%zu: accumulated %d trajectories. Saving temporary result to '%s'\n",
-                  iter+1, params->niterations, (int)sf_total.ntraj, params->sf_filename);
-
-          time_t current_rawtime;
-          time(&current_rawtime);
-          double elapsed_since_begin = difftime(current_rawtime, ms->init_rawtime);
-
-          sb_reset(&sb_datetime);
-          sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_begin);
-
-          if (iter == 0) {
-              INFO("TIME ELAPSED SINCE BEGIN: %s\n", sb_datetime.items);
-          } else {
-              INFO("TIME ELAPSED SINCE BEGIN: %s, ", sb_datetime.items);
-
-              double elapsed_since_last_iter = difftime(current_rawtime, ms->temp_rawtime);
-              sb_reset(&sb_datetime);
-              sb_append_seconds_as_datetime_string(&sb_datetime, elapsed_since_last_iter);
-              INFO("ELAPSED SINCE LAST ITERATION: %s\n", sb_datetime.items);
-          }
-
-          ms->temp_rawtime = current_rawtime;
-
-          INFO("M0 ESTIMATE FROM SF: %.5e, PRELIMINARY M0 ESTIMATE: %.5e, diff: %.3f%%\n",   M0_est, prelim_M0, (M0_est - prelim_M0)/prelim_M0*100.0);
-          INFO("M2 ESTIMATE FROM SF: %.5e, PRELIMINARY M2 ESTIMATE: %.5e, diff: %.3f%%\n\n", M2_est, prelim_M2, (M2_est - prelim_M2)/prelim_M2*100.0);
-
-          write_spectral_function_ext(fp, sf_total);
 
           arena_rewind(&a, iter_mark);
       }
