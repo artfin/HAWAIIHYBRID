@@ -4309,37 +4309,36 @@ static void tfs_generate_J_table(int Jmax, double Temperature, double B_inv_cm, 
     PRINT0("Transition frequency sampling: generating J table (Jmax = %d, T = %.2f K, B = %.5f cm-1)\n",
            Jmax, Temperature, B_inv_cm);
 
-    int kappamax = Jmax + 1;
-    _tfs_kappamax = kappamax;
+    _tfs_kappamax = Jmax;
 
-    _tfs_Utable = (double*) malloc(kappamax * sizeof(double));
-    _tfs_Ktable = (int*)    malloc(kappamax * sizeof(int));
+    _tfs_Utable = (double*) malloc(Jmax * sizeof(double));
+    _tfs_Ktable = (int*)    malloc(Jmax * sizeof(int));
 
-    int *overfull_group  = (int*) malloc(kappamax * sizeof(int));
-    int *underfull_group = (int*) malloc(kappamax * sizeof(int));
+    int *overfull_group  = (int*) malloc(Jmax * sizeof(int));
+    int *underfull_group = (int*) malloc(Jmax * sizeof(int));
 
-    // Build unnormalized weights: w(kappa) = (2*kappa - 1) * exp(-B*kappa*(kappa-1) / (kB*T))
-    // Using recurrence: w(kappa+1)/w(kappa) = (2*kappa+1)/(2*kappa-1) * exp(-2*B*kappa/(kB*T))
+    // Build unnormalized weights: w(kappa) = (2*kappa + 1) * exp(-B*kappa*(kappa-1) / (kB*T))
+    // Using recurrence: w(kappa+1)/w(kappa) = (2*kappa+3)/(2*kappa+1) * exp(-2*B*kappa/(kB*T))
     double exp_fact = exp(-2.0 * B_inv_cm / kB_inv_cm / Temperature);
     double cur_exp_fact = exp_fact;
 
     _tfs_Utable[0] = 1.0;
     double S = _tfs_Utable[0];
 
-    for (int i = 1; i < kappamax; ++i) {
-        _tfs_Utable[i] = _tfs_Utable[i-1] * (2.0*i + 1.0) / (2.0*i - 1.0) * cur_exp_fact;
+    for (int i = 1; i < Jmax; ++i) {
+        _tfs_Utable[i] = _tfs_Utable[i-1] * (2.0*i + 3.0) / (2.0*i + 1.0) * cur_exp_fact;
         cur_exp_fact *= exp_fact;
         S += _tfs_Utable[i];
     }
 
     // Normalize and scale for alias method
-    for (int i = 0; i < kappamax; ++i) {
-        _tfs_Utable[i] = _tfs_Utable[i] / S * (double)kappamax;
+    for (int i = 0; i < Jmax; ++i) {
+        _tfs_Utable[i] = _tfs_Utable[i] / S * (double)Jmax;
     }
 
     // Partition into overfull and underfull groups
     int ovf_idx = 0, uvf_idx = 0;
-    for (int i = 0; i < kappamax; ++i) {
+    for (int i = 0; i < Jmax; ++i) {
         if (_tfs_Utable[i] > 1.0) {
             overfull_group[ovf_idx++] = i;
         } else {
@@ -4416,7 +4415,7 @@ static void tfs_sample_J_ptheta_pphi_theta_phi(double *J, double *ptheta, double
     int kappa = tfs_sample_unbiased(_tfs_kappamax - 1);  // kappa in [0, kappamax-1]
     double u = mt_drand();
     if (u < _tfs_Utable[kappa]) {
-        *J = (double)(kappa + 1);  // kappa is 0-indexed, J = kappa+1
+        *J = (double)(kappa + 1);
     } else {
         *J = (double)(_tfs_Ktable[kappa] + 1);
     }
@@ -4738,7 +4737,6 @@ if (_wrank > 0) {
                 poisson_tmax = gsl_ran_exponential(gsl_rng_state, avg_time);
             }
 
-            double trajectory_weight = 1.0;
 
             // No requantization at t=0: J is already an integer by construction
             // Apply centrifugal distortion adjustment to the inertia tensor at t=0
@@ -4927,8 +4925,26 @@ if (_wrank > 0) {
             gsl_fft_square(dipy, params->MaxTrajectoryLength);
             gsl_fft_square(dipz, params->MaxTrajectoryLength);
 
+            // When per-J collision times are used, each trajectory has a different
+            // duration (poisson_tmax drawn from an exponential distribution).
+            // The FFT is always computed over the full MaxTrajectoryLength array,
+            // zero-padded beyond the actual signal. By Parseval's theorem, the
+            // integrated power spectrum scales with the number of non-zero samples,
+            // i.e., with the signal duration. To obtain absorption per unit time
+            // (so that line areas are independent of the collision time), we must
+            // divide each trajectory's contribution by its actual signal duration.
+            // We use the actual signal duration (min of poisson_tmax and the
+            // propagated time) rather than poisson_tmax alone, so that truncated
+            // trajectories (where MaxTrajectoryLength was insufficient) are still
+            // correctly normalized for the signal they actually contain.
+            double signal_duration = 1.0;
+            if (poisson_tmax > 0.0) {
+                double propagated_time = step_counter * params->sampling_time;
+                signal_duration = (propagated_time < poisson_tmax) ? propagated_time : poisson_tmax;
+            }
+
             for (size_t i = 0; i < frequency_array_length; ++i) {
-                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) * trajectory_weight;
+                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) / signal_duration;
             }
 
             memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double));

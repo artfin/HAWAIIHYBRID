@@ -4177,6 +4177,7 @@ int main(int argc, char* argv[])
     Monomer monomer1  = {0};
     Monomer monomer2  = {0};
     CalcParams calc_params = {0};
+
     Processing_Params processing_params = {0};
     parse_params(&l, &calc_params, &input_block, &monomer1, &monomer2, &processing_params);
     
