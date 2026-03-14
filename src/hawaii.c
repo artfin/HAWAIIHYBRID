@@ -4539,6 +4539,14 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
     PRINT0("limiting value of torque (torque_limit):                                  %.3e a.u.\n", ms->m1.torque_limit);
     PRINT0("torque cache length to turn on/off the requantization (torque_cache_len): %zu samples\n", ms->m1.torque_cache_len);
 
+    if (params->weight_per_j != NULL) {
+        PRINT0("Per-J weights: {");
+        for (size_t i = 0; i < params->num_weight_per_j; ++i) {
+            PRINT0("%.5e%s", params->weight_per_j[i], (i < params->num_weight_per_j - 1) ? ", " : "");
+        }
+        PRINT0("}\n");
+    }
+
     // These are the 'default' inertia tensor values, corresponding to centrifugal distortion correction equal to zero
     // for J = 0. When inertia tensor values are corrected to account for centrifugal distortion, the rotational constant B
     // is calculated using these saved inertia tensor values.
@@ -4737,6 +4745,12 @@ if (_wrank > 0) {
                 poisson_tmax = gsl_ran_exponential(gsl_rng_state, avg_time);
             }
 
+            double trajectory_weight = 1.0;
+            if (params->weight_per_j != NULL) {
+                int kappa = (int) round(J_sampled);  // kappa = 1, 2, ..., Jmax
+                assert(kappa >= 1 && kappa <= (int) params->num_weight_per_j);
+                trajectory_weight = params->weight_per_j[kappa - 1];
+            }
 
             // No requantization at t=0: J is already an integer by construction
             // Apply centrifugal distortion adjustment to the inertia tensor at t=0
@@ -4925,26 +4939,9 @@ if (_wrank > 0) {
             gsl_fft_square(dipy, params->MaxTrajectoryLength);
             gsl_fft_square(dipz, params->MaxTrajectoryLength);
 
-            // When per-J collision times are used, each trajectory has a different
-            // duration (poisson_tmax drawn from an exponential distribution).
-            // The FFT is always computed over the full MaxTrajectoryLength array,
-            // zero-padded beyond the actual signal. By Parseval's theorem, the
-            // integrated power spectrum scales with the number of non-zero samples,
-            // i.e., with the signal duration. To obtain absorption per unit time
-            // (so that line areas are independent of the collision time), we must
-            // divide each trajectory's contribution by its actual signal duration.
-            // We use the actual signal duration (min of poisson_tmax and the
-            // propagated time) rather than poisson_tmax alone, so that truncated
-            // trajectories (where MaxTrajectoryLength was insufficient) are still
-            // correctly normalized for the signal they actually contain.
-            double signal_duration = 1.0;
-            if (poisson_tmax > 0.0) {
-                double propagated_time = step_counter * params->sampling_time;
-                signal_duration = (propagated_time < poisson_tmax) ? propagated_time : poisson_tmax;
-            }
 
             for (size_t i = 0; i < frequency_array_length; ++i) {
-                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) / signal_duration;
+                sf_iter.data[i] += SF_COEFF * pr_mu * (dipx[i] + dipy[i] + dipz[i]) * trajectory_weight;
             }
 
             memset(dipx, 0, params->MaxTrajectoryLength * sizeof(double));

@@ -395,6 +395,9 @@ typedef struct {
     double *average_time_between_collisions_per_j; // a.t.u., array indexed by J
     size_t  num_average_time_between_collisions_per_j;
 
+    double *weight_per_j;      // per-J trajectory weight, array indexed by kappa (1, 2, ..., Jmax)
+    size_t  num_weight_per_j;
+
     /* correlation function array ONLY */
     double* partial_partition_function_ratios;
     double *satellite_temperatures;
