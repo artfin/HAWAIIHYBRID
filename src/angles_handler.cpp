@@ -609,8 +609,218 @@ void rotate_to_lab_for_linear_molecule(double dipmol[3], double diplab[3])
     diplab[2] = dd2(2);
 }
 
+// H2O-H2O rigid dimer: convert angular coordinates r_ang[9] = {R, Phi, Theta, phi1T, theta1T, psi1T, phi2T, theta2T, psi2T}
+// to Cartesian coordinates cart[3][6] (3 coords x 6 atoms: O1 H1 H2 O2 H3 H4)
+void h2o_h2o_lab_to_cart(double *r_ang, double cart[3][6])
+{
+    double R      = r_ang[0];
+    double Phi    = r_ang[1];
+    double Theta  = r_ang[2];
+    double phi1T  = r_ang[3];
+    double theta1T = r_ang[4];
+    double psi1T  = r_ang[5];
+    double phi2T  = r_ang[6];
+    double theta2T = r_ang[7];
+    double psi2T  = r_ang[8];
+
+    Eigen::Vector3d Rvec(R*sin(Theta)*cos(Phi), R*sin(Theta)*sin(Phi), R*cos(Theta));
+
+    // Equilibrium geometry of a single H2O molecule (in Bohr)
+    Eigen::Vector3d Oa( 0.0,              0.0,  0.124885194112977);
+    Eigen::Vector3d Ha1( 1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Ha2(-1.43373587100000, 0.0, -0.991247728887023);
+
+    Eigen::Vector3d Ob( 0.0,              0.0,  0.124885194112977);
+    Eigen::Vector3d Hb1( 1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Hb2(-1.43373587100000, 0.0, -0.991247728887023);
+
+    Eigen::Matrix3d Sphi1T_m, Stheta1T_m, Spsi1T_m, Sphi2T_m, Stheta2T_m, Spsi2T_m;
+
+    Sz_filler(Sphi1T_m,  sin(phi1T),  cos(phi1T));
+    Sx_filler(Stheta1T_m, sin(theta1T), cos(theta1T));
+    Sz_filler(Spsi1T_m,  sin(psi1T),  cos(psi1T));
+
+    Sz_filler(Sphi2T_m,  sin(phi2T),  cos(phi2T));
+    Sx_filler(Stheta2T_m, sin(theta2T), cos(theta2T));
+    Sz_filler(Spsi2T_m,  sin(psi2T),  cos(psi2T));
+
+    Eigen::Matrix3d S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    Oa  = S1_m * Oa;
+    Ha1 = S1_m * Ha1;
+    Ha2 = S1_m * Ha2;
+
+    Eigen::Matrix3d S2_m = Sphi2T_m.transpose() * Stheta2T_m.transpose() * Spsi2T_m.transpose();
+    Ob  = S2_m * Ob  + Rvec;
+    Hb1 = S2_m * Hb1 + Rvec;
+    Hb2 = S2_m * Hb2 + Rvec;
+
+    cart[0][0] = Oa(0);  cart[1][0] = Oa(1);  cart[2][0] = Oa(2);
+    cart[0][1] = Ha1(0); cart[1][1] = Ha1(1); cart[2][1] = Ha1(2);
+    cart[0][2] = Ha2(0); cart[1][2] = Ha2(1); cart[2][2] = Ha2(2);
+    cart[0][3] = Ob(0);  cart[1][3] = Ob(1);  cart[2][3] = Ob(2);
+    cart[0][4] = Hb1(0); cart[1][4] = Hb1(1); cart[2][4] = Hb1(2);
+    cart[0][5] = Hb2(0); cart[1][5] = Hb2(1); cart[2][5] = Hb2(2);
+}
+
+// Jacobian d(cart)/d(r_ang) for H2O-H2O rigid dimer
+// mat_deriv: 9 x 18 matrix (should be zeroed before call)
+void h2o_h2o_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart[3][6], double *r_ang)
+{
+    double R       = r_ang[0];
+    double Phi     = r_ang[1];
+    double Theta   = r_ang[2];
+    double phi1T   = r_ang[3];
+    double theta1T = r_ang[4];
+    double psi1T   = r_ang[5];
+    double phi2T   = r_ang[6];
+    double theta2T = r_ang[7];
+    double psi2T   = r_ang[8];
+
+    // Equilibrium geometry of a single H2O molecule (in Bohr)
+    Eigen::Vector3d Oa_ini( 0.0,              0.0,  0.124885194112977);
+    Eigen::Vector3d Ha1_ini( 1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Ha2_ini(-1.43373587100000, 0.0, -0.991247728887023);
+
+    Eigen::Vector3d Ob_ini( 0.0,              0.0,  0.124885194112977);
+    Eigen::Vector3d Hb1_ini( 1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Hb2_ini(-1.43373587100000, 0.0, -0.991247728887023);
+
+    Eigen::Vector3d Oa, Ha1, Ha2, Ob, Hb1, Hb2, Obd, Hb1d, Hb2d;
+
+    double phi1Tsin = sin(phi1T),   phi1Tcos = cos(phi1T);
+    double theta1Tsin = sin(theta1T), theta1Tcos = cos(theta1T);
+    double psi1Tsin = sin(psi1T),   psi1Tcos = cos(psi1T);
+    double phi2Tsin = sin(phi2T),   phi2Tcos = cos(phi2T);
+    double theta2Tsin = sin(theta2T), theta2Tcos = cos(theta2T);
+    double psi2Tsin = sin(psi2T),   psi2Tcos = cos(psi2T);
+
+    Eigen::Matrix3d Sphi1T_m, Stheta1T_m, Spsi1T_m, Sphi2T_m, Stheta2T_m, Spsi2T_m;
+    Eigen::Matrix3d Sphi1T_dot_m, Stheta1T_dot_m, Spsi1T_dot_m;
+    Eigen::Matrix3d Sphi2T_dot_m, Stheta2T_dot_m, Spsi2T_dot_m;
+
+    Sz_filler(Sphi1T_m,       phi1Tsin,   phi1Tcos);
+    Sx_filler(Stheta1T_m,     theta1Tsin, theta1Tcos);
+    Sz_filler(Spsi1T_m,       psi1Tsin,   psi1Tcos);
+
+    Sz_filler(Sphi2T_m,       phi2Tsin,   phi2Tcos);
+    Sx_filler(Stheta2T_m,     theta2Tsin, theta2Tcos);
+    Sz_filler(Spsi2T_m,       psi2Tsin,   psi2Tcos);
+
+    Sz_dot_filler(Sphi1T_dot_m,   phi1Tsin,   phi1Tcos);
+    Sx_dot_filler(Stheta1T_dot_m, theta1Tsin, theta1Tcos);
+    Sz_dot_filler(Spsi1T_dot_m,   psi1Tsin,   psi1Tcos);
+
+    Sz_dot_filler(Sphi2T_dot_m,   phi2Tsin,   phi2Tcos);
+    Sx_dot_filler(Stheta2T_dot_m, theta2Tsin, theta2Tcos);
+    Sz_dot_filler(Spsi2T_dot_m,   psi2Tsin,   psi2Tcos);
+
+    Eigen::Vector3d Rvec(R*sin(Theta)*cos(Phi), R*sin(Theta)*sin(Phi), R*cos(Theta));
+    Eigen::Vector3d Rvec_dR(sin(Theta)*cos(Phi), sin(Theta)*sin(Phi), cos(Theta));
+    Eigen::Vector3d Rvec_dT(R*cos(Theta)*cos(Phi), R*cos(Theta)*sin(Phi), -R*sin(Theta));
+    Eigen::Vector3d Rvec_dP(-R*sin(Theta)*sin(Phi), R*sin(Theta)*cos(Phi), 0.0);
+
+    // Monomer 2: rotated + translated
+    Eigen::Matrix3d S2_m = Sphi2T_m.transpose() * Stheta2T_m.transpose() * Spsi2T_m.transpose();
+    Ob  = S2_m * Ob_ini;
+    Hb1 = S2_m * Hb1_ini;
+    Hb2 = S2_m * Hb2_ini;
+
+    Obd  = Ob  + Rvec;
+    Hb1d = Hb1 + Rvec;
+    Hb2d = Hb2 + Rvec;
+
+    cart[0][3] = Obd(0);  cart[1][3] = Obd(1);  cart[2][3] = Obd(2);
+    cart[0][4] = Hb1d(0); cart[1][4] = Hb1d(1); cart[2][4] = Hb1d(2);
+    cart[0][5] = Hb2d(0); cart[1][5] = Hb2d(1); cart[2][5] = Hb2d(2);
+
+    // dR derivative (row 0)
+    mat_deriv(0, 9)  = Rvec_dR(0); mat_deriv(0, 10) = Rvec_dR(1); mat_deriv(0, 11) = Rvec_dR(2);
+    mat_deriv(0, 12) = Rvec_dR(0); mat_deriv(0, 13) = Rvec_dR(1); mat_deriv(0, 14) = Rvec_dR(2);
+    mat_deriv(0, 15) = Rvec_dR(0); mat_deriv(0, 16) = Rvec_dR(1); mat_deriv(0, 17) = Rvec_dR(2);
+
+    // dPhi derivative (row 1)
+    mat_deriv(1, 9)  = Rvec_dP(0); mat_deriv(1, 10) = Rvec_dP(1); mat_deriv(1, 11) = Rvec_dP(2);
+    mat_deriv(1, 12) = Rvec_dP(0); mat_deriv(1, 13) = Rvec_dP(1); mat_deriv(1, 14) = Rvec_dP(2);
+    mat_deriv(1, 15) = Rvec_dP(0); mat_deriv(1, 16) = Rvec_dP(1); mat_deriv(1, 17) = Rvec_dP(2);
+
+    // dTheta derivative (row 2)
+    mat_deriv(2, 9)  = Rvec_dT(0); mat_deriv(2, 10) = Rvec_dT(1); mat_deriv(2, 11) = Rvec_dT(2);
+    mat_deriv(2, 12) = Rvec_dT(0); mat_deriv(2, 13) = Rvec_dT(1); mat_deriv(2, 14) = Rvec_dT(2);
+    mat_deriv(2, 15) = Rvec_dT(0); mat_deriv(2, 16) = Rvec_dT(1); mat_deriv(2, 17) = Rvec_dT(2);
+
+    // Monomer 1: rotated only
+    Eigen::Matrix3d S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    Oa  = S1_m * Oa_ini;
+    Ha1 = S1_m * Ha1_ini;
+    Ha2 = S1_m * Ha2_ini;
+
+    cart[0][0] = Oa(0);  cart[1][0] = Oa(1);  cart[2][0] = Oa(2);
+    cart[0][1] = Ha1(0); cart[1][1] = Ha1(1); cart[2][1] = Ha1(2);
+    cart[0][2] = Ha2(0); cart[1][2] = Ha2(1); cart[2][2] = Ha2(2);
+
+    // dphi1T derivative (row 3)
+    S1_m = Sphi1T_dot_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    Oa  = S1_m * Oa_ini;
+    Ha1 = S1_m * Ha1_ini;
+    Ha2 = S1_m * Ha2_ini;
+
+    mat_deriv(3, 0) = Oa(0);  mat_deriv(3, 1) = Oa(1);  mat_deriv(3, 2) = Oa(2);
+    mat_deriv(3, 3) = Ha1(0); mat_deriv(3, 4) = Ha1(1); mat_deriv(3, 5) = Ha1(2);
+    mat_deriv(3, 6) = Ha2(0); mat_deriv(3, 7) = Ha2(1); mat_deriv(3, 8) = Ha2(2);
+
+    // dtheta1T derivative (row 4)
+    S1_m = Sphi1T_m.transpose() * Stheta1T_dot_m.transpose() * Spsi1T_m.transpose();
+    Oa  = S1_m * Oa_ini;
+    Ha1 = S1_m * Ha1_ini;
+    Ha2 = S1_m * Ha2_ini;
+
+    mat_deriv(4, 0) = Oa(0);  mat_deriv(4, 1) = Oa(1);  mat_deriv(4, 2) = Oa(2);
+    mat_deriv(4, 3) = Ha1(0); mat_deriv(4, 4) = Ha1(1); mat_deriv(4, 5) = Ha1(2);
+    mat_deriv(4, 6) = Ha2(0); mat_deriv(4, 7) = Ha2(1); mat_deriv(4, 8) = Ha2(2);
+
+    // dpsi1T derivative (row 5)
+    S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_dot_m.transpose();
+    Oa  = S1_m * Oa_ini;
+    Ha1 = S1_m * Ha1_ini;
+    Ha2 = S1_m * Ha2_ini;
+
+    mat_deriv(5, 0) = Oa(0);  mat_deriv(5, 1) = Oa(1);  mat_deriv(5, 2) = Oa(2);
+    mat_deriv(5, 3) = Ha1(0); mat_deriv(5, 4) = Ha1(1); mat_deriv(5, 5) = Ha1(2);
+    mat_deriv(5, 6) = Ha2(0); mat_deriv(5, 7) = Ha2(1); mat_deriv(5, 8) = Ha2(2);
+
+    // dphi2T derivative (row 6)
+    S2_m = Sphi2T_dot_m.transpose() * Stheta2T_m.transpose() * Spsi2T_m.transpose();
+    Ob  = S2_m * Ob_ini;
+    Hb1 = S2_m * Hb1_ini;
+    Hb2 = S2_m * Hb2_ini;
+
+    mat_deriv(6, 9)  = Ob(0);  mat_deriv(6, 10) = Ob(1);  mat_deriv(6, 11) = Ob(2);
+    mat_deriv(6, 12) = Hb1(0); mat_deriv(6, 13) = Hb1(1); mat_deriv(6, 14) = Hb1(2);
+    mat_deriv(6, 15) = Hb2(0); mat_deriv(6, 16) = Hb2(1); mat_deriv(6, 17) = Hb2(2);
+
+    // dtheta2T derivative (row 7)
+    S2_m = Sphi2T_m.transpose() * Stheta2T_dot_m.transpose() * Spsi2T_m.transpose();
+    Ob  = S2_m * Ob_ini;
+    Hb1 = S2_m * Hb1_ini;
+    Hb2 = S2_m * Hb2_ini;
+
+    mat_deriv(7, 9)  = Ob(0);  mat_deriv(7, 10) = Ob(1);  mat_deriv(7, 11) = Ob(2);
+    mat_deriv(7, 12) = Hb1(0); mat_deriv(7, 13) = Hb1(1); mat_deriv(7, 14) = Hb1(2);
+    mat_deriv(7, 15) = Hb2(0); mat_deriv(7, 16) = Hb2(1); mat_deriv(7, 17) = Hb2(2);
+
+    // dpsi2T derivative (row 8)
+    S2_m = Sphi2T_m.transpose() * Stheta2T_m.transpose() * Spsi2T_dot_m.transpose();
+    Ob  = S2_m * Ob_ini;
+    Hb1 = S2_m * Hb1_ini;
+    Hb2 = S2_m * Hb2_ini;
+
+    mat_deriv(8, 9)  = Ob(0);  mat_deriv(8, 10) = Ob(1);  mat_deriv(8, 11) = Ob(2);
+    mat_deriv(8, 12) = Hb1(0); mat_deriv(8, 13) = Hb1(1); mat_deriv(8, 14) = Hb1(2);
+    mat_deriv(8, 15) = Hb2(0); mat_deriv(8, 16) = Hb2(1); mat_deriv(8, 17) = Hb2(2);
+}
+
 /*
- *  Copyright (C) 2026 A.Finenko & D.Chistikov 
+ *  Copyright (C) 2026 A.Finenko & D.Chistikov
  *  Distributed under the GNU General Public License, version 3
  *
  * This program is free software: you can redistribute it and/or modify

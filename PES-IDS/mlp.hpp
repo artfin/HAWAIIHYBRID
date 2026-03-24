@@ -64,11 +64,10 @@ struct MLPES
 
     Eigen::MatrixXd jac;
     
-    Eigen::RowVectorXd dEdp; 
-    Eigen::RowVectorXd dEdx; 
-    
-    Eigen::MatrixXd t1;
-    Eigen::VectorXd t2; 
+    Eigen::RowVectorXd dEdp;
+    Eigen::RowVectorXd dEdx;
+
+    Eigen::MatrixXd eye;
     Eigen::MatrixXd t3;
 };
 
@@ -94,13 +93,27 @@ Eigen::RowVectorXd StandardScaler::inverse_transform(Eigen::RowVectorXd const& x
 }
 
 double SiLU(double x) {
-    return x / (1.0 + std::exp(-x)); 
+    if (-x > 700.00) return 0;
+    double x_exp = std::exp(-x);
+
+    double result = x / (1.0 + x_exp);
+    return result; 
 }
 
 double dSiLU(double x) {
+    if (x < -700.0) return 0;
     double x_exp = std::exp(-x);
-    double denominator = 1.0 + x_exp; 
-    return 1.0 / denominator + x * x_exp / denominator / denominator;
+    
+    double denominator = 1.0 + x_exp;
+
+    double result = 1.0 / denominator + x * x_exp / denominator / denominator;
+    //if (std::isinf(result)) {
+    //    std::cout << "(dSilu) x: " << x << " => " << result << "\n";
+    //    std::cout << "denominator = " << denominator << "\n";
+    //    std::cout << "x_exp: " << x_exp << "\n";
+    //    assert(false);
+    //}
+    return result; 
 }
 
 template <typename Container>
@@ -163,9 +176,8 @@ void MLPES::init(std::string const& npz_fname, size_t natoms, bool log=false)
     dEdp = Eigen::RowVectorXd::Zero(npoly); 
     dEdx = Eigen::RowVectorXd::Zero(3 * natoms);
 
-    t1.resize(npoly, arch[1]);
-    t2.resize(npoly);
-    t3.resize(3 * natoms, ndist); 
+    eye.resize(npoly, npoly);
+    t3.resize(3 * natoms, ndist);
     
     INITIALIZED = true;
 }
@@ -198,7 +210,7 @@ double MLPES::forward(double *x)
         cache_neurons[i] = neurons[i - 1] * weights[i - 1];
         cache_neurons[i].noalias() += biases[i - 1];
         
-        for (size_t j = 0; j < (size_t) neurons[i].size(); ++j) {
+        for (size_t j = 0; j < neurons[i].size(); ++j) {
             neurons[i](j)       = SiLU(cache_neurons[i](j));
             cache_neurons[i](j) = dSiLU(cache_neurons[i](j));
         }
@@ -223,31 +235,36 @@ void MLPES::backward(const double *x, double *dx)
     t3.noalias()   = drdx * dydr;
     dpdx.noalias() = t3 * jac;
 
-    // This general approach is PAINSTAKINGLY slow
-    //   (more than 1,000 times slower!)
-    /* 
-    size_t sz = architecture.size();
+    // General approach using Identity matrix (PAINSTAKINGLY slow — more than 1,000 times slower!):
+    //
+    //    eye = Eigen::MatrixXd::Identity(weights[0].rows(), weights[0].rows());
+    //    for (size_t i = 1; i <= hidden_dims; ++i) {
+    //        eye *= weights[i - 1];
+    //        eye *= cache_neurons[i].asDiagonal();
+    //    }
+    //    eye *= weights[sz - 2];
+    //
+    // Operation
+    //     eye = weights[0] * cache_neurons[1].asDiagonal() * weights[1];
+    // is equivalent time-wise to manually unrolling the first multiplication into column-wise multiplication by number
+    //     eye = weights[0].array().rowwise() * cache_neurons[1].array();
+    //     eye = eye * weights[1];
+
+    size_t sz = arch.size();
     size_t hidden_dims = sz - 2;
 
-    eye = Eigen::MatrixXd::Identity(weights[0].rows(), weights[0].rows());
-    for (size_t i = 1; i <= hidden_dims; ++i) {
-        eye *= weights[i - 1];
-        eye *= cache_neurons[i].asDiagonal();
+    eye = weights[0].array().rowwise() * cache_neurons[1].array();
+    for (size_t i = 2; i <= hidden_dims; ++i) {
+        eye = (eye * weights[i - 1]).array().rowwise() * cache_neurons[i].array();
     }
     eye *= weights[sz - 2];
-    */
 
-    // Operation 
-    //     eye = weights[0] * cache_neurons[1].asDiagonal() * weights[1];
-    // is equivalent time-wise to manually unrolling the first multiplication into column-wise multiplication by number 
-    //     eye = weights[0].array().rowwise() * cache_neurons[1].array();
-    //     eye = eye * weights[1]; 
-    //  
-   
-    t1 = weights[0].array().rowwise() * cache_neurons[1].array();
-    t2.noalias() = t1 * weights[1]; 
+    //for (size_t i = 0; i < cache_neurons[1].size(); ++i) {
+    //    double c = cache_neurons[1](i);
+    //    std::cout << i << " " << c << " " << std::isinf(c) << "\n";
+    //}
 
-    dEdp = t2.transpose().array() / xscaler->scale.array(); // component-wise division
+    dEdp = eye.transpose().array() / xscaler->scale.array(); // component-wise division
 
     dEdx = dEdp * dpdx.transpose();
     dEdx *= yscaler->scale[0];
@@ -260,8 +277,8 @@ void MLPES::make_drdx(Eigen::Ref<Eigen::MatrixXd> drdx, const double* x) {
     double dr_norm;
     int k = 0;
 
-    for (int i = 0; i < (int) natoms; ++i) {
-        for (int j = i + 1; j < (int) natoms; ++j) {
+    for (int i = 0; i < natoms; ++i) {
+        for (int j = i + 1; j < natoms; ++j) {
             drx = x[3*i    ] - x[3*j    ];
             dry = x[3*i + 1] - x[3*j + 1];
             drz = x[3*i + 2] - x[3*j + 2];

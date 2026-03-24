@@ -1163,9 +1163,27 @@ double kinetic_energy(MoleculeSystem *ms)
           KIN3 = ptheta2t * ptheta2t / (2.0 * ms->m2.II[0]) + pphi2t * pphi2t / (2.0 * ms->m2.II[1] * sin_theta2t * sin_theta2t);
           break;
         }
-        case ROTOR_REQUANTIZED_ROTATION: 
-        case ROTOR: { 
-          TODO("kinetic_energy");
+        case ROTOR_REQUANTIZED_ROTATION:
+        case ROTOR: {
+          double phi2t    = ms->m2.qp[IPHI]; UNUSED(phi2t);
+          double pphi2t   = ms->m2.qp[IPPHI];
+          double theta2t  = ms->m2.qp[ITHETA];
+          double ptheta2t = ms->m2.qp[IPTHETA];
+          double psi2t    = ms->m2.qp[IPSI];
+          double ppsi2t   = ms->m2.qp[IPPSI];
+
+          double sin_theta2t = sin(theta2t);
+          double cos_theta2t = cos(theta2t);
+
+          double sin_psi2t = sin(psi2t);
+          double cos_psi2t = cos(psi2t);
+
+          KIN3 = ((pphi2t - ppsi2t * cos_theta2t) * sin_psi2t + ptheta2t * sin_theta2t * cos_psi2t) * \
+                 ((pphi2t - ppsi2t * cos_theta2t) * sin_psi2t + ptheta2t * sin_theta2t * cos_psi2t) / (2.0 * ms->m2.II[0] * sin_theta2t * sin_theta2t) + \
+                 ((pphi2t - ppsi2t * cos_theta2t) * cos_psi2t - ptheta2t * sin_theta2t * sin_psi2t) * \
+                 ((pphi2t - ppsi2t * cos_theta2t) * cos_psi2t - ptheta2t * sin_theta2t * sin_psi2t) / (2.0 * ms->m2.II[1] * sin_theta2t * sin_theta2t) + \
+                 ppsi2t * ppsi2t / (2.0 * ms->m2.II[2]);
+          break;
         }
     }
 
@@ -6242,6 +6260,9 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
         pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
         pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];
+    } else if ((ms->m1.t == ROTOR) && (ms->m2.t == ROTOR)) {
+        pf_analytic = 64.0*M_PI*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 4.5) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * sqrt(ms->m2.II[0]*ms->m2.II[1]*ms->m2.II[2]); 
+ 
     } else {
         TODO("analytic_full_partition_function_by_V");  
     }
