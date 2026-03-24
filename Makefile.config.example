@@ -4,6 +4,8 @@
 # MPICC  := ...path.../mpicc
 # MPICXX := ...path.../mpic++
 
+# IFORT  := ...path.../ifx
+#
 # INC_SUNDIALS := -I/...path.../sundials-5.2.0/instdir/include/path
 # INC_EIGEN    := -I/...path.../eigen3
 # INC_HEP      := -I/...path.../hep-mc-0.7/include/

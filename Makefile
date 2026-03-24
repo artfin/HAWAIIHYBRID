@@ -2,9 +2,10 @@
 
 CC     ?= gcc
 F      ?= gfortran
+IFORT  ?= ifx
 CXX    ?= g++
-MPICC  ?= mpicc 
-MPICXX ?= mpic++ 
+MPICC  ?= mpicc
+MPICXX ?= mpic++
 
 # set LD_PRELOAD before running program using sanitizer
 # LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6 
@@ -205,6 +206,62 @@ build/ai_pes_n2_ar_pip_nn.o: ./PES-IDS/ai_pes_n2_ar_pip_nn.cpp | build
 
 build/ai_ids_n2_ar_pip_nn.o: ./PES-IDS/ai_ids_n2_ar_pip_nn.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -I./ $< -o $@ -lm
+
+###########################################################
+##################### H2O-H2O #############################
+###########################################################
+build/c_basis_1_2_1_2_5_intermolecular.o: ./PES-IDS/c_basis_1_2_1_2_5_intermolecular.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/c_jac_1_2_1_2_5_intermolecular.o: ./PES-IDS/c_jac_1_2_1_2_5_intermolecular.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_pes_h2o_h2o_nn_lib.o: ./PES-IDS/ai_pes_h2o_h2o_nn_lib.cpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_pes_h2o_h2o_nn.so: build/ai_pes_h2o_h2o_nn_lib.o \
+							build/c_basis_1_2_1_2_5_intermolecular.o build/c_jac_1_2_1_2_5_intermolecular.o \
+							build/angles_handler.o build/cnpy.o
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lz
+
+build/ai_ids_h2o_h2o_lib.o: ./PES-IDS/ai_ids_h2o_h2o_lib.cpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+# H2O-H2O DMS Fortran sources (h4o2.dms4)
+# Module dependency order: inv_share -> inv_mg321, inv_mg411 -> getdvec
+build/inv_share.o: ./PES-IDS/h2o-h2o/inv_share.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/inv_mg321.o: ./PES-IDS/h2o-h2o/inv_mg321.f90 build/inv_share.o | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/inv_mg411.o: ./PES-IDS/h2o-h2o/inv_mg411.f90 build/inv_share.o | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/getdvec.o: ./PES-IDS/h2o-h2o/getdvec.f90 build/inv_share.o build/inv_mg321.o build/inv_mg411.o | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/getd0.o: ./PES-IDS/h2o-h2o/getd0.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/getr0.o: ./PES-IDS/h2o-h2o/getr0.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/h4o2.dms4.o: ./PES-IDS/h2o-h2o/h4o2.dms4.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/mgx_mk1d.o: ./PES-IDS/h2o-h2o/mgx_mk1d.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+build/mgx_mk2d.o: ./PES-IDS/h2o-h2o/mgx_mk2d.f90 | build
+	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+
+H4O2_DMS := build/inv_share.o build/inv_mg321.o build/inv_mg411.o \
+            build/getdvec.o build/getd0.o build/getr0.o \
+            build/h4o2.dms4.o build/mgx_mk1d.o build/mgx_mk2d.o
+
+build/ai_ids_h2o_h2o.so: build/ai_ids_h2o_h2o_lib.o build/angles_handler.o $(H4O2_DMS)
+	$(IFORT) -shared -o $@ $^ -lm -lstdc++
 
 ###########################################################
 ##################### CH4-CO2 #############################
