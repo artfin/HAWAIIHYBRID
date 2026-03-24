@@ -229,32 +229,36 @@ build/ai_ids_h2o_h2o_lib.o: ./PES-IDS/ai_ids_h2o_h2o_lib.cpp | build
 
 # H2O-H2O DMS Fortran sources (h4o2.dms4)
 # Module dependency order: inv_share -> inv_mg321, inv_mg411 -> getdvec
+# -r8 promotes default real to 8 bytes, matching the double precision
+# arrays passed from calcdip (h4o2.dms4.f90) into getdvec and friends.
+H4O2_FFLAGS := -c -fPIC -r8 -I./PES-IDS/
+
 build/inv_share.o: ./PES-IDS/h2o-h2o/inv_share.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/inv_mg321.o: ./PES-IDS/h2o-h2o/inv_mg321.f90 build/inv_share.o | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/inv_mg411.o: ./PES-IDS/h2o-h2o/inv_mg411.f90 build/inv_share.o | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/getdvec.o: ./PES-IDS/h2o-h2o/getdvec.f90 build/inv_share.o build/inv_mg321.o build/inv_mg411.o | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/getd0.o: ./PES-IDS/h2o-h2o/getd0.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/getr0.o: ./PES-IDS/h2o-h2o/getr0.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/h4o2.dms4.o: ./PES-IDS/h2o-h2o/h4o2.dms4.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/mgx_mk1d.o: ./PES-IDS/h2o-h2o/mgx_mk1d.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/mgx_mk2d.o: ./PES-IDS/h2o-h2o/mgx_mk2d.f90 | build
-	$(IFORT) -c -fPIC -I./PES-IDS/ $< -o $@
+	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 H4O2_DMS := build/inv_share.o build/inv_mg321.o build/inv_mg411.o \
             build/getdvec.o build/getd0.o build/getr0.o \
