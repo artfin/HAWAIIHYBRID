@@ -18,7 +18,7 @@ void transform_variables(hep::mc_point<double> const& x, double* qp, double* jac
 
     *jac = 1;
 
-    qp[IR] = 1.0 / x.point()[0]; 
+    qp[IR] = 1.0 / x.point()[IR];
     *jac *= qp[IR] * qp[IR];  
     
     qp[IPR] =  std::tan(M_PI * (x.point()[IPR] - 0.5));

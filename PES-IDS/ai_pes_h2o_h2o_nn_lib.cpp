@@ -128,6 +128,26 @@ void pes_init(void)
     init_h2oh2o_nn_pes();
 }
 
+// Minimum squared inter-monomer atom-atom distance (Bohr^2).
+// Atoms closer than this trigger the repulsive wall, preventing
+// NN extrapolation to spurious deep minima.
+static const double RMIN_INTER_SQ = 4.0 * 4.0; // 4 Bohr ≈ 2.1 Å
+
+static bool inter_monomer_too_close(double cart[3][6])
+{
+    // Monomer A: atoms 0,1,2  Monomer B: atoms 3,4,5
+    for (int a = 0; a < 3; ++a) {
+        for (int b = 3; b < 6; ++b) {
+            double dx = cart[0][a] - cart[0][b];
+            double dy = cart[1][a] - cart[1][b];
+            double dz = cart[2][a] - cart[2][b];
+            if (dx*dx + dy*dy + dz*dz < RMIN_INTER_SQ)
+                return true;
+        }
+    }
+    return false;
+}
+
 double pes_lab(double *q)
 {
     double r_ang[9] = {q[2], q[0], q[1], q[3], q[4], q[5], q[6], q[7], q[8]};
@@ -137,6 +157,9 @@ double pes_lab(double *q)
 
     double cart[3][6];
     h2o_h2o_lab_to_cart(r_ang, cart);
+
+    if (inter_monomer_too_close(cart))
+        return 1e5;
 
     // h2oh2o_nn_pes returns energy in cm^-1, convert to Hartree
     return h2oh2o_nn_pes(cart) / HTOCM;
@@ -154,6 +177,12 @@ void dpes_lab(double *q, double *dpesdq)
 
     double cart[3][6];
     h2o_h2o_lab_to_cart(r_ang, cart);
+
+    if (inter_monomer_too_close(cart)) {
+        for (int i = 0; i < 9; ++i)
+            dpesdq[i] = 0.0;
+        return;
+    }
 
     // Get Cartesian derivatives from NN (in cm^-1 / Bohr)
     double dxyz[18];
