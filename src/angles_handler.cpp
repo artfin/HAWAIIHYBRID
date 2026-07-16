@@ -634,7 +634,14 @@ void h2o_h2o_lab_to_cart(double *r_ang, double cart[3][6])
     Eigen::Vector3d Hb1( 1.43373587100000, 0.0, -0.991247728887023);
     Eigen::Vector3d Hb2(-1.43373587100000, 0.0, -0.991247728887023);
 
-    Eigen::Matrix3d Sphi1T_m, Stheta1T_m, Spsi1T_m, Sphi2T_m, Stheta2T_m, Spsi2T_m;
+    // The S*_filler functions write only the non-zero entries of the rotation
+    // matrices, so the matrices must be zeroed beforehand.
+    Eigen::Matrix3d Sphi1T_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Sphi2T_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta2T_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi2T_m   = Eigen::Matrix3d::Zero(3, 3);
 
     Sz_filler(Sphi1T_m,  sin(phi1T),  cos(phi1T));
     Sx_filler(Stheta1T_m, sin(theta1T), cos(theta1T));
@@ -694,9 +701,20 @@ void h2o_h2o_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart
     double theta2Tsin = sin(theta2T), theta2Tcos = cos(theta2T);
     double psi2Tsin = sin(psi2T),   psi2Tcos = cos(psi2T);
 
-    Eigen::Matrix3d Sphi1T_m, Stheta1T_m, Spsi1T_m, Sphi2T_m, Stheta2T_m, Spsi2T_m;
-    Eigen::Matrix3d Sphi1T_dot_m, Stheta1T_dot_m, Spsi1T_dot_m;
-    Eigen::Matrix3d Sphi2T_dot_m, Stheta2T_dot_m, Spsi2T_dot_m;
+    // The S*_filler functions write only the non-zero entries of the rotation
+    // matrices, so the matrices must be zeroed beforehand.
+    Eigen::Matrix3d Sphi1T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_m     = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Sphi2T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta2T_m     = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi2T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Sphi1T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_dot_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Sphi2T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta2T_dot_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi2T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
 
     Sz_filler(Sphi1T_m,       phi1Tsin,   phi1Tcos);
     Sx_filler(Stheta1T_m,     theta1Tsin, theta1Tcos);
