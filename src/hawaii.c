@@ -6258,6 +6258,8 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
         pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
     } else if ((ms->m1.t == LINEAR_MOLECULE_REQ_INTEGER) && (ms->m2.t == ATOM)) {
         pf_analytic = 4.0*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 2.5) * pow(ms->mu, 1.5) * ms->m1.II[0];
+    } else if ((ms->m1.t == ROTOR) && (ms->m2.t == ATOM)) {
+        pf_analytic = 8.0*M_PI*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 3.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]);
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == LINEAR_MOLECULE)) {
         pf_analytic = 32.0*M_PI*M_PI*M_PI * pow(2.0*M_PI*Temperature/kBinv_Hartree, 4.0) * pow(ms->mu, 1.5) * sqrt(ms->m1.II[0]*ms->m1.II[1]*ms->m1.II[2]) * ms->m2.II[0];
     } else if ((ms->m1.t == ROTOR) && (ms->m2.t == ROTOR)) {
