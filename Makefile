@@ -16,7 +16,7 @@ FLAGS_RELEASE := -Wall -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -
 #FLAGS_DEBUG   := -Wall -fsanitize=address -Wextra -Wswitch-enum -ggdb -O0 
 #FLAGS_RELEASE := -Wall -fsanitize=address -Wextra -Wswitch-enum -O2 -march=native -mtune=native # -pg -ggdb
 FLAGS_EIGEN   := -Wall -Wextra -Wswitch-enum -ggdb -O2 # -pg 
-FLAGS := $(FLAGS_DEBUG)
+FLAGS := $(FLAGS_RELEASE)
 
 LIB_GSL ?= -lgsl -lgslcblas 
 
@@ -32,6 +32,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
             examples/trajectory_co2_ar.exe                   \
             examples/trajectory_h2_ar_requantized.exe        \
             examples/trajectory_ch4_co2.exe                  \
+            examples/trajectory_h2o_ar.exe                   \
             examples/correlation_he_ar.exe                   \
             examples/correlation_co_ar.exe                   \
             examples/correlation_co2_ar.exe                  \
@@ -224,6 +225,23 @@ build/ai_pes_h2o_h2o_nn.so: build/ai_pes_h2o_h2o_nn_lib.o \
 							build/angles_handler.o build/cnpy.o
 	$(CC) -shared -o $@ $^ -lm -lstdc++ -lz
 
+###########################################################
+###################### H2O-Ar #############################
+###########################################################
+build/c_basis_1_2_1_4_purify.o: ./PES-IDS/c_basis_1_2_1_4_purify.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/c_jac_1_2_1_4_purify.o: ./PES-IDS/c_jac_1_2_1_4_purify.cc | build
+	$(CC) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_pes_h2o_ar_nn_lib.o: ./PES-IDS/ai_pes_h2o_ar_nn_lib.cpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_pes_h2o_ar_nn.so: build/ai_pes_h2o_ar_nn_lib.o \
+							build/c_basis_1_2_1_4_purify.o build/c_jac_1_2_1_4_purify.o \
+							build/angles_handler.o build/cnpy.o
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lz
+
 build/ai_ids_h2o_h2o_lib.o: ./PES-IDS/ai_ids_h2o_h2o_lib.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
@@ -266,6 +284,30 @@ H4O2_DMS := build/inv_share.o build/inv_mg321.o build/inv_mg411.o \
 
 build/ai_ids_h2o_h2o.so: build/ai_ids_h2o_h2o_lib.o build/angles_handler.o $(H4O2_DMS)
 	$(IFORT) -shared -o $@ $^ -lm -lstdc++
+
+build/ai_ids_h2o_ar_nn_lib.o: ./PES-IDS/ai_ids_h2o_ar_nn_lib.cpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+# H2O-Ar NN DMS (dipx/dipy/dipz). Fixed-form F77, hence -std=legacy.
+# Only dipx.f defines tranfun and includes dms_interface.f; dipy/dipz call tranfun
+# as an external, so dipx.o must always be linked in alongside them.
+# The nets read their weights from PES-IDS/h2o-ar-dms/ using a path relative to the
+# working directory, so the driver has to be run from the repository root.
+H2OAR_DMS_FFLAGS := -c -fPIC -std=legacy -O2 -I./PES-IDS/h2o-ar-dms/ -J build
+
+build/dipx.o: ./PES-IDS/h2o-ar-dms/dipx.f ./PES-IDS/h2o-ar-dms/dms_interface.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+build/dipy.o: ./PES-IDS/h2o-ar-dms/dipy.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+build/dipz.o: ./PES-IDS/h2o-ar-dms/dipz.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+H2OAR_DMS := build/dipx.o build/dipy.o build/dipz.o
+
+build/ai_ids_h2o_ar_nn.so: build/ai_ids_h2o_ar_nn_lib.o build/angles_handler.o $(H2OAR_DMS)
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
 
 ###########################################################
 ##################### CH4-CO2 #############################
@@ -318,6 +360,8 @@ N2_AR   := build/cnpy.o -lz build/ai_pes_n2_ar_pip_nn.o build/ai_ids_n2_ar_pip_n
 H2_AR   := build/cnpy.o -lz build/ai_pes_h2ar_leroy_lib.o build/ai_pes_h2ar_leroy.o build/ai_ids_h2_ar_pip_nn.o \
 		   build/c_basis_2_2_1_3_intermolecular.o build/c_basis_2_1_1_1_3_intermolecular.o build/c_basis_1_1_2_1_3_intermolecular.o
 CO_AR   := build/potv.o build/potv_d.o 
+H2O_AR  := build/cnpy.o -lz build/ai_pes_h2o_ar_nn_lib.o \
+		   build/c_basis_1_2_1_4_purify.o build/c_jac_1_2_1_4_purify.o
 CH4_CO2 := build/ai_pes_ch4_co2_lib.o build/ai_ids_ch4_co2_lib.o \
 		   build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o \
 		   build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
@@ -344,6 +388,9 @@ examples/trajectory_co2_ar.exe: examples/trajectory_co2_ar.cpp build/trajectory.
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/trajectory_h2_ar_requantized.exe: examples/trajectory_h2_ar_requantized.cpp build/trajectory.o $(OBJ) $(H2_AR)
+	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
+
+examples/trajectory_h2o_ar.exe: examples/trajectory_h2o_ar.cpp build/trajectory.o $(OBJ) $(H2O_AR)
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) $(CH4_CO2) 
