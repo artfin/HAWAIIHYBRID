@@ -2,6 +2,6 @@
 #define C_BASIS_1_2_1_4_PURIFY_H
 
 #include <Eigen/Dense>
-extern "C" void evpoly_1_2_1_4_purify(float* y, Eigen::Ref<Eigen::RowVectorXf> p);
+extern "C" void evpoly_1_2_1_4_purify(double* y, Eigen::Ref<Eigen::RowVectorXd> p);
 
 #endif

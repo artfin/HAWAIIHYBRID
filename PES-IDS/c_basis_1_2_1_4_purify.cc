@@ -1,6 +1,6 @@
 #include "c_basis_1_2_1_4_purify.h"
 
-extern "C" void evpoly_1_2_1_4_purify(float* y, Eigen::Ref<Eigen::RowVectorXf> p) {
+extern "C" void evpoly_1_2_1_4_purify(double* y, Eigen::Ref<Eigen::RowVectorXd> p) {
     p(0) = 0.0;
     p(1) = y[5] + y[4];
     p(2) = y[2];

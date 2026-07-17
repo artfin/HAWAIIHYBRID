@@ -3,8 +3,7 @@
 //
 // Model: gradient-2.npz (99 -> 64 -> 1, SiLU), trained on interaction energies and
 // gradients of pes6d_Arh2o.f over R in [4.5, 20] a0 with a flexible H2O monomer.
-// Permutationally invariant basis "1 2 1" (O | H H | Ar), order 4, purified;
-// the generated basis/jacobian use a float ABI, so values are cast at the boundary.
+// Permutationally invariant basis "1 2 1" (O | H H | Ar), order 4, purified.
 //
 // Input transform: all six interatomic distances enter as EXP variables,
 // yij = exp(-r / a0). This must match the INTERMOLECULAR: EXP convention of the
@@ -67,28 +66,9 @@ static void make_dydr_1_2_1_4_purify(Eigen::Ref<Eigen::MatrixXd> dydr, const dou
     }
 }
 
-// Wrappers expected by mlp.hpp. The generated basis is float-typed, so cast on the way
-// in and out; the jacobian writes only its non-zero entries and must be zeroed first.
-void EVPOLY(double *y, Eigen::Ref<Eigen::RowVectorXd> p)
-{
-    float yf[ndist];
-    for (int i = 0; i < ndist; ++i) yf[i] = static_cast<float>(y[i]);
-
-    Eigen::RowVectorXf pf = Eigen::RowVectorXf::Zero(p.size());
-    evpoly_1_2_1_4_purify(yf, pf);
-    p = pf.cast<double>();
-}
-
-void EVPOLY_JAC(Eigen::Ref<Eigen::MatrixXd> jac, double *y)
-{
-    float yf[ndist];
-    for (int i = 0; i < ndist; ++i) yf[i] = static_cast<float>(y[i]);
-
-    Eigen::MatrixXf jacf = Eigen::MatrixXf::Zero(jac.rows(), jac.cols());
-    evpoly_jac_1_2_1_4_purify(jacf, yf);
-    jac = jacf.cast<double>();
-}
-
+// Wrappers expected by mlp.hpp
+void EVPOLY(double *y, Eigen::Ref<Eigen::RowVectorXd> p)          { evpoly_1_2_1_4_purify(y, p); }
+void EVPOLY_JAC(Eigen::Ref<Eigen::MatrixXd> jac, double *y)       { evpoly_jac_1_2_1_4_purify(jac, y); }
 void MAKE_YIJ(const double *x, double *y)                         { make_yij_1_2_1_4_purify(x, y); }
 void MAKE_DYDR(Eigen::Ref<Eigen::MatrixXd> dydr, const double *x) { make_dydr_1_2_1_4_purify(dydr, x); }
 

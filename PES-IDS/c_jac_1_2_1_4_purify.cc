@@ -1,6 +1,6 @@
 #include "c_jac_1_2_1_4_purify.h"
 
-extern "C" void evpoly_jac_1_2_1_4_purify(Eigen::Ref<Eigen::MatrixXf> jac, float* y) {
+extern "C" void evpoly_jac_1_2_1_4_purify(Eigen::Ref<Eigen::MatrixXd> jac, double* y) {
     jac(4, 1) = 1;
     jac(5, 1) = 1;
     jac(2, 2) = 1;
