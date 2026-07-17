@@ -1,4 +1,5 @@
 #include "angles_handler.hpp"
+#include "constants.h"
 #include <iostream>
 
 Eigen::Matrix3d SPhi         = Eigen::Matrix3d::Zero(3, 3);
@@ -626,13 +627,13 @@ void h2o_h2o_lab_to_cart(double *r_ang, double cart[3][6])
     Eigen::Vector3d Rvec(R*sin(Theta)*cos(Phi), R*sin(Theta)*sin(Phi), R*cos(Theta));
 
     // Equilibrium geometry of a single H2O molecule (in Bohr)
-    Eigen::Vector3d Oa( 0.0,              0.0,  0.124885194112977);
-    Eigen::Vector3d Ha1( 1.43373587100000, 0.0, -0.991247728887023);
-    Eigen::Vector3d Ha2(-1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Oa ( 0.0,        0.0, H2O_EQ_O_Z);
+    Eigen::Vector3d Ha1( H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+    Eigen::Vector3d Ha2(-H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
 
-    Eigen::Vector3d Ob( 0.0,              0.0,  0.124885194112977);
-    Eigen::Vector3d Hb1( 1.43373587100000, 0.0, -0.991247728887023);
-    Eigen::Vector3d Hb2(-1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Ob ( 0.0,        0.0, H2O_EQ_O_Z);
+    Eigen::Vector3d Hb1( H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+    Eigen::Vector3d Hb2(-H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
 
     // The S*_filler functions write only the non-zero entries of the rotation
     // matrices, so the matrices must be zeroed beforehand.
@@ -684,13 +685,13 @@ void h2o_h2o_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart
     double psi2T   = r_ang[8];
 
     // Equilibrium geometry of a single H2O molecule (in Bohr)
-    Eigen::Vector3d Oa_ini( 0.0,              0.0,  0.124885194112977);
-    Eigen::Vector3d Ha1_ini( 1.43373587100000, 0.0, -0.991247728887023);
-    Eigen::Vector3d Ha2_ini(-1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Oa_ini ( 0.0,        0.0, H2O_EQ_O_Z);
+    Eigen::Vector3d Ha1_ini( H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+    Eigen::Vector3d Ha2_ini(-H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
 
-    Eigen::Vector3d Ob_ini( 0.0,              0.0,  0.124885194112977);
-    Eigen::Vector3d Hb1_ini( 1.43373587100000, 0.0, -0.991247728887023);
-    Eigen::Vector3d Hb2_ini(-1.43373587100000, 0.0, -0.991247728887023);
+    Eigen::Vector3d Ob_ini ( 0.0,        0.0, H2O_EQ_O_Z);
+    Eigen::Vector3d Hb1_ini( H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+    Eigen::Vector3d Hb2_ini(-H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
 
     Eigen::Vector3d Oa, Ha1, Ha2, Ob, Hb1, Hb2, Obd, Hb1d, Hb2d;
 
@@ -835,6 +836,130 @@ void h2o_h2o_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart
     mat_deriv(8, 9)  = Ob(0);  mat_deriv(8, 10) = Ob(1);  mat_deriv(8, 11) = Ob(2);
     mat_deriv(8, 12) = Hb1(0); mat_deriv(8, 13) = Hb1(1); mat_deriv(8, 14) = Hb1(2);
     mat_deriv(8, 15) = Hb2(0); mat_deriv(8, 16) = Hb2(1); mat_deriv(8, 17) = Hb2(2);
+}
+
+static const Eigen::Vector3d H2O_O_EQ ( 0.0,        0.0, H2O_EQ_O_Z);
+static const Eigen::Vector3d H2O_H1_EQ( H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+static const Eigen::Vector3d H2O_H2_EQ(-H2O_EQ_H_X, 0.0, H2O_EQ_H_Z);
+
+// H2O-Ar rigid pair: convert angular coordinates r_ang[6] = {R, Phi, Theta, phi1T, theta1T, psi1T}
+// to Cartesian coordinates cart[3][4] (3 coords x 4 atoms: O H1 H2 Ar).
+// H2O sits at the origin (rotated only), Ar at the end of the intermolecular vector.
+void h2o_ar_lab_to_cart(double *r_ang, double cart[3][4])
+{
+    double R       = r_ang[0];
+    double Phi     = r_ang[1];
+    double Theta   = r_ang[2];
+    double phi1T   = r_ang[3];
+    double theta1T = r_ang[4];
+    double psi1T   = r_ang[5];
+
+    Eigen::Vector3d Rvec(R*sin(Theta)*cos(Phi), R*sin(Theta)*sin(Phi), R*cos(Theta));
+
+    // The S*_filler functions write only the non-zero entries of the rotation
+    // matrices, so the matrices must be zeroed beforehand.
+    Eigen::Matrix3d Sphi1T_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_m   = Eigen::Matrix3d::Zero(3, 3);
+
+    Sz_filler(Sphi1T_m,   sin(phi1T),   cos(phi1T));
+    Sx_filler(Stheta1T_m, sin(theta1T), cos(theta1T));
+    Sz_filler(Spsi1T_m,   sin(psi1T),   cos(psi1T));
+
+    Eigen::Matrix3d S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    Eigen::Vector3d O  = S1_m * H2O_O_EQ;
+    Eigen::Vector3d H1 = S1_m * H2O_H1_EQ;
+    Eigen::Vector3d H2 = S1_m * H2O_H2_EQ;
+
+    cart[0][0] = O(0);    cart[1][0] = O(1);    cart[2][0] = O(2);
+    cart[0][1] = H1(0);   cart[1][1] = H1(1);   cart[2][1] = H1(2);
+    cart[0][2] = H2(0);   cart[1][2] = H2(1);   cart[2][2] = H2(2);
+    cart[0][3] = Rvec(0); cart[1][3] = Rvec(1); cart[2][3] = Rvec(2);
+}
+
+// Jacobian d(cart)/d(r_ang) for the rigid H2O-Ar pair
+// mat_deriv: 6 x 12 matrix (should be zeroed before call)
+void h2o_ar_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart[3][4], double *r_ang)
+{
+    double R       = r_ang[0];
+    double Phi     = r_ang[1];
+    double Theta   = r_ang[2];
+    double phi1T   = r_ang[3];
+    double theta1T = r_ang[4];
+    double psi1T   = r_ang[5];
+
+    double phi1Tsin = sin(phi1T),     phi1Tcos = cos(phi1T);
+    double theta1Tsin = sin(theta1T), theta1Tcos = cos(theta1T);
+    double psi1Tsin = sin(psi1T),     psi1Tcos = cos(psi1T);
+
+    // The S*_filler functions write only the non-zero entries of the rotation
+    // matrices, so the matrices must be zeroed beforehand.
+    Eigen::Matrix3d Sphi1T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_m     = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_m       = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Sphi1T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Stheta1T_dot_m = Eigen::Matrix3d::Zero(3, 3);
+    Eigen::Matrix3d Spsi1T_dot_m   = Eigen::Matrix3d::Zero(3, 3);
+
+    Sz_filler(Sphi1T_m,   phi1Tsin,   phi1Tcos);
+    Sx_filler(Stheta1T_m, theta1Tsin, theta1Tcos);
+    Sz_filler(Spsi1T_m,   psi1Tsin,   psi1Tcos);
+
+    Sz_dot_filler(Sphi1T_dot_m,   phi1Tsin,   phi1Tcos);
+    Sx_dot_filler(Stheta1T_dot_m, theta1Tsin, theta1Tcos);
+    Sz_dot_filler(Spsi1T_dot_m,   psi1Tsin,   psi1Tcos);
+
+    Eigen::Vector3d Rvec(R*sin(Theta)*cos(Phi), R*sin(Theta)*sin(Phi), R*cos(Theta));
+    Eigen::Vector3d Rvec_dR(sin(Theta)*cos(Phi), sin(Theta)*sin(Phi), cos(Theta));
+    Eigen::Vector3d Rvec_dT(R*cos(Theta)*cos(Phi), R*cos(Theta)*sin(Phi), -R*sin(Theta));
+    Eigen::Vector3d Rvec_dP(-R*sin(Theta)*sin(Phi), R*sin(Theta)*cos(Phi), 0.0);
+
+    Eigen::Matrix3d S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    Eigen::Vector3d O  = S1_m * H2O_O_EQ;
+    Eigen::Vector3d H1 = S1_m * H2O_H1_EQ;
+    Eigen::Vector3d H2 = S1_m * H2O_H2_EQ;
+
+    cart[0][0] = O(0);    cart[1][0] = O(1);    cart[2][0] = O(2);
+    cart[0][1] = H1(0);   cart[1][1] = H1(1);   cart[2][1] = H1(2);
+    cart[0][2] = H2(0);   cart[1][2] = H2(1);   cart[2][2] = H2(2);
+    cart[0][3] = Rvec(0); cart[1][3] = Rvec(1); cart[2][3] = Rvec(2);
+
+    // Only Ar (columns 9..11) depends on R, Phi, Theta; H2O sits at the origin.
+    mat_deriv(0, 9) = Rvec_dR(0); mat_deriv(0, 10) = Rvec_dR(1); mat_deriv(0, 11) = Rvec_dR(2);
+    mat_deriv(1, 9) = Rvec_dP(0); mat_deriv(1, 10) = Rvec_dP(1); mat_deriv(1, 11) = Rvec_dP(2);
+    mat_deriv(2, 9) = Rvec_dT(0); mat_deriv(2, 10) = Rvec_dT(1); mat_deriv(2, 11) = Rvec_dT(2);
+
+    // Only H2O (columns 0..8) depends on the Euler angles; Ar is spherically symmetric.
+
+    // dphi1T derivative (row 3)
+    S1_m = Sphi1T_dot_m.transpose() * Stheta1T_m.transpose() * Spsi1T_m.transpose();
+    O  = S1_m * H2O_O_EQ;
+    H1 = S1_m * H2O_H1_EQ;
+    H2 = S1_m * H2O_H2_EQ;
+
+    mat_deriv(3, 0) = O(0);  mat_deriv(3, 1) = O(1);  mat_deriv(3, 2) = O(2);
+    mat_deriv(3, 3) = H1(0); mat_deriv(3, 4) = H1(1); mat_deriv(3, 5) = H1(2);
+    mat_deriv(3, 6) = H2(0); mat_deriv(3, 7) = H2(1); mat_deriv(3, 8) = H2(2);
+
+    // dtheta1T derivative (row 4)
+    S1_m = Sphi1T_m.transpose() * Stheta1T_dot_m.transpose() * Spsi1T_m.transpose();
+    O  = S1_m * H2O_O_EQ;
+    H1 = S1_m * H2O_H1_EQ;
+    H2 = S1_m * H2O_H2_EQ;
+
+    mat_deriv(4, 0) = O(0);  mat_deriv(4, 1) = O(1);  mat_deriv(4, 2) = O(2);
+    mat_deriv(4, 3) = H1(0); mat_deriv(4, 4) = H1(1); mat_deriv(4, 5) = H1(2);
+    mat_deriv(4, 6) = H2(0); mat_deriv(4, 7) = H2(1); mat_deriv(4, 8) = H2(2);
+
+    // dpsi1T derivative (row 5)
+    S1_m = Sphi1T_m.transpose() * Stheta1T_m.transpose() * Spsi1T_dot_m.transpose();
+    O  = S1_m * H2O_O_EQ;
+    H1 = S1_m * H2O_H1_EQ;
+    H2 = S1_m * H2O_H2_EQ;
+
+    mat_deriv(5, 0) = O(0);  mat_deriv(5, 1) = O(1);  mat_deriv(5, 2) = O(2);
+    mat_deriv(5, 3) = H1(0); mat_deriv(5, 4) = H1(1); mat_deriv(5, 5) = H1(2);
+    mat_deriv(5, 6) = H2(0); mat_deriv(5, 7) = H2(1); mat_deriv(5, 8) = H2(2);
 }
 
 /*

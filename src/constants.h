@@ -45,6 +45,7 @@
 #define m_Ar (39.9623831237 * RAMTOAMU)
 #define m_He (4.00260325413 * RAMTOAMU)
 
+#define m_H2O (m_O + 2.0 * m_H)
 #define m_H2 (2.0 * m_H)
 #define m_D2 (2.0 * m_D)
 #define m_N2 (2.0 * m_N)
@@ -117,6 +118,19 @@
 // this agrees with the value IIA * IIB * IIC = 33.27341 amu^3 A^6 provided in the
 // Computational Chemistry Comparison and Benchmark DataBase (CCCBDB, Release 21, August 2020) by NIST 
 // https://cccbdb.nist.gov/exp2x.asp?casno=74828&charge=0 
+
+// Equilibrium geometry of rigid H2O (bohr) in the body-fixed frame: center of mass at the
+// origin, C2 axis along z, molecule in the xz-plane, so the two H sit at (+-H_X, 0, H_Z).
+// Corresponds to r(OH) = 1.8168 a0, angle(HOH) = 104.19 deg.
+#define H2O_EQ_O_Z   0.124885194112977
+#define H2O_EQ_H_X   1.433735871
+#define H2O_EQ_H_Z  -0.991247728887023
+
+// Principal moments of inertia of rigid H2O (a.u.), for the equilibrium geometry above.
+// These are the values used in the &MONOMER blocks of the H2O-H2O and H2O-Ar configs.
+#define II_H2O_A 4065.15542327822
+#define II_H2O_B 11618.1179974822
+#define II_H2O_C 7552.96257420394
 
 #endif // CONSTANTS_H_
 

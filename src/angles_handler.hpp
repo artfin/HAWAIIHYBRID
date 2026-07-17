@@ -46,6 +46,9 @@ void CH4_linear_molecule_Jacobi_kal_by_lab(Eigen::Ref<Eigen::MatrixXd> jac, doub
 void h2o_h2o_lab_to_cart(double *r_ang, double cart[3][6]);
 void h2o_h2o_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart[3][6], double *r_ang);
 
+void h2o_ar_lab_to_cart(double *r_ang, double cart[3][4]);
+void h2o_ar_der_cart_by_rang(Eigen::Ref<Eigen::MatrixXd> mat_deriv, double cart[3][4], double *r_ang);
+
 extern "C" {
     void compute_psi_ppsi_for_linear_molecule(double eta, double pEta, double chi, double pChi, double *psi, double *ppsi);
     void rotate_to_lab_for_linear_molecule(double dipmol[3], double diplab[3]);
