@@ -249,7 +249,11 @@ build/ai_ids_h2o_h2o_lib.o: ./PES-IDS/ai_ids_h2o_h2o_lib.cpp | build
 # Module dependency order: inv_share -> inv_mg321, inv_mg411 -> getdvec
 # -r8 promotes default real to 8 bytes, matching the double precision
 # arrays passed from calcdip (h4o2.dms4.f90) into getdvec and friends.
-H4O2_FFLAGS := -c -fPIC -r8 -I./PES-IDS/
+# -module keeps .mod files in build/ and searches there for them; without it
+# they are written to and picked up from the working directory, which lets a
+# stale .mod silently supply wrong mg321_ivs/mg321_ivb parameter values to
+# getdvec (they are inlined at compile time).
+H4O2_FFLAGS := -c -fPIC -r8 -module build -I./PES-IDS/
 
 build/inv_share.o: ./PES-IDS/h2o-h2o/inv_share.f90 | build
 	$(IFORT) $(H4O2_FFLAGS) $< -o $@
@@ -282,8 +286,15 @@ H4O2_DMS := build/inv_share.o build/inv_mg321.o build/inv_mg411.o \
             build/getdvec.o build/getd0.o build/getr0.o \
             build/h4o2.dms4.o build/mgx_mk1d.o build/mgx_mk2d.o
 
+# -Bsymbolic-functions is load-bearing, not an optimization. ifx passes a
+# contained procedure its host frame in %r10 (the SysV static-chain register),
+# but exports the contained procedure globally, so the call to it goes through
+# the PLT. glibc's lazy PLT resolver preserves the argument registers and
+# clobbers %r10, so the first call to e.g. mg321_secs -> mg321_setd lands with a
+# garbage host frame and segfaults. Binding intra-library calls directly removes
+# the PLT indirection; -z now additionally resolves everything at load time.
 build/ai_ids_h2o_h2o.so: build/ai_ids_h2o_h2o_lib.o build/angles_handler.o $(H4O2_DMS)
-	$(IFORT) -shared -o $@ $^ -lm -lstdc++
+	$(IFORT) -shared -Wl,-Bsymbolic-functions -Wl,-z,now -o $@ $^ -lm -lstdc++
 
 build/ai_ids_h2o_ar_nn_lib.o: ./PES-IDS/ai_ids_h2o_ar_nn_lib.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
