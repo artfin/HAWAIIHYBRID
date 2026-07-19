@@ -347,6 +347,19 @@ typedef enum {
 
 extern const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT];
 
+/**
+ * @enum IdenticalMonomersSetting
+ * @brief Tri-state value of the `IDENTICAL_MONOMERS` configuration field.
+ *
+ * The field is optional, so we have to tell "not specified" apart from an explicit `false`.
+ * When it is left unspecified the value is inferred from the monomers themselves.
+ */
+typedef enum {
+    IDENTICAL_MONOMERS_UNSET = 0, ///< Not given in the config file; infer from the monomers.
+    IDENTICAL_MONOMERS_YES,       ///< Explicitly set to true by the user.
+    IDENTICAL_MONOMERS_NO,        ///< Explicitly set to false by the user.
+} IdenticalMonomersSetting;
+
 typedef struct {
     PairState ps;
     CalculationType calculation_type;
@@ -371,6 +384,20 @@ typedef struct {
     /* weights to factor in spin statistics */
     double odd_j_spin_weight;
     double even_j_spin_weight;
+
+    /*
+     * Whether the two monomers are the same species. For a gas of identical molecules the number
+     * of distinct pairs is N^2/2 rather than N1*N2, so all quantities normalized per unit density
+     * squared (correlation function, spectral function, spectral moments) carry an extra factor
+     * of 1/2, carried by `pair_symmetry_factor` (0.5 for identical monomers, 1.0 otherwise).
+     *
+     * `identical_monomers` is inferred from the monomer types and inertia tensors by
+     * @ref resolve_identical_monomers; `identical_monomers_setting` records the value supplied
+     * in the configuration file (if any), which overrides the inferred one.
+     */
+    bool identical_monomers;
+    IdenticalMonomersSetting identical_monomers_setting;
+    double pair_symmetry_factor;
 
     /* trajectory */
     double sampling_time; // a.t.u.
@@ -594,6 +621,9 @@ double find_closest_half_integer(double j);
 void invert_momenta(MoleculeSystem *ms);
 
 double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperature);
+
+bool detect_identical_monomers(Monomer *m1, Monomer *m2);
+void resolve_identical_monomers(Monomer *m1, Monomer *m2, CalcParams *params);
 
 // ----------------------------------------------------------
 // Spectral moments calculation 

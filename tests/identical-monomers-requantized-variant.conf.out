@@ -1,0 +1,5 @@
+INFO: Project directory: tests/identical-monomers-requantized-variant.conf.project
+Monomers are inferred to be IDENTICAL based on their types (LINEAR_MOLECULE, LINEAR_MOLECULE_REQ_INTEGER) and inertia tensors
+Treating the monomers as IDENTICAL: quantities normalized per density squared carry a symmetry factor of 0.5
+
+No code for manual mode is present for now

@@ -1,0 +1,5 @@
+INFO: Project directory: tests/identical-monomers-override-agrees.conf.project
+Monomers are inferred to be IDENTICAL based on their types (ROTOR, ROTOR) and inertia tensors
+Treating the monomers as IDENTICAL: quantities normalized per density squared carry a symmetry factor of 0.5
+
+No code for manual mode is present for now

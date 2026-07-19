@@ -1,0 +1,6 @@
+INFO: Project directory: tests/identical-monomers-override-mismatch-false.conf.project
+Monomers are inferred to be IDENTICAL based on their types (ROTOR, ROTOR) and inertia tensors
+WARNING: IDENTICAL_MONOMERS is set to false in the configuration file, which contradicts the inferred value (true). Proceeding with the value provided by the user.
+Treating the monomers as DISTINCT: quantities normalized per density squared carry a symmetry factor of 1.0
+
+No code for manual mode is present for now

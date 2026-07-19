@@ -215,6 +215,7 @@ typedef enum {
     KEYWORD_APPROXIMATEFREQUENCYMAX,
     KEYWORD_ODD_J_SPIN_WEIGHT,
     KEYWORD_EVEN_J_SPIN_WEIGHT,
+    KEYWORD_IDENTICAL_MONOMERS,
     KEYWORD_ACCELERATE_AVERAGING,
     KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS,
     KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J,
@@ -294,6 +295,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = "APPROXIMATEFREQUENCYMAX",
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = "ODD_J_SPIN_WEIGHT",
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = "EVEN_J_SPIN_WEIGHT",
+    [KEYWORD_IDENTICAL_MONOMERS]              = "IDENTICAL_MONOMERS",
     [KEYWORD_ACCELERATE_AVERAGING]            = "ACCELERATE_AVERAGING",
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = "AVERAGE_TIME_BETWEEN_COLLISIONS",
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J] = "AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J",
@@ -317,7 +319,7 @@ const char* KEYWORDS[KEYWORD_COUNT] = {
     /* PROCESSING BLOCK */
     [KEYWORD_SPECTRUM_FREQUENCY_MAX]          = "SPECTRUM_FREQUENCY_MAX",
 }; 
-static_assert(KEYWORD_COUNT == 58, "");
+static_assert(KEYWORD_COUNT == 59, "");
 
 Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_PROJECT_NAME]                    = TOKEN_DQSTRING,
@@ -358,6 +360,7 @@ Token_Type EXPECT_TOKEN_AFTER_KEYWORD[KEYWORD_COUNT] = {
     [KEYWORD_APPROXIMATEFREQUENCYMAX]         = TOKEN_FLOAT,
     [KEYWORD_ODD_J_SPIN_WEIGHT]               = TOKEN_FLOAT,
     [KEYWORD_EVEN_J_SPIN_WEIGHT]              = TOKEN_FLOAT,
+    [KEYWORD_IDENTICAL_MONOMERS]              = TOKEN_BOOLEAN,
     [KEYWORD_ACCELERATE_AVERAGING]            = TOKEN_BOOLEAN,
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS] = TOKEN_FLOAT,
     [KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J] = TOKEN_OCURLY,
@@ -956,6 +959,10 @@ void print_params(CalcParams *params) {
     printf("  --- weights to factor in spin statistics ---\n"); 
     printf("  odd_j_spin_weight  = %.5e\n", params->odd_j_spin_weight);
     printf("  even_j_spin_weight = %.5e\n", params->even_j_spin_weight);
+    // the resolved value of `identical_monomers` is reported by `resolve_identical_monomers`
+    printf("  identical_monomers = %s\n",
+           params->identical_monomers_setting == IDENTICAL_MONOMERS_UNSET ? "not set (will be inferred)" :
+           params->identical_monomers_setting == IDENTICAL_MONOMERS_YES   ? "true" : "false");
     printf("  --- trajectory ---\n"); 
     printf("  sampling_time = %.5e\n", params->sampling_time);
     printf("  MaxTrajectoryLength = %zu\n", params->MaxTrajectoryLength);
@@ -1403,6 +1410,7 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
             case KEYWORD_APPROXIMATEFREQUENCYMAX: params->ApproximateFrequencyMax = l->double_number; break;
             case KEYWORD_ODD_J_SPIN_WEIGHT:       params->odd_j_spin_weight = l->double_number; break;
             case KEYWORD_EVEN_J_SPIN_WEIGHT:      params->even_j_spin_weight = l->double_number; break;
+            case KEYWORD_IDENTICAL_MONOMERS:      params->identical_monomers_setting = l->boolean_value ? IDENTICAL_MONOMERS_YES : IDENTICAL_MONOMERS_NO; break;
             case KEYWORD_ACCELERATE_AVERAGING:    params->accelerate_averaging = l->boolean_value; break;
             case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS: params->average_time_between_collisions = l->double_number; break;
             case KEYWORD_AVERAGE_TIME_BETWEEN_COLLISIONS_PER_J: {
@@ -4345,6 +4353,17 @@ int main(int argc, char* argv[])
         PRINT0("%s\n", file_contents.items);
     }
 
+    /*
+     * PROCESSING tasks operate on correlation/spectral functions read from files, which already
+     * carry the symmetry factor applied by the run that produced them, so it must not be applied
+     * a second time here.
+     */
+    if (calc_params.calculation_type == CALCULATION_PROCESSING) {
+        calc_params.pair_symmetry_factor = 1.0;
+    } else {
+        resolve_identical_monomers(&monomer1, &monomer2, &calc_params);
+    }
+
     switch (calc_params.calculation_type) {
         case CALCULATION_PR_MU: {
             if (strcmp(input_block.so_dipole_1, input_block.so_dipole_2) != 0) {
@@ -4496,8 +4515,8 @@ int main(int argc, char* argv[])
                 double hep_M2, hep_M2_err; 
                 c_mpi_perform_integration(&ms, INTEGRAND_M2, &calc_params, T, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
 
-                hep_M2     *= SecondCoeff / pf_analytic;
-                hep_M2_err *= SecondCoeff / pf_analytic;
+                hep_M2     *= SecondCoeff * calc_params.pair_symmetry_factor / pf_analytic;
+                hep_M2_err *= SecondCoeff * calc_params.pair_symmetry_factor / pf_analytic;
                 INFO("T = %.2e => M2: %.5e\n", T, hep_M2);
             } else {
                 PRINT0("ERROR: no temperature is provided to run CALCULATION_PHASE_SPACE_M2\n");
@@ -4543,8 +4562,8 @@ int main(int argc, char* argv[])
                     double hep_M0, hep_M0_err; 
                     c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
                     
-                    hep_M0     *= ZeroCoeff / pf_analytic;
-                    hep_M0_err *= ZeroCoeff / pf_analytic;
+                    hep_M0     *= ZeroCoeff * calc_params.pair_symmetry_factor / pf_analytic;
+                    hep_M0_err *= ZeroCoeff * calc_params.pair_symmetry_factor / pf_analytic;
                     INFO("T = %.2e => M0: %.5e\n", T, hep_M0);
                 }
             } else if (input_block.Temperature > 0) {
@@ -4555,8 +4574,8 @@ int main(int argc, char* argv[])
                 double hep_M0, hep_M0_err; 
                 c_mpi_perform_integration(&ms, INTEGRAND_M0, &calc_params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
-                hep_M0     *= ZeroCoeff / pf_analytic;
-                hep_M0_err *= ZeroCoeff / pf_analytic;
+                hep_M0     *= ZeroCoeff * calc_params.pair_symmetry_factor / pf_analytic;
+                hep_M0_err *= ZeroCoeff * calc_params.pair_symmetry_factor / pf_analytic;
                 INFO("T = %.2e => M0: %.5e\n", T, hep_M0);
             } else {
                 PRINT0("ERROR: no temperature is provided to run CALCULATION_PHASE_SPACE_M0\n");

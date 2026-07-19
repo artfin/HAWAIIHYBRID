@@ -76,19 +76,57 @@ Report EXPECTED_TESTS_STATUS[] = {
     { .name = "inv-d2.conf",                                   .run_status = Success },
     { .name = "swap.conf",                                     .run_status = Success },
     { .name = "rot.conf",                                      .run_status = Success },
+    { .name = "identical-monomers-inferred.conf",              .run_status = Success },
+    { .name = "identical-monomers-inferred-distinct-type.conf",.run_status = Success },
+    { .name = "identical-monomers-inferred-distinct-inertia.conf", .run_status = Success },
+    { .name = "identical-monomers-override-agrees.conf",       .run_status = Success },
+    { .name = "identical-monomers-override-mismatch-false.conf",.run_status = Success },
+    { .name = "identical-monomers-override-mismatch-true.conf",.run_status = Success },
+    { .name = "identical-monomers-requantized-variant.conf",   .run_status = Success },
+    { .name = "identical-monomers-requantized-both.conf",      .run_status = Success },
 };
 
-#define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0]) 
-static_assert(TEST_COUNT == 35, "");
+#define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0])
+static_assert(TEST_COUNT == 43, "");
+
+// Removes a directory and everything inside it. nob.h has no recursive removal of its own (as of
+// upstream 3.10.0 it only offers `delete_file`, which does handle empty directories), so it is
+// spelled out here. A path that does not exist is not an error: this is called unconditionally,
+// including for tests that never create a project directory.
+bool remove_directory_recursively(const char *path)
+{
+    if (!file_exists(path)) return true;
+    if (get_file_type(path) != NOB_FILE_DIRECTORY) return delete_file(path);
+
+    File_Paths children = {0};
+    if (!read_entire_dir(path, &children)) return false;
+
+    bool ok = true;
+    for (size_t i = 0; i < children.count; ++i) {
+        const char *name = children.items[i];
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+        ok = remove_directory_recursively(temp_sprintf("%s/%s", path, name)) && ok;
+    }
+
+    da_free(children);
+
+    // at this point the directory is empty, so `delete_file` is enough to remove it
+    return ok && delete_file(path);
+}
 
 Status run_test(Cmd *cmd, const char *test_name) {
     cmd_append(cmd, "./driver.exe", "-quiet", temp_sprintf("./tests/%s", test_name));
     Fd fdout = fd_open_for_write(temp_sprintf("./tests/%s.out.tmp", test_name));
-    if (!nob_cmd_run_sync_redirect_and_reset(cmd, (Cmd_Redirect) { .fdout = &fdout })) {
-        return Fail;
-    }
+    bool run_ok = nob_cmd_run_sync_redirect_and_reset(cmd, (Cmd_Redirect) { .fdout = &fdout });
 
-    return Success;
+    // Tests that are not PROCESSING tasks make the driver create a project directory for their
+    // output. It holds no expected values (those live in the recorded .out file), so it is
+    // discarded to keep the working tree clean between runs. Such tests are expected to set
+    // PROJECT_NAME to "tests/<test name>.project".
+    remove_directory_recursively(temp_sprintf("./tests/%s.project", test_name));
+
+    return run_ok ? Success : Fail;
 }
 
 void usage(void)

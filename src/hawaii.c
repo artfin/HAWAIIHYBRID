@@ -1591,15 +1591,15 @@ void calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature, do
             integral_counter++;
 
             if (integral_counter % print_every_nth_iteration == 0) {
-                double M0_est = *m * ZeroCoeff * params->partial_partition_function_ratio;
-                double M0std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+                double M0_est = *m * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+                double M0std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
                 printf("[calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", integral_counter, params->initialM0_npoints, M0_est, M0std_est);
             }
         }
     } 
     
-    *m = *m * ZeroCoeff * params->partial_partition_function_ratio;
-    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+    *m = *m * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
 }
 
 void compute_dHdp(MoleculeSystem *ms, gsl_matrix* dHdp) 
@@ -1717,15 +1717,15 @@ void calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature, do
             integral_counter++;
 
             if (integral_counter % print_every_nth_iteration == 0) {
-                double M2_est = *m * SecondCoeff * params->partial_partition_function_ratio;
-                double M2std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+                double M2_est = *m * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+                double M2std_est = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
                 printf("[calculate_M2] %zu/%zu points: \t M2 = %.5e +/- %.5e\n", integral_counter, params->initialM2_npoints, M2_est, M2std_est);
             }
         }
     } 
 
-    *m = *m * SecondCoeff * params->partial_partition_function_ratio;
-    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+    *m = *m * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+    *q = sqrt(*q / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
 }
 
 #ifdef USE_MPI
@@ -1810,8 +1810,8 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
                         *q += results[1];
                     }
 
-                    *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
-                    *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+                    *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+                    *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
 
                     PRINT0("[mpi_calculate_M0] %zu/%zu points: \t M0 = %.5e +/- %.5e\n", 
                             _wsize*integral_counter, params->initialM0_npoints, *m, *q);
@@ -1835,8 +1835,8 @@ void mpi_calculate_M0(MoleculeSystem *ms, CalcParams *params, double Temperature
             *q += results[1];
         }
 
-        *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio;
-        *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio;
+        *m = (*m/_wsize) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+        *q = sqrt((*q/_wsize) / integral_counter / (integral_counter - 1)) * ZeroCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
 
         PRINT0("[mpi_calculate_M0] Final result over %zu points: \t M0 = %.5e +/- %.5e\n", _wsize*integral_counter, *m, *q);
     } else {
@@ -1952,8 +1952,8 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
             integral_counter++;
 
             if (integral_counter % print_every_nth_iteration == 0) {
-                double M2_est    = ml * SecondCoeff * params->partial_partition_function_ratio;
-                double M2std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+                double M2_est    = ml * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+                double M2std_est = sqrt(ql / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
                 PRINT0("[mpi_calculate_M2] %zu/%zu points: \t M2 = %.5e +/- %.5e\n", _wsize*integral_counter, params->initialM2_npoints, M2_est, M2std_est);
             }
         }
@@ -1962,8 +1962,8 @@ void mpi_calculate_M2(MoleculeSystem *ms, CalcParams *params, double Temperature
     MPI_Allreduce(MPI_IN_PLACE, &ml, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &ql, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
      
-    *m = (ml/_wsize) * SecondCoeff * params->partial_partition_function_ratio;
-    *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio;
+    *m = (ml/_wsize) * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
+    *q = sqrt((ql/_wsize) / integral_counter / (integral_counter - 1)) * SecondCoeff * params->partial_partition_function_ratio * params->pair_symmetry_factor;
     
     gsl_matrix_free(D);
     gsl_matrix_free(dHdp);
@@ -2646,16 +2646,16 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
             double hep_M0, hep_M0_err; 
             c_mpi_perform_integration(ms, INTEGRAND_M0, params, T, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
-            hep_M0     *= ZeroCoeff / pf_analytic;
-            hep_M0_err *= ZeroCoeff / pf_analytic;
+            hep_M0     *= ZeroCoeff * params->pair_symmetry_factor / pf_analytic;
+            hep_M0_err *= ZeroCoeff * params->pair_symmetry_factor / pf_analytic;
             hep_M0s[st] = hep_M0;
             PRINT0("T = %.2e => M0: %.5e\n", T, hep_M0);
             
             double hep_M2, hep_M2_err; 
             c_mpi_perform_integration(ms, INTEGRAND_M2, params, T, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
     
-            hep_M2     *= SecondCoeff / pf_analytic;
-            hep_M2_err *= SecondCoeff / pf_analytic;
+            hep_M2     *= SecondCoeff * params->pair_symmetry_factor / pf_analytic;
+            hep_M2_err *= SecondCoeff * params->pair_symmetry_factor / pf_analytic;
             hep_M2s[st] = hep_M2;
             PRINT0("T = %.2e => M2: %.5e\n", T, hep_M2);
         }
@@ -2891,9 +2891,9 @@ CFncArray calculate_correlation_array_and_save(MoleculeSystem *ms, CalcParams *p
                         }
                     }
 
-                    double ratio = params->partial_partition_function_ratios[st];
+                    double ratio = params->partial_partition_function_ratios[st] * params->pair_symmetry_factor;
                     for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-                        ca.data[st][i] += weight * ratio * base_crln[i]; 
+                        ca.data[st][i] += weight * ratio * base_crln[i];
                     }
                     ca.nstar[st] += weight;
                 }
@@ -3188,8 +3188,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         double hep_M0_err; 
         c_mpi_perform_integration(ms, INTEGRAND_M0, params, Temperature, hep_m0_niterations, hep_m0_npoints, &hep_M0, &hep_M0_err);
 
-        hep_M0     *= ZeroCoeff / pf_analytic;
-        hep_M0_err *= ZeroCoeff / pf_analytic;
+        hep_M0     *= ZeroCoeff * params->pair_symmetry_factor / pf_analytic;
+        hep_M0_err *= ZeroCoeff * params->pair_symmetry_factor / pf_analytic;
         PRINT0("T = %.2e => M0: %.5e\n", Temperature, hep_M0);
     }    
    
@@ -3204,8 +3204,8 @@ CFnc calculate_correlation_and_save(MoleculeSystem *ms, CalcParams *params, doub
         double hep_M2_err; 
         c_mpi_perform_integration(ms, INTEGRAND_M2, params, Temperature, hep_m2_niterations, hep_m2_npoints, &hep_M2, &hep_M2_err);
 
-        hep_M2     *= SecondCoeff / pf_analytic;
-        hep_M2_err *= SecondCoeff / pf_analytic;
+        hep_M2     *= SecondCoeff * params->pair_symmetry_factor / pf_analytic;
+        hep_M2_err *= SecondCoeff * params->pair_symmetry_factor / pf_analytic;
         PRINT0("T = %.2e => M2: %.5e\n", Temperature, hep_M2);
     } 
 
@@ -3393,7 +3393,7 @@ if (_wrank > 0) {
                 }
 
                 for (size_t i = 0; i < params->MaxTrajectoryLength; ++i) {
-                    local_crln[i] += params->partial_partition_function_ratio * crln[i];
+                    local_crln[i] += params->partial_partition_function_ratio * params->pair_symmetry_factor * crln[i];
                 }
 
                 integral_counter++;
@@ -3720,7 +3720,7 @@ SFnc calculate_spectral_function_using_prmu_representation_and_save(MoleculeSyst
     PRINT0("NOTE: Connes apodization will be applied to the time dependence of dipole before applying Fourier transform\n"); 
 
     // convert spectral funciton [atomic units -> J * m^6 * s]
-    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time;
+    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time * params->pair_symmetry_factor;
 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
 
@@ -4626,7 +4626,7 @@ SFnc calculate_spectral_function_using_prmu_transition_frequency_sampling_and_sa
 
     PRINT0("NOTE: Connes apodization will be applied to the time dependence of dipole before applying Fourier transform\n");
 
-    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time;
+    double SF_COEFF = Hartree * pow(ALU, 6) * ATU * params->R0 * params->R0 * params->sampling_time * params->sampling_time * params->pair_symmetry_factor;
 
     size_t local_ntrajectories = params->total_trajectories / params->niterations / _wsize;
 
@@ -6270,6 +6270,85 @@ double analytic_full_partition_function_by_V(MoleculeSystem *ms, double Temperat
     }
 
     return pf_analytic;
+}
+
+/*
+ * Compares the inertia tensors of two monomers. The values are read from the config file, so for
+ * two entries of the same species they are normally written out identically; the tolerance only
+ * guards against differences in the last digits.
+ */
+static bool inertia_tensors_match(Monomer *m1, Monomer *m2)
+{
+    const double rtol = 1e-6;
+
+    for (size_t i = 0; i < 3; ++i) {
+        double scale = fmax(fabs(m1->II[i]), fabs(m2->II[i]));
+        if (scale == 0.0) continue;
+        if (fabs(m1->II[i] - m2->II[i]) > rtol*scale) return false;
+    }
+
+    return true;
+}
+
+/*
+ * Infers whether the two monomers are the same species from their types and inertia tensors.
+ *
+ * The types are compared modulo `MODULO_BASE`, which strips the requantization scheme and leaves
+ * the kind of the monomer. Requantization is a choice of how the dynamics is treated rather than a
+ * property of the species, so e.g. ROTOR and ROTOR_REQUANTIZED_ROTATION with equal inertia tensors
+ * describe the same molecule and are reported as identical.
+ *
+ * A pair of atoms is reported as distinct: the only way two atoms could be identical is a
+ * homonuclear pair, which has no induced dipole and hence no collision-induced absorption to
+ * compute in the first place.
+ */
+bool detect_identical_monomers(Monomer *m1, Monomer *m2)
+{
+    int kind1 = m1->t % MODULO_BASE;
+    int kind2 = m2->t % MODULO_BASE;
+
+    if (kind1 != kind2) return false;
+    if (kind1 == (ATOM % MODULO_BASE)) return false;
+
+    return inertia_tensors_match(m1, m2);
+}
+
+/*
+ * Establishes the final values of `params->identical_monomers` and `params->pair_symmetry_factor`,
+ * preferring the value given in the config file over the inferred one and reporting both.
+ */
+void resolve_identical_monomers(Monomer *m1, Monomer *m2, CalcParams *params)
+{
+    bool inferred = detect_identical_monomers(m1, m2);
+
+    PRINT0("Monomers are %s based on their types (%s, %s) and inertia tensors\n",
+           inferred ? "inferred to be IDENTICAL" : "inferred to be DISTINCT",
+           display_monomer_type(m1->t), display_monomer_type(m2->t));
+
+    if (params->identical_monomers_setting == IDENTICAL_MONOMERS_UNSET) {
+        params->identical_monomers = inferred;
+    } else {
+        bool requested = (params->identical_monomers_setting == IDENTICAL_MONOMERS_YES);
+
+        if (requested != inferred) {
+            WARNING("IDENTICAL_MONOMERS is set to %s in the configuration file, which contradicts "
+                    "the inferred value (%s). Proceeding with the value provided by the user.\n",
+                    requested ? "true" : "false", inferred ? "true" : "false");
+        }
+
+        params->identical_monomers = requested;
+    }
+
+    /*
+     * For a gas of identical molecules the number of distinct pairs is N^2/2 rather than N1*N2,
+     * so the correlation function, spectral function and spectral moments all pick up a factor
+     * of 1/2.
+     */
+    params->pair_symmetry_factor = params->identical_monomers ? 0.5 : 1.0;
+
+    PRINT0("Treating the monomers as %s: quantities normalized per density squared "
+           "carry a symmetry factor of %.1f\n\n",
+           params->identical_monomers ? "IDENTICAL" : "DISTINCT", params->pair_symmetry_factor);
 }
 
 gsl_histogram* gsl_histogram_extend_right(gsl_histogram* h, size_t add_bins)
