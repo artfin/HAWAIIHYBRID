@@ -89,30 +89,21 @@ Report EXPECTED_TESTS_STATUS[] = {
 #define TEST_COUNT sizeof(EXPECTED_TESTS_STATUS)/sizeof(EXPECTED_TESTS_STATUS[0])
 static_assert(TEST_COUNT == 43, "");
 
-// Removes a directory and everything inside it. nob.h has no recursive removal of its own (as of
-// upstream 3.10.0 it only offers `delete_file`, which does handle empty directories), so it is
-// spelled out here. A path that does not exist is not an error: this is called unconditionally,
-// including for tests that never create a project directory.
+// Deletes a single visited entry. Walking in post order means the leaves are visited first, so a
+// directory is always empty by the time it is reached, and `delete_file` (which is `remove()` on
+// POSIX) is enough to remove it.
+bool delete_walk_entry(Walk_Entry entry)
+{
+    return delete_file(entry.path);
+}
+
+// Removes a directory and everything inside it. A path that does not exist is not an error: this
+// is called unconditionally, including for tests that never create a project directory.
 bool remove_directory_recursively(const char *path)
 {
     if (!file_exists(path)) return true;
-    if (get_file_type(path) != NOB_FILE_DIRECTORY) return delete_file(path);
 
-    File_Paths children = {0};
-    if (!read_entire_dir(path, &children)) return false;
-
-    bool ok = true;
-    for (size_t i = 0; i < children.count; ++i) {
-        const char *name = children.items[i];
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
-
-        ok = remove_directory_recursively(temp_sprintf("%s/%s", path, name)) && ok;
-    }
-
-    da_free(children);
-
-    // at this point the directory is empty, so `delete_file` is enough to remove it
-    return ok && delete_file(path);
+    return walk_dir(path, delete_walk_entry, .post_order = true);
 }
 
 Status run_test(Cmd *cmd, const char *test_name) {
