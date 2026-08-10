@@ -9,6 +9,7 @@
 #define Boltzmann     1.380649e-23                                // SI: J * K^(-1)
 #define Hartree       4.3597447222071e-18                         // SI: J 
 #define HTOCM         2.1947463136320e5                           // 1 Hartree in cm-1
+#define HTOEV         27.211386245981                             // 1 Hartree in eV
 #define ATU           2.4188843265857e-17                         // SI: s 
 #define LightSpeed    2.99792458e8                                // SI: m / s
 #define LightSpeed_cm 2.99792458e10                               // cm / s

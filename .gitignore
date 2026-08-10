@@ -7,6 +7,7 @@ build/*
 *.exe
 *.bak
 *.dat
+!/PES-IDS/h2o-h2o/h4o2.dms4.coeff.dat
 
 docs/*.bbl
 docs/*.bcf

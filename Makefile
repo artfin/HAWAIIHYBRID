@@ -226,6 +226,30 @@ build/ai_pes_h2o_h2o_nn.so: build/ai_pes_h2o_h2o_nn_lib.o \
 							build/angles_handler.o build/cnpy.o
 	$(CC) -shared -o $@ $^ -lm -lstdc++ -lz
 
+H2O_H2O_FINN_DIR := ./PES-IDS/h2o-h2o-finn
+
+build/h2o_h2o_finn_weights.o: $(H2O_H2O_FINN_DIR)/weights.cpp \
+		$(H2O_H2O_FINN_DIR)/weights.hpp ./PES-IDS/cnpy.h | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@
+
+build/h2o_h2o_finn_pes.o: $(H2O_H2O_FINN_DIR)/fi_nn_pes.cpp \
+		$(H2O_H2O_FINN_DIR)/fi_nn_pes.hpp \
+		$(H2O_H2O_FINN_DIR)/fast_pes_pipeline.hpp \
+		$(H2O_H2O_FINN_DIR)/orbit_basis_generated.hpp \
+		$(H2O_H2O_FINN_DIR)/features_jacobian_generated.hpp \
+		$(H2O_H2O_FINN_DIR)/weights.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@
+
+build/ai_pes_h2o_h2o_finn_lib.o: $(H2O_H2O_FINN_DIR)/ai_pes_h2o_h2o_finn_lib.cpp \
+		$(H2O_H2O_FINN_DIR)/fi_nn_pes.hpp ./src/constants.h \
+		./src/angles_handler.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@
+
+build/ai_pes_h2o_h2o_finn.so: build/ai_pes_h2o_h2o_finn_lib.o \
+		build/h2o_h2o_finn_pes.o build/h2o_h2o_finn_weights.o \
+		build/angles_handler.o build/cnpy.o
+	$(CXX) -shared -o $@ $^ -lm -lz
+
 ###########################################################
 ###################### H2O-Ar #############################
 ###########################################################
@@ -274,7 +298,8 @@ build/getd0.o: ./PES-IDS/h2o-h2o/getd0.f90 | build
 build/getr0.o: ./PES-IDS/h2o-h2o/getr0.f90 | build
 	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
-build/h4o2.dms4.o: ./PES-IDS/h2o-h2o/h4o2.dms4.f90 | build
+build/h4o2.dms4.o: ./PES-IDS/h2o-h2o/h4o2.dms4.f90 \
+		./PES-IDS/h2o-h2o/h4o2.dms4.coeff.dat | build
 	$(IFORT) $(H4O2_FFLAGS) $< -o $@
 
 build/mgx_mk1d.o: ./PES-IDS/h2o-h2o/mgx_mk1d.f90 | build

@@ -17,7 +17,8 @@
 
         ms=1827 ; mr=1053
 
-        open(20,file='h4o2.dms4.coeff.dat',status='old')
+        open(20,file='PES-IDS/h2o-h2o/h4o2.dms4.coeff.dat', &
+             status='old')
         read(20,*)
         read(20,*)
         read(20,*)(coef(i1),i1=0,ms+mr-1)
@@ -61,5 +62,4 @@
 
         return
         end subroutine calcdip
-
 
