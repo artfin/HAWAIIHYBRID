@@ -80,6 +80,7 @@ void MAKE_DYDR(Eigen::Ref<Eigen::MatrixXd> dydr, const double *x) { make_dydr_1_
 // ---- NN PES model ----
 
 static MLPES model;
+static double dissociation_offset_cm = 0.0;
 
 static double h2oar_nn_pes(double cart[3][4])
 {
@@ -111,6 +112,15 @@ extern "C" {
 void pes_init(void)
 {
     model.init(MODEL_NPZ, natoms);
+
+    // The NN has a small constant residual at infinite H2O--Ar separation.
+    // Remove it in the PES interface so every Hamiltonian consumer uses the
+    // physical dissociation convention V(R -> infinity) = 0.  Rigid-water
+    // rotational invariance makes this offset orientation independent.
+    double r_ang[6] = {1000.0, 0.0, M_PI_2, 0.0, 0.0, 0.0};
+    double cart[3][4];
+    h2o_ar_lab_to_cart(r_ang, cart);
+    dissociation_offset_cm = h2oar_nn_pes(cart);
 }
 
 double pes_lab(double *q)
@@ -121,7 +131,12 @@ double pes_lab(double *q)
     h2o_ar_lab_to_cart(r_ang, cart);
 
     // h2oar_nn_pes returns energy in cm^-1, convert to Hartree
-    return h2oar_nn_pes(cart) / HTOCM;
+    return (h2oar_nn_pes(cart) - dissociation_offset_cm) / HTOCM;
+}
+
+double pes_dissociation_offset_cm(void)
+{
+    return dissociation_offset_cm;
 }
 
 void dpes_lab(double *q, double *dpesdq)

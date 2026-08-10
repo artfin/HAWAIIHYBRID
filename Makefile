@@ -33,6 +33,7 @@ EXAMPLES := examples/phase_space_integration_co2_ar.exe      \
             examples/trajectory_h2_ar_requantized.exe        \
             examples/trajectory_ch4_co2.exe                  \
             examples/trajectory_h2o_ar.exe                   \
+            examples/trajectory_h2o_h2o.exe                  \
             examples/correlation_he_ar.exe                   \
             examples/correlation_co_ar.exe                   \
             examples/correlation_co2_ar.exe                  \
@@ -373,6 +374,8 @@ H2_AR   := build/cnpy.o -lz build/ai_pes_h2ar_leroy_lib.o build/ai_pes_h2ar_lero
 CO_AR   := build/potv.o build/potv_d.o 
 H2O_AR  := build/cnpy.o -lz build/ai_pes_h2o_ar_nn_lib.o \
 		   build/c_basis_1_2_1_4_purify.o build/c_jac_1_2_1_4_purify.o
+H2O_H2O := build/cnpy.o -lz build/ai_pes_h2o_h2o_nn_lib.o \
+		   build/c_basis_1_2_1_2_5_intermolecular.o build/c_jac_1_2_1_2_5_intermolecular.o
 CH4_CO2 := build/ai_pes_ch4_co2_lib.o build/ai_ids_ch4_co2_lib.o \
 		   build/ai_pes_ch4_co2.o build/ai_pes_ch4_co2_dEdR.o \
 		   build/ai_pes_ch4_co2_dEdphi1.o build/ai_pes_ch4_co2_dEdtheta1.o \
@@ -402,6 +405,9 @@ examples/trajectory_h2_ar_requantized.exe: examples/trajectory_h2_ar_requantized
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/trajectory_h2o_ar.exe: examples/trajectory_h2o_ar.cpp build/trajectory.o $(OBJ) $(H2O_AR)
+	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++
+
+examples/trajectory_h2o_h2o.exe: examples/trajectory_h2o_h2o.cpp build/trajectory.o $(OBJ) $(H2O_H2O)
 	$(CXX) $(FLAGS) $(INC) -I./ -I./PES-IDS/ $^ -o $@ -lm $(LIB_SUNDIALS) $(LIB_GSL) -lstdc++  
 
 examples/trajectory_ch4_co2.exe: examples/trajectory_ch4_co2.cpp build/trajectory.o $(OBJ) $(CH4_CO2) 

@@ -5,15 +5,15 @@
 // the correlation drivers use, and propagates it, reporting energy conservation. No
 // induced dipole surface is involved, so this exercises the PES and its derivative only.
 //
-// Note on the bound criterion: a pair is bound when H < 0, which presumes V -> 0 at large
-// R. This PES is a raw NN extrapolation beyond its 20 a0 training range and flattens to
-// -0.0826 cm-1 rather than to 0, so the true dissociation threshold sits that far below
-// zero. The offset is negligible against the -140.7 cm-1 well as long as sampled energies
-// are not within ~0.1 cm-1 of the threshold, which SAMPLER_RMAX below keeps them from being.
+// The PES wrapper removes the NN's constant large-R residual, so H < 0 uses the physical
+// dissociation zero directly.
 
 // Optionally dumps the trajectory as a multi-frame XYZ file:
 //
-//   ./examples/trajectory_h2o_ar.exe traj-h2o-ar.xyz
+//   ./examples/trajectory_h2o_ar.exe traj.xyz diagnostics.csv [steps] [stride]
+//       [bound|nonnegative|all] [seed] [trajectories] [energy_max_cm-1]
+//       [temperature_K] [energy_min_cm-1] [restart_file|-] [time_offset_au]
+//       [absorbing_escape_radius_bohr]
 //
 // Frames are written every XYZ_STRIDE steps in the frame where the H2O center of
 // mass sits at the origin, so the H2O only rotates while the Ar orbits it.
@@ -33,6 +33,71 @@ extern "C" {
 #define XYZ_STRIDE 1 
 
 static const char *XYZ_ATOM_NAMES[4] = {"O", "H", "H", "Ar"};
+
+typedef struct {
+    const char *trajectory_id;
+    FILE *stream;
+    size_t stride;
+    size_t step;
+    bool has_outer_barrier;
+    double G_hartree;
+    double R_barrier_bohr;
+    double temperature_K;
+    double time_offset_au;
+    double last_written_time_au;
+} TrajectoryMetadata;
+
+static double vector_norm(const double v[3])
+{
+    return sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+}
+
+static void write_diagnostic_header(FILE *stream, const MoleculeSystem *ms)
+{
+    fprintf(stream, "trajectory_id,t_au,temperature_K,R_bohr,E_total_hartree,V_hartree,K_hartree,pR_au,");
+    fprintf(stream, "Lx_au,Ly_au,Lz_au,L_norm_au,Jrot_x_au,Jrot_y_au,Jrot_z_au,Jrot_norm_au,");
+    fprintf(stream, "Jtotal_x_au,Jtotal_y_au,Jtotal_z_au,Jtotal_norm_au,");
+    fprintf(stream, "has_outer_barrier,G_hartree,R_barrier_bohr");
+    for (size_t i = 0; i < ms->QP_SIZE; ++i) fprintf(stream, ",qp_%zu", i);
+    fputc('\n', stream);
+}
+
+static void write_diagnostic_row(const Trajectory *traj, double t, TrajectoryMetadata *metadata)
+{
+    t += metadata->time_offset_au;
+    if (t == metadata->last_written_time_au) return;
+    metadata->last_written_time_au = t;
+    MoleculeSystem *ms = traj->ms;
+    extract_q_and_write_into_ms(ms);
+    double V = pes(ms->intermediate_q), K = kinetic_energy(ms);
+    double L[3], Jrot[3], Jtotal[3];
+    j_orbital(ms, L);
+    j_monomer(&ms->m1, Jrot);
+    for (size_t k = 0; k < 3; ++k) Jtotal[k] = L[k] + Jrot[k];
+
+    FILE *stream = metadata->stream;
+    fprintf(stream, "%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,",
+            metadata->trajectory_id, t, metadata->temperature_K,
+            ms->intermolecular_qp[IR], V + K, V, K,
+            ms->intermolecular_qp[IPR]);
+    fprintf(stream, "%.17g,%.17g,%.17g,%.17g,", L[0], L[1], L[2], vector_norm(L));
+    fprintf(stream, "%.17g,%.17g,%.17g,%.17g,", Jrot[0], Jrot[1], Jrot[2], vector_norm(Jrot));
+    fprintf(stream, "%.17g,%.17g,%.17g,%.17g,", Jtotal[0], Jtotal[1], Jtotal[2], vector_norm(Jtotal));
+    fprintf(stream, "%d,%.17g,%.17g", metadata->has_outer_barrier ? 1 : 0,
+            metadata->G_hartree, metadata->R_barrier_bohr);
+    Array qp = create_array(ms->QP_SIZE);
+    get_qp_from_ms(ms, &qp);
+    for (size_t i = 0; i < qp.n; ++i) fprintf(stream, ",%.17g", qp.data[i]);
+    fputc('\n', stream);
+    free_array(&qp);
+}
+
+static void write_diagnostic_sample(const Trajectory *traj, double t, void *user_data)
+{
+    TrajectoryMetadata *metadata = (TrajectoryMetadata *) user_data;
+    if (metadata->step++ % metadata->stride != 0) return;
+    write_diagnostic_row(traj, t, metadata);
+}
 
 // ms->intermediate_q must be up to date (call extract_q_and_write_into_ms first).
 void write_xyz_frame(FILE *fp, MoleculeSystem *ms, double t, double E)
@@ -111,10 +176,18 @@ void test_rhs(MoleculeSystem *ms, Array qp)
 
 int main(int argc, char *argv[])
 {
-    int seed = 42;
+    int seed = (argc > 6) ? atoi(argv[6]) : 42;
+    const char *energy_class = (argc > 5) ? argv[5] : "bound";
+    if (strcmp(energy_class, "bound") != 0 && strcmp(energy_class, "nonnegative") != 0 &&
+        strcmp(energy_class, "all") != 0) {
+        fprintf(stderr, "ERROR: energy class must be bound, nonnegative, or all\n");
+        exit(1);
+    }
 
-    const char *xyz_filename = (argc > 1) ? argv[1] : NULL;
+    const char *xyz_filename = (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : NULL;
+    const char *csv_filename = (argc > 2) ? argv[2] : NULL;
     FILE *xyz_fp = NULL;
+    FILE *csv_fp = NULL;
 
     if (xyz_filename != NULL) {
         xyz_fp = fopen(xyz_filename, "w");
@@ -123,9 +196,28 @@ int main(int argc, char *argv[])
             exit(1);
         }
     }
+    if (csv_filename != NULL) {
+        csv_fp = fopen(csv_filename, "w");
+        if (csv_fp == NULL) {
+            fprintf(stderr, "ERROR: could not open '%s' for writing: %s\n", csv_filename, strerror(errno));
+            exit(1);
+        }
+    }
 
     double tolerance = 1e-15; 
-    size_t NSTEPS    = 1000000; 
+    size_t NSTEPS = (argc > 3) ? strtoull(argv[3], NULL, 10) : 1000000;
+    size_t output_stride = (argc > 4) ? strtoull(argv[4], NULL, 10) : XYZ_STRIDE;
+    size_t ntrajectories = (argc > 7) ? strtoull(argv[7], NULL, 10) : 1;
+    double energy_max = (argc > 8) ? atof(argv[8]) / HTOCM : INFINITY;
+    double Temperature = (argc > 9) ? atof(argv[9]) : 296.0;
+    double energy_min = (argc > 10) ? atof(argv[10]) / HTOCM : -INFINITY;
+    const char *restart_filename = (argc > 11 && strcmp(argv[11], "-") != 0) ? argv[11] : NULL;
+    double time_offset = (argc > 12) ? atof(argv[12]) : 0.0;
+    double escape_radius = (argc > 13) ? atof(argv[13]) : INFINITY;
+    if (NSTEPS == 0 || output_stride == 0 || ntrajectories == 0) {
+        fprintf(stderr, "ERROR: steps, stride, and trajectories must be positive\n");
+        exit(1);
+    }
 
     double MU = m_H2O * m_Ar / (m_H2O + m_Ar);
     double I1[3] = {II_H2O_A, II_H2O_B, II_H2O_C};
@@ -139,8 +231,6 @@ int main(int argc, char *argv[])
 
     // Global minimum of this PES, located by multistart search over the 6 lab coordinates:
     // V = -140.72 cm-1 at R = 6.93 a0. (The H2O-Ar well is known to be about -143 cm-1.)
-    double Temperature = 100.0;
-
     CalcParams params = {};
     params.sampling_time = 200.0;
     params.ps           = PAIR_STATE_BOUND;
@@ -148,81 +238,102 @@ int main(int argc, char *argv[])
     params.sampler_Rmin = 4.5;                 // short-range edge of the NN training range
     params.sampler_Rmax = 12.0;                // well outside the well, but far from the -0.08 cm-1 asymptote
 
-    // Sample a bound phase point exactly as the correlation drivers do: propose from
-    // exp(-K/kT), accept with probability exp(-H/kT), then keep only H < 0.
     Array qp = create_array(ms.QP_SIZE);
-
-    size_t attempts = 0;
-    double E0;
-    for (;; ++attempts) {
-        q_generator(&ms, &params);
-        p_generator(&ms, Temperature);
-
-        if (reject(&ms, Temperature, params.pesmin)) continue;
-
-        E0 = Hamiltonian(&ms);
-        if (E0 < 0.0) break;
-    }
-
-    get_qp_from_ms(&ms, &qp);
-
-    printf("Found a bound initial condition after %zu attempts\n", attempts + 1);
-    printf("Initial energy: %.10e Hartree (%.4lf cm-1)\n", E0, E0 * HTOCM);
-    print_array(qp);
-
-    test_rhs(&ms, qp);
-
-    Trajectory traj = init_trajectory(&ms, tolerance);
-
-    E0 = Hamiltonian(&ms);
-    set_initial_condition(&traj, qp);
-
-    printf("CVODE relative tolerance: %.1e, steps: %zu\n\n", tolerance, NSTEPS);
-    printf("%10s \t %12s \t %20s \t %12s\n", "t", "R", "E-E0", "V");
-
-    double t = 0.0;
-    double tout = params.sampling_time;
-    double Rmin = 1e30, Rmax = -1e30, maxdE = 0.0;
-
-    for (size_t nstep = 0; nstep < NSTEPS; ++nstep, tout += params.sampling_time)
-    {
-        int status = make_step(&traj, tout, &t);
-
-        if (status > 0) {
-            fprintf(stderr, "CVODE ERROR: status = %d\n", status);
+    if (csv_fp != NULL) write_diagnostic_header(csv_fp, &ms);
+    FILE *restart_fp = NULL;
+    if (restart_filename != NULL) {
+        restart_fp = fopen(restart_filename, "r");
+        if (restart_fp == NULL) {
+            fprintf(stderr, "ERROR: could not open restart file '%s': %s\n", restart_filename, strerror(errno));
             exit(1);
         }
-
-        double E = Hamiltonian(&ms);
-        extract_q_and_write_into_ms(&ms);
-        double V = (*pes)(ms.intermediate_q);
-        double R = ms.intermolecular_qp[IR];
-
-        if (R < Rmin) Rmin = R;
-        if (R > Rmax) Rmax = R;
-        if (fabs(E - E0) > maxdE) maxdE = fabs(E - E0);
-
-        // The trajectory is long; report a sparse sample of it.
-        if (nstep % 500 == 0 || nstep == NSTEPS - 1) {
-            printf("%10.1lf \t %12.10lf \t %20.15lf \t %12.6lf\n", t, R, E - E0, V * HTOCM);
-        }
-
-        if (xyz_fp != NULL && (nstep % XYZ_STRIDE == 0 || nstep == NSTEPS - 1)) {
-            write_xyz_frame(xyz_fp, &ms, t, E);
-        }
     }
 
-    printf("\n--- %zu steps completed ---\n", NSTEPS);
-    printf("R range visited:        %.4lf .. %.4lf a0\n", Rmin, Rmax);
-    printf("max |E-E0| over run:    %.4e Hartree (%.3e cm-1)\n", maxdE, maxdE * HTOCM);
-    printf("relative energy drift:  %.4e\n", maxdE / fabs(E0));
+    size_t total_attempts = 0;
+    for (size_t trajectory_index = 0; trajectory_index < ntrajectories; ++trajectory_index) {
+        size_t attempts = 0;
+        double E0;
+        char trajectory_id[128];
+        if (restart_fp != NULL) {
+            if (fscanf(restart_fp, "%127s", trajectory_id) != 1) {
+                fprintf(stderr, "ERROR: restart file ended before trajectory %zu\n", trajectory_index);
+                exit(1);
+            }
+            for (size_t i = 0; i < qp.n; ++i) {
+                if (fscanf(restart_fp, "%lf", &qp.data[i]) != 1) {
+                    fprintf(stderr, "ERROR: malformed restart phase point for '%s'\n", trajectory_id);
+                    exit(1);
+                }
+            }
+            put_qp_into_ms(&ms, qp);
+            E0 = Hamiltonian(&ms);
+        } else {
+            for (;; ++attempts) {
+                q_generator(&ms, &params);
+                p_generator(&ms, Temperature);
+                if (reject(&ms, Temperature, params.pesmin)) continue;
+                E0 = Hamiltonian(&ms);
+                if (strcmp(energy_class, "bound") == 0 && E0 >= 0.0) continue;
+                if (strcmp(energy_class, "nonnegative") == 0 && E0 < 0.0) continue;
+                if (E0 < energy_min) continue;
+                if (E0 > energy_max) continue;
+                break;
+            }
+            get_qp_from_ms(&ms, &qp);
+            snprintf(trajectory_id, sizeof(trajectory_id), "h2o_ar_%s_seed_%d_%06zu",
+                     energy_class, seed, trajectory_index);
+        }
+        total_attempts += attempts + 1;
+        if (trajectory_index == 0) test_rhs(&ms, qp);
+
+        Trajectory traj = init_trajectory(&ms, tolerance);
+        set_initial_condition(&traj, qp);
+        TrajectoryMetadata metadata = {
+            .trajectory_id = trajectory_id, .stream = csv_fp,
+            .stride = output_stride, .step = 0,
+            .has_outer_barrier = false, .G_hartree = NAN, .R_barrier_bohr = NAN,
+            .temperature_K = Temperature,
+            .time_offset_au = time_offset, .last_written_time_au = -INFINITY,
+        };
+        if (csv_fp != NULL) {
+            write_diagnostic_sample(&traj, 0.0, &metadata);
+            trajectory_set_step_observer(&traj, write_diagnostic_sample, &metadata);
+        }
+
+        double t = 0.0, tout = params.sampling_time;
+        double Rmin = ms.intermolecular_qp[IR], Rmax = Rmin, maxdE = 0.0;
+        for (size_t nstep = 0; nstep < NSTEPS; ++nstep, tout += params.sampling_time) {
+            int status = make_step(&traj, tout, &t);
+            if (status > 0) {
+                fprintf(stderr, "CVODE ERROR: status = %d, trajectory = %s\n", status, trajectory_id);
+                exit(1);
+            }
+            double E = Hamiltonian(&ms), R = ms.intermolecular_qp[IR];
+            Rmin = fmin(Rmin, R); Rmax = fmax(Rmax, R); maxdE = fmax(maxdE, fabs(E-E0));
+            if (xyz_fp != NULL && (nstep % output_stride == 0 || nstep == NSTEPS-1))
+                write_xyz_frame(xyz_fp, &ms, t, E);
+            if (R >= escape_radius && ms.intermolecular_qp[IPR] > 0.0) {
+                if (csv_fp != NULL) write_diagnostic_row(&traj, t, &metadata);
+                break;
+            }
+        }
+        printf("[%zu/%zu] %s E=%.4f cm-1 R=%.3f..%.3f max_dE=%.3e cm-1 attempts=%zu\n",
+               trajectory_index+1, ntrajectories, trajectory_id, E0*HTOCM, Rmin, Rmax,
+               maxdE*HTOCM, attempts+1);
+        free_trajectory(&traj);
+    }
+    printf("Completed %zu trajectories after %zu total proposals\n", ntrajectories, total_attempts);
+    if (restart_fp != NULL) fclose(restart_fp);
 
     if (xyz_fp != NULL) {
         fclose(xyz_fp);
-        printf("trajectory written to:  %s (every %d steps)\n", xyz_filename, XYZ_STRIDE);
+        printf("trajectory written to:  %s (every %zu steps)\n", xyz_filename, output_stride);
+    }
+    if (csv_fp != NULL) {
+        fclose(csv_fp);
+        printf("trajectory diagnostics written to: %s (every %zu steps)\n", csv_filename, output_stride);
     }
 
-    free_trajectory(&traj);
     free_ms(&ms);
     free_array(&qp);
 
