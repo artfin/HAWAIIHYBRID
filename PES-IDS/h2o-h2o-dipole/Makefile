@@ -24,10 +24,10 @@ INC   := $(INC_EIGEN) -I../..
 
 TARGET := ../../build/ai_ids_h2o_h2o.so
 
-# Module dependency order: inv_share -> inv_mg321, inv_mg411 -> getdvec
-# (all objects land in this directory, so .mod files resolve via the
-# default cwd search -- no -I needed for module lookup).
-H4O2_FFLAGS := -c -fPIC -r8
+# Module dependency order: inv_share -> inv_mg321, inv_mg411 -> getdvec.
+# Keep generated modules in this standalone build directory and search it
+# explicitly, mirroring the root build's isolated build/ module directory.
+H4O2_FFLAGS := -c -fPIC -r8 -module . -I.
 
 DMS_OBJS := inv_share.o inv_mg321.o inv_mg411.o getdvec.o getd0.o getr0.o h4o2.dms4.o mgx_mk1d.o mgx_mk2d.o
 
@@ -37,7 +37,7 @@ all: $(TARGET)
 	mkdir -p ../../build
 
 $(TARGET): ai_ids_h2o_h2o_lib.o angles_handler.o $(DMS_OBJS) | ../../build
-	$(IFORT) -shared -o $@ $^ -lstdc++ -lm
+	$(IFORT) -shared -Wl,-Bsymbolic-functions -Wl,-z,now -o $@ $^ -lstdc++ -lm
 
 ai_ids_h2o_h2o_lib.o: ../ai_ids_h2o_h2o_lib.cpp
 	$(CXX) $(FLAGS) $(INC) -c $< -o $@
