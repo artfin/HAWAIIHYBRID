@@ -1283,6 +1283,8 @@ void parse_input_block(Lexer *l, InputBlock *input_block, CalcParams *params)
                     params->calculation_type = CALCULATION_PROCESSING;
                 } else if (strcasecmp(l->string_storage.items, "PR_MU_TRANSITION_FREQUENCY_SAMPLING") == 0) {
                     params->calculation_type = CALCULATION_PR_MU_TRANSITION_FREQUENCY_SAMPLING;
+                } else if (strcasecmp(l->string_storage.items, "PARTITION_FUNCTION") == 0) {
+                    params->calculation_type = CALCULATION_PARTITION_FUNCTION;
                 } else if (strcasecmp(l->string_storage.items, "MANUAL") == 0) {
                     params->calculation_type = CALCULATION_MANUAL;
                 } else {
@@ -1736,8 +1738,9 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
     if (calc_params->calculation_type == CALCULATION_NONE) {
         PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_CALCULATION_TYPE]);
         exit(1); 
-    } else if ((calc_params->calculation_type != CALCULATION_PROCESSING) && 
-               (calc_params->calculation_type != CALCULATION_PHASE_SPACE_M0)) {
+    } else if ((calc_params->calculation_type != CALCULATION_PROCESSING) &&
+               (calc_params->calculation_type != CALCULATION_PHASE_SPACE_M0) &&
+               (calc_params->calculation_type != CALCULATION_PARTITION_FUNCTION)) {
         if (calc_params->ps == PAIR_STATE_NONE) {
             PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_PAIR_STATE]);
             exit(1);
@@ -1745,6 +1748,23 @@ void parse_params(Lexer *l, CalcParams *calc_params, InputBlock *input_block, Mo
         
         if (input_block->Temperature <= 0.0) {
             PRINT0("ERROR: Required field missing: '%s'\n", KEYWORDS[KEYWORD_TEMPERATURE]);
+            exit(1);
+        }
+    }
+
+    if (calc_params->calculation_type == CALCULATION_PARTITION_FUNCTION) {
+        if (calc_params->ps != PAIR_STATE_BOUND) {
+            PRINT0("ERROR: PARTITION_FUNCTION only supports PAIR_STATE = BOUND\n");
+            exit(1);
+        }
+        if ((input_block->Temperature <= 0.0) && (input_block->num_temperatures == 0)) {
+            PRINT0("ERROR: Required field missing: '%s' or '%s'\n",
+                   KEYWORDS[KEYWORD_TEMPERATURE], KEYWORDS[KEYWORD_TEMPERATURES]);
+            exit(1);
+        }
+        if ((calc_params->sampler_Rmin <= 0.0) ||
+            (calc_params->sampler_Rmax <= calc_params->sampler_Rmin)) {
+            PRINT0("ERROR: PARTITION_FUNCTION requires 0 < SAMPLER_RMIN < SAMPLER_RMAX\n");
             exit(1);
         }
     }
@@ -4263,19 +4283,20 @@ int main(int argc, char* argv[])
             all_ok = false;
         }
 
-        if (input_block.so_dipole_1 != NULL) {
+        bool requires_dipole = calc_params.calculation_type != CALCULATION_PARTITION_FUNCTION;
+        if (requires_dipole && input_block.so_dipole_1 != NULL) {
             if (access(input_block.so_dipole_1, F_OK) == 0) {
                 INFO("%s: library with dipole (1) is available\n", input_block.so_dipole_1);
             } else {
                 INFO("%s: library with dipole (1) is not found\n", input_block.so_dipole_1);
                 all_ok = false;
             }
-        } else {
+        } else if (requires_dipole) {
             ERROR("%s: library with dipole (1) is not specified\n", input_block.so_dipole_1);
             all_ok = false;
         }
 
-        if (input_block.so_dipole_2 != NULL) {
+        if (requires_dipole && input_block.so_dipole_2 != NULL) {
             if (access(input_block.so_dipole_2, F_OK) == 0) {
                 INFO("%s: library with dipole (2) is available\n", input_block.so_dipole_2);
             } else {
@@ -4582,6 +4603,49 @@ int main(int argc, char* argv[])
                 exit(1); 
             }
 
+            break;
+        }
+
+        case CALCULATION_PARTITION_FUNCTION: {
+            setup_pes(&input_block);
+
+            MoleculeSystem ms = init_ms_from_monomers(
+                input_block.reduced_mass, &monomer1, &monomer2, 0);
+            size_t niterations = calc_params.hep_ppf_niterations > 0
+                               ? calc_params.hep_ppf_niterations : 12;
+            size_t npoints = calc_params.hep_ppf_npoints > 0
+                           ? calc_params.hep_ppf_npoints : 1000000;
+            size_t ntemperatures = input_block.num_temperatures > 0
+                                 ? input_block.num_temperatures : 1;
+
+            PRINT0("Bound-state partition-function integration\n");
+            PRINT0("Radial interval: [%.8g, %.8g] bohr\n",
+                   calc_params.sampler_Rmin, calc_params.sampler_Rmax);
+
+            for (size_t i = 0; i < ntemperatures; ++i) {
+                double T = input_block.num_temperatures > 0
+                         ? input_block.temperatures[i] : input_block.Temperature;
+                double q_total_by_v = analytic_full_partition_function_by_V(&ms, T);
+                double q_bound = 0.0;
+                double q_bound_error = 0.0;
+
+                c_mpi_perform_integration(
+                    &ms, INTEGRAND_PF, &calc_params, T, niterations, npoints,
+                    &q_bound, &q_bound_error);
+
+                double q_bound_volume = q_bound / q_total_by_v;
+                double q_bound_volume_error = q_bound_error / q_total_by_v;
+
+                PRINT0("T = %.8g K\n", T);
+                PRINT0("  analytic Q_total/V                  = %.12e\n",
+                       q_total_by_v);
+                PRINT0("  adaptive Q_bound                    = %.12e +/- %.12e\n",
+                       q_bound, q_bound_error);
+                PRINT0("  Q_bound/(Q_total/V) [bohr^3]        = %.12e +/- %.12e\n",
+                       q_bound_volume, q_bound_volume_error);
+            }
+
+            free_ms(&ms);
             break;
         }
 

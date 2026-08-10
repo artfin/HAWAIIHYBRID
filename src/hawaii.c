@@ -56,8 +56,9 @@ const char* CALCULATION_TYPES[CALCULATION_TYPES_COUNT] = {
     "CALCULATE_PHASE_SPACE_M0",
     "CALCULATE_PHASE_SPACE_M2",
     "PR_MU_TRANSITION_FREQUENCY_SAMPLING",
+    "PARTITION_FUNCTION",
 };
-static_assert(CALCULATION_TYPES_COUNT == 8, "");
+static_assert(CALCULATION_TYPES_COUNT == 9, "");
 
 static_assert(MONOMER_COUNT == 6, "");
 MonomerType MONOMER_TYPES[MONOMER_COUNT] = {
@@ -433,7 +434,7 @@ double find_closest_half_integer(double j)
 
 void j_monomer(Monomer *m, double j[3])
 /** 
- * @brief @ref j_monomer computes the magnitude of angular momentum of passed-in monomer. <span style="color:red;">Currently, implemented only for linear molecules.</span>
+ * @brief @ref j_monomer computes the space-fixed angular momentum vector of a linear or asymmetric-rotor monomer.
  *  \f[ 
         [\textrm{linear molecule}]: j = \begin{bmatrix}
           - p_\theta \sin \varphi - p_\varphi \cos \varphi / \tan \theta \\
@@ -460,9 +461,36 @@ void j_monomer(Monomer *m, double j[3])
         }
         case ROTOR_REQUANTIZED_ROTATION: 
         case ROTOR: {
-            TODO("j_monomer");
+            double phi    = m->qp[IPHI];
+            double pPhi   = m->qp[IPPHI];
+            double theta  = m->qp[ITHETA];
+            double pTheta = m->qp[IPTHETA];
+            double pPsi   = m->qp[IPPSI];
+            double sinTheta = sin(theta);
+
+            /* Space-fixed angular momentum for the active z-x-z Euler
+             * convention used by angles_handler.cpp.  The linear rotor uses
+             * spherical polar angles and therefore has a different formula. */
+            double a = (pPsi - pPhi * cos(theta)) / sinTheta;
+            j[0] = pTheta * cos(phi) + a * sin(phi);
+            j[1] = pTheta * sin(phi) - a * cos(phi);
+            j[2] =  pPhi;
+            break;
         }
     }
+}
+
+void j_orbital(MoleculeSystem *ms, double j[3])
+/** Compute space-fixed orbital angular momentum from spherical momenta. */
+{
+    double phi = ms->intermolecular_qp[IPHI];
+    double pPhi = ms->intermolecular_qp[IPPHI];
+    double theta = ms->intermolecular_qp[ITHETA];
+    double pTheta = ms->intermolecular_qp[IPTHETA];
+
+    j[0] = -pTheta * sin(phi) - pPhi * cos(phi) / tan(theta);
+    j[1] =  pTheta * cos(phi) - pPhi * sin(phi) / tan(theta);
+    j[2] =  pPhi;
 }
 
 
@@ -7546,4 +7574,3 @@ Spectrum copy_spectrum(Spectrum sp) {
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */       
-

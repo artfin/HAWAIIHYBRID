@@ -181,7 +181,22 @@ int make_step(Trajectory *traj, double tout, double *t)
         } 
     }
 
+    if (flag >= 0 && traj->step_observer != NULL) {
+        traj->step_observer(traj, *t, traj->step_observer_data);
+    }
+
     return flag;
+}
+
+void trajectory_set_step_observer(
+    Trajectory *traj,
+    void (*observer)(const Trajectory *traj, double t, void *user_data),
+    void *user_data)
+/** Install or clear a read-only observer called after each successful propagation step. */
+{
+    assert(traj != NULL);
+    traj->step_observer = observer;
+    traj->step_observer_data = user_data;
 }
 
 void set_initial_condition(Trajectory *traj, Array qp)
@@ -253,4 +268,3 @@ void reinit_trajectory(Trajectory *traj, double t)
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */       
-

@@ -22,7 +22,7 @@ extern "C" {
 
 extern int rhs(realtype t, N_Vector y, N_Vector ydot, void * user_data);
 
-typedef struct
+typedef struct Trajectory
 {
     size_t DIM; ///< Number of Hamilton's equations of motion (system dimension). 
     size_t mxsteps; ///< Maximum number of internal time steps for the solver.
@@ -40,6 +40,8 @@ typedef struct
     bool check_energy_conservation; ///< Flag indicating whether to monitor energy conservation during trajectory propagation.
     double E0; ///< Initial total energy of the system (used for conservation checks).
     double E_last; ///< Energy value from the last computed step (for tracking changes in energy).
+    void (*step_observer)(const struct Trajectory *traj, double t, void *user_data);
+    void *step_observer_data;
 } Trajectory;
 
 Trajectory init_trajectory(MoleculeSystem *ms, double reltol); 
@@ -52,6 +54,10 @@ int make_step(Trajectory *traj, double tout, double *t);
 void set_initial_condition(Trajectory *traj, Array qp);
 N_Vector make_vector(int size);
 void set_tolerance(Trajectory *traj, double tolerance);
+void trajectory_set_step_observer(
+    Trajectory *traj,
+    void (*observer)(const Trajectory *traj, double t, void *user_data),
+    void *user_data);
 
 void reinit_trajectory(Trajectory *traj, double t);
 

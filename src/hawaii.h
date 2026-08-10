@@ -341,6 +341,7 @@ typedef enum {
     CALCULATION_PHASE_SPACE_M0,
     CALCULATION_PHASE_SPACE_M2,
     CALCULATION_PR_MU_TRANSITION_FREQUENCY_SAMPLING,
+    CALCULATION_PARTITION_FUNCTION,
     CALCULATION_TYPES_COUNT,
     CALCULATION_MANUAL,
 } CalculationType;
@@ -614,6 +615,7 @@ bool reject(MoleculeSystem *ms, double Temperature, double pesmin);
 
 void check_if_requantization_should_be_applied_to_monomer(Monomer *m, size_t step_counter);
 void j_monomer(Monomer *m, double j[3]);
+void j_orbital(MoleculeSystem *ms, double j[3]);
 double torque_monomer(Monomer *m); 
 double find_closest_integer(double j);
 double find_closest_half_integer(double j); 
@@ -802,4 +804,3 @@ static inline unsigned int round_to_next_power_of_two(unsigned int n)
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */       
-
