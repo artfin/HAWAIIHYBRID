@@ -267,6 +267,56 @@ build/ai_pes_h2o_ar_nn.so: build/ai_pes_h2o_ar_nn_lib.o \
 							build/angles_handler.o build/cnpy.o
 	$(CC) -shared -o $@ $^ -lm -lstdc++ -lz
 
+build/h2o_ar_nn_dms_common.o: ./PES-IDS/h2o_ar_nn_dms_common.cpp \
+		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ai_ids_h2o_ar_nn_lib.o: ./PES-IDS/ai_ids_h2o_ar_nn_lib.cpp \
+		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/ind_dipole_h2o_ar.o: ./PES-IDS/ind_dipole_h2o_ar.cpp \
+		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+build/perm_dipole_h2o_ar.o: ./PES-IDS/perm_dipole_h2o_ar.cpp \
+		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
+	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+
+# H2O-Ar NN DMS (dipx/dipy/dipz). Fixed-form F77, hence -std=legacy.
+# Only dipx.f defines tranfun and includes dms_interface.f; dipy/dipz call tranfun
+# as an external, so dipx.o must always be linked in alongside them.
+# The nets read their weights from PES-IDS/h2o-ar-dms/ using a path relative to the
+# working directory, so the driver has to be run from the repository root.
+H2OAR_DMS_FFLAGS := -c -fPIC -std=legacy -O2 -I./PES-IDS/h2o-ar-dms/ -J build
+
+build/dipx.o: ./PES-IDS/h2o-ar-dms/dipx.f ./PES-IDS/h2o-ar-dms/dms_interface.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+build/dipy.o: ./PES-IDS/h2o-ar-dms/dipy.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+build/dipz.o: ./PES-IDS/h2o-ar-dms/dipz.f | build
+	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
+
+H2OAR_DMS := build/dipx.o build/dipy.o build/dipz.o
+
+build/ai_ids_h2o_ar_nn.so: build/ai_ids_h2o_ar_nn_lib.o \
+		build/h2o_ar_nn_dms_common.o build/angles_handler.o $(H2OAR_DMS)
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
+
+build/ind_dipole_h2o_ar.so: build/ind_dipole_h2o_ar.o \
+		build/h2o_ar_nn_dms_common.o build/angles_handler.o $(H2OAR_DMS)
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
+
+build/perm_dipole_h2o_ar.so: build/perm_dipole_h2o_ar.o \
+		build/h2o_ar_nn_dms_common.o build/angles_handler.o $(H2OAR_DMS)
+	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
+
+###########################################################
+###################### H2O-H2O ############################
+###########################################################
+
 build/ai_ids_h2o_h2o_lib.o: ./PES-IDS/ai_ids_h2o_h2o_lib.cpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
@@ -322,29 +372,6 @@ H4O2_DMS := build/inv_share.o build/inv_mg321.o build/inv_mg411.o \
 build/ai_ids_h2o_h2o.so: build/ai_ids_h2o_h2o_lib.o build/angles_handler.o $(H4O2_DMS)
 	$(IFORT) -shared -Wl,-Bsymbolic-functions -Wl,-z,now -o $@ $^ -lm -lstdc++
 
-build/ai_ids_h2o_ar_nn_lib.o: ./PES-IDS/ai_ids_h2o_ar_nn_lib.cpp | build
-	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
-
-# H2O-Ar NN DMS (dipx/dipy/dipz). Fixed-form F77, hence -std=legacy.
-# Only dipx.f defines tranfun and includes dms_interface.f; dipy/dipz call tranfun
-# as an external, so dipx.o must always be linked in alongside them.
-# The nets read their weights from PES-IDS/h2o-ar-dms/ using a path relative to the
-# working directory, so the driver has to be run from the repository root.
-H2OAR_DMS_FFLAGS := -c -fPIC -std=legacy -O2 -I./PES-IDS/h2o-ar-dms/ -J build
-
-build/dipx.o: ./PES-IDS/h2o-ar-dms/dipx.f ./PES-IDS/h2o-ar-dms/dms_interface.f | build
-	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
-
-build/dipy.o: ./PES-IDS/h2o-ar-dms/dipy.f | build
-	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
-
-build/dipz.o: ./PES-IDS/h2o-ar-dms/dipz.f | build
-	$(F) $(H2OAR_DMS_FFLAGS) $< -o $@
-
-H2OAR_DMS := build/dipx.o build/dipy.o build/dipz.o
-
-build/ai_ids_h2o_ar_nn.so: build/ai_ids_h2o_ar_nn_lib.o build/angles_handler.o $(H2OAR_DMS)
-	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
 
 ###########################################################
 ##################### CH4-CO2 #############################

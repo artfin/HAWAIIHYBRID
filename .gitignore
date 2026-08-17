@@ -9,6 +9,8 @@ build/*
 *.dat
 !/PES-IDS/h2o-h2o/h4o2.dms4.coeff.dat
 
+PES-IDS/h2o-ar-dms/
+
 docs/*.bbl
 docs/*.bcf
 docs/*.blg
@@ -20,5 +22,7 @@ docs/*.toc
 *.out
 !/tests/*.out
 !/example_configs/*.out
+
+run_*/
 
 TAGS
