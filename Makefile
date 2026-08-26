@@ -279,9 +279,8 @@ build/ind_dipole_h2o_ar.o: ./PES-IDS/ind_dipole_h2o_ar.cpp \
 		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
 	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
 
-build/perm_dipole_h2o_ar.o: ./PES-IDS/perm_dipole_h2o_ar.cpp \
-		./PES-IDS/h2o_ar_nn_dms_common.hpp | build
-	$(CXX) $(FLAGS) $(INC_EIGEN) -c -MD -fPIC -I./ $< -o $@ -lm
+build/perm_dipole_h2o_ar.o: ./PES-IDS/perm_dipole_h2o_ar.cpp | build
+	$(CXX) $(FLAGS) -c -MD -fPIC -I./ $< -o $@ -lm
 
 # H2O-Ar NN DMS (dipx/dipy/dipz). Fixed-form F77, hence -std=legacy.
 # Only dipx.f defines tranfun and includes dms_interface.f; dipy/dipz call tranfun
@@ -309,9 +308,8 @@ build/ind_dipole_h2o_ar.so: build/ind_dipole_h2o_ar.o \
 		build/h2o_ar_nn_dms_common.o build/angles_handler.o $(H2OAR_DMS)
 	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
 
-build/perm_dipole_h2o_ar.so: build/perm_dipole_h2o_ar.o \
-		build/h2o_ar_nn_dms_common.o build/angles_handler.o $(H2OAR_DMS)
-	$(CC) -shared -o $@ $^ -lm -lstdc++ -lgfortran
+build/perm_dipole_h2o_ar.so: build/perm_dipole_h2o_ar.o
+	$(CXX) -shared -o $@ $^ -lm
 
 ###########################################################
 ###################### H2O-H2O ############################

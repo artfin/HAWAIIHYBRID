@@ -20,9 +20,12 @@
 //
 // The second term is the monomer contribution embedded in the Liu fit, evaluated
 // at the upper edge of its R training range with the same angular coordinates.
-// The standalone build/perm_dipole_h2o_ar.so returns this identical reference,
-// allowing total, induced, permanent, and mixed contributions to be selected in
-// the same manner as for CO-Ar.
+// The standalone build/perm_dipole_h2o_ar.so instead returns a strictly
+// Ar-independent rigid-H2O dipole from SP2000.  It is intended for a physical
+// monomer rotational observable.  Because the Liu fit has a small
+// orientation-dependent asymptotic error, that physical permanent dipole is not
+// component-by-component identical to the R=20 reference subtracted by the
+// induced wrapper.
 //
 // Electronic-structure/fitting details: the Liu DMS is MP2/AVTZ and was fitted
 // over R=4-20 bohr with flexible Radau H2O coordinates.  Each Cartesian component

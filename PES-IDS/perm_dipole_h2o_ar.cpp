@@ -1,34 +1,52 @@
-// Monomer dipole embedded in the full Liu H2O-Ar NN surface.
+// Permanent dipole of the isolated rigid H2O monomer.
 //
-// This is the H2O-Ar analogue of perm_dipole_coar.c.  It exports the standard
-// HAWAIIHYBRID dipole_lab ABI and evaluates the full Liu DMS at R_ref=20 bohr,
-// the upper edge of its fitted interval.  The input H2O/angle coordinates are
-// retained and the actual pair separation is ignored.
+// HAWAIIHYBRID coordinates are
+//   q = [Phi, Theta, R, phi1T, theta1T, psi1T].
+// Only the H2O Euler angles q[3..5] describe the monomer orientation.  The
+// intermolecular coordinates q[0..2] are intentionally ignored, so neither the
+// position nor the direction of Ar can affect this observable.
 //
-// Ideally this large-R result would be one rigid-H2O vector independent of the Ar
-// direction.  In practice the Cartesian NN fit has a small orientation-dependent
-// asymptotic error.  Returning the same fitted reference used by
-// ind_dipole_h2o_ar.cpp guarantees full = induced + permanent component by component.
+// At the rigid geometry used by the H2O-Ar trajectory code, direct evaluation
+// of the Schwenke-Partridge 2000 DMS gives the body-fixed dipole
+//
+//   mu_body = (0, 0, -0.7359507568) a.u.
+//
+// The minus sign follows the convention in src/constants.h: H2O lies in the xz
+// plane, its C2 axis is z, and the hydrogen side points toward body-fixed -z.
 
+#include <cmath>
 #include <cstdio>
 
-#include "PES-IDS/h2o_ar_nn_dms_common.hpp"
+namespace {
+
+constexpr double mu_sp2000 = 0.7359507568;
+
+} // namespace
 
 extern "C" {
 
 void dipole_init(bool log)
 {
-    h2o_ar_nn_dms::initialize();
     if (log) {
-        std::printf("Embedded Liu H2O monomer dipole initialized "
-                    "(full DMS at R=%.1f bohr)\n",
-                    h2o_ar_nn_dms::monomer_reference_R_bohr);
+        std::printf("Rigid H2O SP2000 permanent dipole initialized "
+                    "(magnitude %.10f a.u.; Ar coordinates ignored)\n",
+                    mu_sp2000);
     }
 }
 
 void dipole_lab(double *q, double diplab[3])
 {
-    h2o_ar_nn_dms::embedded_monomer_dipole_lab(q, diplab);
+    // The H2O Cartesian geometry uses
+    //   S1 = Sz(phi1T)^T Sx(theta1T)^T Sz(psi1T)^T.
+    // Since mu_body lies on z, the final rotation about body-fixed z (psi1T)
+    // leaves it unchanged.  Expanding S1 * mu_body gives the expressions below.
+    const double phi1T = q[3];
+    const double theta1T = q[4];
+    const double sin_theta1T = std::sin(theta1T);
+
+    diplab[0] = -mu_sp2000 * std::sin(phi1T) * sin_theta1T;
+    diplab[1] =  mu_sp2000 * std::cos(phi1T) * sin_theta1T;
+    diplab[2] = -mu_sp2000 * std::cos(theta1T);
 }
 
 } // extern "C"
